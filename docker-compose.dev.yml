@@ -1,0 +1,76 @@
+# infrastructure/docker/docker-compose.dev.yml
+version: '3.8'
+
+services:
+  # Databases
+  postgres:
+    image: postgres:15-alpine
+    container_name: cab-postgres
+    environment:
+      POSTGRES_DB: cab_booking
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mongodb:
+    image: mongo:6
+    container_name: cab-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+
+  redis:
+    image: redis:7-alpine
+    container_name: cab-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+
+  # Backend Services
+  auth-service:
+    build:
+      context: ../../backend/services/auth
+      dockerfile: Dockerfile.dev
+    container_name: cab-auth-service
+    ports:
+      - "3001:3000"
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://postgres:password@postgres:5432/cab_booking
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: development_jwt_secret_key_123
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - ../../backend/services/auth:/app
+      - /app/node_modules
+
+  # Frontend
+  customer-app:
+    build:
+      context: ../../frontend/apps/customer
+      dockerfile: Dockerfile.dev
+    container_name: cab-customer-app
+    ports:
+      - "3000:3000"
+    volumes:
+      - ../../frontend/apps/customer:/app
+      - /app/node_modules
+    depends_on:
+      - auth-service
+
+volumes:
+  postgres_data:
+  mongodb_data:
