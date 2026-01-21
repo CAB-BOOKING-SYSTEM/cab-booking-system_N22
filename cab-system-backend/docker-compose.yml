@@ -1,0 +1,140 @@
+version: "3.8"
+
+services:
+  # --- 1. INFRASTRUCTURE ---
+  postgres:
+    image: postgres:16.11-alpine3.23
+    container_name: cab_postgres
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password123
+      # Bỏ dòng POSTGRES_DB: cab_db đi, vì ta sẽ tạo bằng script
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # 👇 QUAN TRỌNG: Mount file script để tạo 7 database một lúc
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  redis:
+    image: redis:alpine3.22
+    container_name: cab_redis
+    ports:
+      - "6379:6379"
+
+  rabbitmq:
+    image: rabbitmq:4.2.2-management-alpine
+    container_name: cab_rabbitmq
+    ports:
+      - "5672:5672" # Port để code kết nối (AMQP)
+      - "15672:15672" # Port để vào trang quản lý (Web UI Dashboard)
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: password123
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
+  auth-service:
+    build: ./services/auth-service
+    container_name: cab_auth
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - DB_URL=postgresql://admin:password123@postgres:5432/auth_db
+      - JWT_SECRET=supersecret
+    depends_on:
+      - postgres
+  booking-service:
+    build: ./services/booking-service
+    container_name: cab_booking
+    ports:
+      - "3002:3002"
+    environment:
+      - PORT=3002
+      - DB_URL=postgresql://admin:password123@postgres:5432/booking_db
+      - RABBITMQ_URL=amqp://admin:password123@rabbitmq:5672
+    depends_on:
+      - postgres
+
+  driver-service:
+    build: ./services/driver-service
+    container_name: cab_driver
+    ports:
+      - "3003:3003"
+    environment:
+      - PORT=3003
+      - DB_URL=postgresql://admin:password123@postgres:5432/driver_db
+    depends_on:
+      - postgres
+
+  notification-service:
+    build: ./services/notification-service
+    container_name: cab_notification
+    ports:
+      - "3004:3004"
+    environment:
+      - PORT=3004
+      - DB_URL=postgresql://admin:password123@postgres:5432/notification_db
+    depends_on:
+      - postgres
+  payment-service:
+    build: ./services/payment-service
+    container_name: cab_payment
+    ports:
+      - "3005:3005"
+    environment:
+      - PORT=3005
+      - DB_URL=postgresql://admin:password123@postgres:5432/payment_db
+      - RABBITMQ_URL=amqp://admin:password123@rabbitmq:5672
+    depends_on:
+      - postgres
+
+  pricing-service:
+    build: ./services/pricing-service
+    container_name: cab_pricing
+    ports:
+      - "3006:3006"
+    environment:
+      - PORT=3006
+      - DB_URL=postgresql://admin:password123@postgres:5432/pricing_db
+    depends_on:
+      - postgres
+
+  review-service:
+    build: ./services/review-service
+    container_name: rb_preview
+    ports:
+      - "3007:3007"
+    environment:
+      - PORT=3007
+      - DB_URL=postgresql://admin:password123@postgres:5432/review_db
+    depends_on:
+      - postgres
+
+  ride-service:
+    build: ./services/ride-service
+    container_name: cab_ride
+    ports:
+      - "3008:3008"
+    environment:
+      - PORT=3008
+      - DB_URL=postgresql://admin:password123@postgres:5432/ride_db
+      - RABBITMQ_URL=amqp://admin:password123@rabbitmq:5672
+    depends_on:
+      - postgres
+
+  user-service:
+    build: ./services/user-service
+    container_name: cab_user
+    ports:
+      - "3009:3009"
+    environment:
+      - PORT=3009
+      - DB_URL=postgresql://admin:password123@postgres:5432/user_db
+    depends_on:
+      - postgres
+
+volumes:
+  postgres_data:
+  rabbitmq_data:
