@@ -1,21 +1,27 @@
-# 1. Chọn môi trường Node.js nhẹ nhất (Alpine)
-FROM node:18-alpine
-
-# 2. Tạo thư mục làm việc trong container
+# Stage 1: Base
+FROM node:24.14.0-bookworm-slim AS base
 WORKDIR /app
-
-# 3. Copy file định nghĩa thư viện trước (để tận dụng cache)
 COPY package*.json ./
 
-# 4. Cài đặt thư viện
-RUN npm install --production
-
-# 5. Copy toàn bộ code nguồn vào
+# Stage 2: Development
+FROM base AS development
+# Cài đặt toàn bộ package kể cả devDependencies
+RUN npm install
 COPY . .
+# Biến môi trường nhận giá trị port từ docker-compose (lấy từ thư mục gốc)
+ARG PORT
+ENV PORT=${PORT}
+EXPOSE ${PORT}
+# Lệnh chạy server trong lúc code
+CMD ["npm", "run", "dev"]
 
-# 6. Mở cổng (Port) mà service này chạy
-# Lưu ý: Sửa số 3001 này thành port tương ứng của từng service (User: 3002, Booking: 3003...)
-EXPOSE 3006
-
-# 7. Lệnh chạy server
-CMD ["npm", "start"] 
+# Stage 3: Production
+FROM base AS production
+# Chỉ cài đặt package cần thiết cho production
+RUN npm install --omit=dev
+COPY . .
+ARG PORT
+ENV PORT=${PORT}
+EXPOSE ${PORT}
+# Lệnh deploy
+CMD ["npm", "start"]
