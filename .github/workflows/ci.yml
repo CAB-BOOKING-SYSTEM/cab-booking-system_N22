@@ -9,6 +9,8 @@ on:
     branches:
       - main
       - develop
+      - "feat/**"
+      - "fix/**"
 
 jobs:
   changes:
@@ -94,7 +96,7 @@ jobs:
         run: npm run lint --if-present
 
   build-docker-auth:
-    needs: changes
+    needs: [changes, lint-backend]
     if: needs.changes.outputs.auth == 'true'
     name: Docker Build Test (Auth Service)
     runs-on: ubuntu-latest
@@ -121,4 +123,4 @@ jobs:
 
       - name: Check docker-compose.yml config
         working-directory: cab-system-backend
-        run: docker-compose config
+        run: docker compose config -q
