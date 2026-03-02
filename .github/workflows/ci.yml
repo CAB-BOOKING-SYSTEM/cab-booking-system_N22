@@ -95,18 +95,40 @@ jobs:
         working-directory: cab-system-frontend/${{ matrix.app }}
         run: npm run lint --if-present
 
-  build-docker-auth:
+  build-docker-backend:
     needs: [changes, lint-backend]
-    if: needs.changes.outputs.auth == 'true'
-    name: Docker Build Test (Auth Service)
+    # Chỉ build nếu có thay đổi trong phần backend
+    if: needs.changes.outputs.backend == 'true'
+    name: Docker Build Test (${{ matrix.service }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [
+            auth, 
+            booking, 
+            driver, 
+            notification, 
+            payment, 
+            pricing, 
+            review, 
+            ride, 
+            user
+        ]
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Build Dockerfile for auth-service
-        working-directory: cab-system-backend/services/auth-service
-        run: docker build -t auth-service:ci .
+      - name: Build Dockerfile
+        # Tự động nhảy vào đúng thư mục của từng service
+        working-directory: cab-system-backend/services/${{ matrix.service }}-service
+        run: |
+          # Kiểm tra xem Dockerfile có tồn tại không trước khi build
+          if [ -f Dockerfile ]; then
+            docker build -t cab-system-${{ matrix.service }}:ci .
+          else
+            echo "Dockerfile not found in ${{ matrix.service }}-service, skipping..."
+          fi
 
   validate-docker-compose:
     needs: changes
