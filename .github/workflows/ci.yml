@@ -1,0 +1,124 @@
+name: CI Pipeline
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+  push:
+    branches:
+      - main
+      - develop
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      auth: ${{ steps.filter.outputs.auth }}
+      infra: ${{ steps.filter.outputs.infra }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          base: ${{ github.event.pull_request.base.ref || 'main' }}
+          filters: |
+            backend: 'cab-system-backend/services/**'
+            frontend: 'cab-system-frontend/**'
+            auth: 'cab-system-backend/services/auth-service/**'
+            infra:
+              - 'cab-system-backend/docker-compose.yml'
+              - 'cab-system-backend/init.sql'
+
+  lint-backend:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    name: Lint Backend (${{ matrix.service }})
+    runs-on: ubuntu-latest
+    container: node:24.14.0-bookworm-slim
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          [
+            auth,
+            booking,
+            driver,
+            notification,
+            payment,
+            pricing,
+            review,
+            ride,
+            user,
+          ]
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        working-directory: cab-system-backend/services/${{ matrix.service }}-service
+        run: npm install
+
+      - name: Check Syntax / Lint
+        working-directory: cab-system-backend/services/${{ matrix.service }}-service
+        run: npm run lint --if-present
+
+  lint-frontend:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    name: Lint Frontend (${{ matrix.app }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [customer-app, driver-app]
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+          cache-dependency-path: "cab-system-frontend/${{ matrix.app }}/package-lock.json"
+
+      - name: Install Dependencies
+        working-directory: cab-system-frontend/${{ matrix.app }}
+        run: npm install
+
+      - name: Check Syntax / Lint
+        working-directory: cab-system-frontend/${{ matrix.app }}
+        run: npm run lint --if-present
+
+  build-docker-auth:
+    needs: changes
+    if: needs.changes.outputs.auth == 'true'
+    name: Docker Build Test (Auth Service)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Build Dockerfile for auth-service
+        working-directory: cab-system-backend/services/auth-service
+        run: docker build -t auth-service:ci .
+
+  validate-docker-compose:
+    needs: changes
+    if: needs.changes.outputs.infra == 'true' || needs.changes.outputs.backend == 'true'
+    name: Validate Docker Compose
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Create .env file
+        working-directory: cab-system-backend
+        run: echo "${{ secrets.ENV_FILE }}" > .env
+
+      - name: Check docker-compose.yml config
+        working-directory: cab-system-backend
+        run: docker-compose config
