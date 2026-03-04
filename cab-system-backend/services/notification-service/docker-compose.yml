@@ -1,0 +1,130 @@
+version: "3.8"
+
+# ──────────────────────────────────────────────────────────────────────────────
+# NETWORK: Tất cả service giao tiếp nội bộ qua network riêng, không lộ ra ngoài
+# ──────────────────────────────────────────────────────────────────────────────
+networks:
+  cab-net:
+    driver: bridge
+
+# ──────────────────────────────────────────────────────────────────────────────
+# VOLUMES: Persistent data cho MongoDB và Redis
+# ──────────────────────────────────────────────────────────────────────────────
+volumes:
+  # mongo_data đã xóa — dùng MongoDB Atlas (cloud)
+  redis_data:
+
+services:
+  # ── 1. Zookeeper ─────────────────────────────────────────────────────────────
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    container_name: zookeeper
+    restart: unless-stopped
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - cab-net
+    # Đã xóa bỏ hoàn toàn khối healthcheck gây lỗi
+
+  # ── 2. Kafka Broker ───────────────────────────────────────────────────────────
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: kafka
+    restart: unless-stopped
+    depends_on:
+      - zookeeper # Chỉ cần Zookeeper khởi tạo xong là Kafka chạy, bỏ qua healthcheck
+    ports:
+      - "9092:9092"   # Dùng khi gọi từ host (dev / test)
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_LOG4J_LOGGERS: >-
+        kafka.controller=WARN,
+        kafka.producer.async.DefaultEventHandler=WARN,
+        state.change.logger=WARN
+    networks:
+      - cab-net
+
+  # ── 3. MongoDB đã xóa — kết nối Atlas qua MONGO_URI trong file .env ──────────
+
+  # ── 4. Redis ──────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    networks:
+      - cab-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  # ── 5. Notification Service ───────────────────────────────────────────────────
+  notification-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner          # Chỉ build đến stage runner (production)
+    image: cab-notification-service:latest
+    restart: unless-stopped
+    ports:
+      - "3004:3004"           # Dev: 1 replica → 1 port cố định, không conflict
+    environment:
+      - NODE_ENV=production
+      - PORT=3004
+      # DB_URL lấy từ .env (MONGO_URI=mongodb+srv://...)
+      - DB_URL=${MONGO_URI}
+      - KAFKA_BROKER=kafka:29092
+      - REDIS_URL=redis://redis:6379
+    env_file:
+      - .env                  # Firebase credentials & JWT_SECRET nạp từ file .env
+    depends_on:
+      kafka:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    networks:
+      - cab-net
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3004/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    # ── Swarm-compatible deploy block ──────────────────────────────────────────
+    deploy:
+      mode: replicated
+      replicas: 1             # docker-compose dev: 1 replica (replicas > 1 chỉ dùng với docker stack deploy)
+      update_config:
+        parallelism: 1        # Rolling update: cập nhật từng replica một
+        delay: 10s
+        failure_action: rollback
+      rollback_config:
+        parallelism: 1
+        delay: 5s
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 256M

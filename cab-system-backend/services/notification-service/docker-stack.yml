@@ -1,0 +1,215 @@
+version: "3.8"
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Docker Stack — Production Swarm Deployment
+#
+# Dùng file này để deploy lên cụm Docker Swarm (multi-node).
+# Khởi chạy:  docker stack deploy -c docker-stack.yml cab_system
+# Kiểm tra:   docker stack services cab_system
+# Gỡ bỏ:      docker stack rm cab_system
+#
+# Lưu ý: "build:" không được hỗ trợ trong Swarm → image phải được push
+#         lên registry trước (GitLab / Docker Hub / ECR).
+# ──────────────────────────────────────────────────────────────────────────────
+
+networks:
+  cab-overlay:
+    driver: overlay          # overlay: cho phép các container trên nhiều node giao tiếp
+    attachable: true         # Cho phép container standalone attach vào network này (debug)
+
+volumes:
+  mongo_data:
+    driver: local
+  redis_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+services:
+  # ── 1. Zookeeper ─────────────────────────────────────────────────────────────
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_SYNC_LIMIT: 2
+    networks:
+      - cab-overlay
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager   # Zookeeper chạy trên manager node để ổn định hơn
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+
+  # ── 2. Kafka Broker ───────────────────────────────────────────────────────────
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_RETENTION_HOURS: 168
+    networks:
+      - cab-overlay
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+
+  # ── 3. MongoDB ────────────────────────────────────────────────────────────────
+  mongodb:
+    image: mongo:6.0
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - cab-overlay
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager   # Data node nên cố định trên 1 node để volume nhất quán
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+
+  # ── 4. Redis ──────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    networks:
+      - cab-overlay
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+
+  # ── 5. Notification Service ───────────────────────────────────────────────────
+  notification-service:
+    # Image phải được push lên registry trước khi deploy Swarm
+    # VD: docker build -t registry.gitlab.com/<group>/cab-notification-service:v1.0.0 .
+    #     docker push registry.gitlab.com/<group>/cab-notification-service:v1.0.0
+    image: registry.gitlab.com/hien-projects/cab-notification-service:v1.0.0
+    ports:
+      - "3004:3004"
+    environment:
+      - NODE_ENV=production
+      - PORT=3004
+      - KAFKA_BROKER=kafka:29092
+      - DB_URL=mongodb://mongodb:27017/cab_notifications
+      - REDIS_URL=redis://redis:6379
+    # Secrets nhạy cảm (Firebase, JWT) nên dùng Docker Secrets thay vì env
+    # secrets:
+    #   - firebase_service_account
+    networks:
+      - cab-overlay
+    deploy:
+      mode: replicated
+      replicas: 3              # 3 replicas để chịu tải cao & HA
+      resources:
+        limits:
+          cpus: "0.50"         # Tối đa 50% của 1 core CPU mỗi replica
+          memory: 512M
+        reservations:
+          cpus: "0.10"
+          memory: 128M
+      update_config:
+        parallelism: 1         # Rolling update: từng replica một
+        delay: 15s
+        order: start-first     # Bật replica mới TRƯỚC khi tắt cái cũ → zero downtime
+        failure_action: rollback
+        monitor: 30s           # Theo dõi 30s sau update, nếu fail → auto rollback
+      rollback_config:
+        parallelism: 1
+        delay: 10s
+        order: stop-first
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+      placement:
+        constraints:
+          - node.role == worker  # Chạy app trên worker nodes, giải phóng manager
+        preferences:
+          - spread: node.id      # Phân bổ đều replicas ra các worker khác nhau
+
+  # ── 6. Prometheus ─────────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    ports:
+      - "9090:9090"
+    volumes:
+      - prometheus_data:/prometheus
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"   # Giữ data 15 ngày
+      - "--web.enable-lifecycle"               # Cho phép reload config không cần restart
+    networks:
+      - cab-overlay
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+
+  # ── 7. Grafana ────────────────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.4.0
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=cab_admin_2024
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/etc/grafana/provisioning/dashboards/notification-service.json
+    networks:
+      - cab-overlay
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
