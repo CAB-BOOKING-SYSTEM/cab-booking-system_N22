@@ -1,27 +1,43 @@
 require("dotenv").config();
 
-const express = require("express");
-const cors = require("cors");
-const app = express();
+const app = require("./src/app");
+const messageBroker = require("./src/utils/messageBroker");
+const PaymentService = require("./src/services/paymentsService");
 
-const PORT = process.env.PORT || 3000;
-const DB_URL = process.env.DB_URL || "Chua_cau_hinh_DB";
+const RETRY_INTERVAL = 5000;
 
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+async function waitForRabbitMQ(retries = 10) {
+  for (let i = 1; i <= retries; i++) {
+    try {
+      await messageBroker.connect();
+      console.log("RabbitMQ connected");
+      return; // thành công → thoát
+    } catch (error) {
+      console.error(`RabbitMQ not ready (attempt ${i}/${retries}), retrying in ${RETRY_INTERVAL / 1000}s...`);
+      await new Promise((res) => setTimeout(res, RETRY_INTERVAL));
+    }
+  }
+  throw new Error("Cannot connect to RabbitMQ after max retries");
+}
 
-console.log(`APP đang chạy ở chế độ: ${process.env.NODE_ENV}`);
-console.log(`Database URL: ${DB_URL}`);
+async function start() {
+  try {
+    console.log("Connecting to RabbitMQ...");
+    await waitForRabbitMQ();
 
-app.get("/", (req, res) => {
-  res.status(200).json({
-    message: "Service is running smoothly!",
-    timestamp: new Date().toISOString(),
-    service: "User Service",
-  });
-});
+    // Đợi kết nối ổn định rồi mới start consumer
+    const paymentService = new PaymentService();
+    await paymentService.startConsumer();
+    console.log("Consumer started");
 
-app.listen(PORT, () => {
-  console.log(`🚀 Service is running on port ${PORT}`);
-});
+    const PORT = process.env.PORT || 3005;
+    app.listen(PORT, () => {
+      console.log(`Payment service running on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error("Service start failed:", error.message);
+    process.exit(1);
+  }
+}
+
+start();

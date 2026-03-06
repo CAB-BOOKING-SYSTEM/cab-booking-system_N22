@@ -1,27 +1,31 @@
-require("dotenv").config();
+require("dotenv").config()
 
-const express = require("express");
-const cors = require("cors");
-const app = express();
+const app = require("./src/app")
+const messageBroker = require("./src/utils/messageBroker")
+const paymentService = require("./src/services/paymentsService")
 
-const PORT = process.env.PORT || 3000;
-const DB_URL = process.env.DB_URL || "Chua_cau_hinh_DB";
+async function start() {
+  try {
 
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+    console.log("Connecting RabbitMQ...")
 
-console.log(`APP đang chạy ở chế độ: ${process.env.NODE_ENV}`);
-console.log(`Database URL: ${DB_URL}`);
+    await messageBroker.connect()
 
-app.get("/", (req, res) => {
-  res.status(200).json({
-    message: "Service is running smoothly!",
-    timestamp: new Date().toISOString(),
-    service: "Payment Service",
-  });
-});
+    console.log("RabbitMQ connected")
 
-app.listen(PORT, () => {
-  console.log(`🚀 Service is running on port ${PORT}`);
-});
+    // start consumer
+    await paymentService.startConsumer()
+
+    app.listen(process.env.PORT, () => {
+      console.log(`Payment service running on ${process.env.PORT}`)
+    })
+
+  } catch (error) {
+
+    console.error("Service start failed:", error)
+    process.exit(1)
+
+  }
+}
+
+start()
