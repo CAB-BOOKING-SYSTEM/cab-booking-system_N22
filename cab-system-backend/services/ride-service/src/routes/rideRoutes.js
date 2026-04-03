@@ -1,17 +1,11 @@
-const express = require("express")
+const express = require("express");
+const router = express.Router();
+const rideController = require("../controllers/rideController");
 
-const router = express.Router()
+router.post("/", (req, res) => rideController.createRide(req, res));
+router.get("/", (req, res) => rideController.getAllRides(req, res));
+router.get("/:id", (req, res) => rideController.getRideById(req, res));
+router.patch("/:id/status", (req, res) => rideController.updateRideStatus(req, res));
+router.delete("/:id", (req, res) => rideController.deleteRide(req, res));
 
-const rideController = require("../controllers/rideController")
-
-router.post("/", rideController.createRide)
-
-router.get("/", rideController.getAllRides)
-
-router.get("/:id", rideController.getRideById)
-
-router.put("/:id", rideController.updateRide)
-
-router.delete("/:id", rideController.deleteRide)
-
-module.exports = router
+module.exports = router;

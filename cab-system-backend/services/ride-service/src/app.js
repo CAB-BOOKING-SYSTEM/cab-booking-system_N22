@@ -1,17 +1,47 @@
-const express = require("express")
-const mongoose = require("mongoose")
+require("dotenv").config();
+const express = require("express");
+const cors = require("cors");
+const morgan = require("morgan");
+const { connectDB, sequelize } = require("./config/database");
+const { connectRabbitMQ } = require("./events/rabbitmq");
+const rideRoutes = require("./routes/rideRoutes");
 
-const rideRoutes = require("./routes/rideRoutes")
+const app = express();
+const PORT = process.env.PORT || 3008;
 
-const app = express()
+// Middleware
+app.use(cors());
+app.use(express.json());
+app.use(morgan("dev"));
 
-app.use(express.json())
+// Routes
+app.use("/rides", rideRoutes);
 
-mongoose.connect("mongodb://localhost:27017/cab-booking")
-.then(()=> console.log("MongoDB connected"))
+// Health check
+app.get("/health", (req, res) => {
+  res.json({ service: "Ride Service", status: "UP", timestamp: new Date() });
+});
 
-app.use("/rides", rideRoutes)
+// Start Server
+const start = async () => {
+  try {
+    // Connect to Database
+    await connectDB();
+    
+    // Sync models
+    await sequelize.sync({ alter: true });
+    console.log("Database models synced");
 
-app.listen(3002, () => {
-  console.log("Server running on port 3002")
-})
+    // Connect to RabbitMQ
+    await connectRabbitMQ();
+
+    app.listen(PORT, () => {
+      console.log(`🚀 Ride Service running on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error("Unable to start the server:", error);
+    process.exit(1);
+  }
+};
+
+start();

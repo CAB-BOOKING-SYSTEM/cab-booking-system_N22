@@ -1,37 +1,55 @@
-const mongoose = require("mongoose")
+const { DataTypes } = require("sequelize");
+const { sequelize } = require("../config/database");
 
-const RideSchema = new mongoose.Schema({
-  passengerId: {
-    type: String,
-    required: true
+const Ride = sequelize.define("Ride", {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true,
   },
-
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false,
+  },
   driverId: {
-    type: String
+    type: DataTypes.UUID,
+    allowNull: true,
   },
-
-  pickup: {
-    lat: Number,
-    lng: Number
+  pickupLocation: {
+    type: DataTypes.STRING,
+    allowNull: false,
   },
-
-  destination: {
-    lat: Number,
-    lng: Number
+  dropoffLocation: {
+    type: DataTypes.STRING,
+    allowNull: false,
   },
-
   status: {
-    type: String,
-    enum: [
-      "SEARCHING_DRIVER",
-      "DRIVER_ASSIGNED",
-      "IN_PROGRESS",
+    type: DataTypes.ENUM(
+      "PENDING",
+      "SEARCHING",
+      "ACCEPTED",
+      "ARRIVED",
+      "STARTED",
       "COMPLETED",
       "CANCELLED"
-    ],
-    default: "SEARCHING_DRIVER"
-  }
+    ),
+    defaultValue: "PENDING",
+  },
+  fare: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: true,
+  },
+  startTime: {
+    type: DataTypes.DATE,
+    allowNull: true,
+  },
+  endTime: {
+    type: DataTypes.DATE,
+    allowNull: true,
+  },
+}, {
+  tableName: "rides",
+  timestamps: true,
+});
 
-}, { timestamps: true })
-
-module.exports = mongoose.model("Ride", RideSchema)
+module.exports = Ride;
