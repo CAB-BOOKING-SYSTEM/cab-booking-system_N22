@@ -1,6 +1,17 @@
 version: "3.8"
 
 services:
+  gateway:
+    build:
+      context: ./gateway # Đường dẫn tương ứng với thư mục gateway trong ảnh
+    container_name: cab_gateway
+    ports:
+      - "${GATEWAY_PORT}:3000" # Giả sử gateway chạy port 3000
+    depends_on:
+      - auth-service
+      - user-service
+      - booking-service
+
   # --- 1. INFRASTRUCTURE ---
   postgres:
     image: postgres:16.11-alpine3.23
@@ -47,7 +58,7 @@ services:
   # --- 2. MICROSERVICES ---
   auth-service:
     build:
-      context: ./services/auth-service
+      context: cab-system-backend/services/auth-service
       target: development
       args:
         - PORT=${AUTH_PORT}
@@ -63,7 +74,7 @@ services:
 
   booking-service:
     build:
-      context: ./services/booking-service
+      context: cab-system-backend/services/booking-service
       target: development
       args:
         - PORT=${BOOKING_PORT}
@@ -79,7 +90,7 @@ services:
 
   driver-service:
     build:
-      context: ./services/driver-service
+      context: cab-system-backend/services/driver-service
       target: development
       args:
         - PORT=${DRIVER_PORT}
@@ -94,7 +105,7 @@ services:
 
   notification-service:
     build:
-      context: ./services/notification-service
+      context: cab-system-backend/services/notification-service
       target: development
       args:
         - PORT=${NOTIFICATION_PORT}
@@ -109,7 +120,7 @@ services:
 
   payment-service:
     build:
-      context: ./services/payment-service
+      context: cab-system-backend/services/payment-service
       target: development
       args:
         - PORT=${PAYMENT_PORT}
@@ -125,7 +136,7 @@ services:
 
   pricing-service:
     build:
-      context: ./services/pricing-service
+      context: cab-system-backend/services/pricing-service
       target: development
       args:
         - PORT=${PRICING_PORT}
@@ -140,7 +151,7 @@ services:
 
   review-service:
     build:
-      context: ./services/review-service
+      context: cab-system-backend/services/review-service
       target: development
       args:
         - PORT=${REVIEW_PORT}
@@ -155,7 +166,7 @@ services:
 
   ride-service:
     build:
-      context: ./services/ride-service
+      context: cab-system-backend/services/ride-service
       target: development
       args:
         - PORT=${RIDE_PORT}
@@ -171,7 +182,7 @@ services:
 
   user-service:
     build:
-      context: ./services/user-service
+      context: cab-system-backend/services/user-service
       target: development
       args:
         - PORT=${USER_PORT}
