@@ -71,9 +71,11 @@ const start = async () => {
     process.exit(1);
   }
 
-  await mongoose.connect(DB_URL);
+  console.log("⏳ [MongoDB] Đang kết nối tới database..."); // Thêm dòng này để biết nó đang chạy
+  await mongoose.connect(DB_URL, {
+    serverSelectionTimeoutMS: 5000, // Nếu sau 5 giây không kết nối được thì báo lỗi ngay, không treo máy
+  });
   console.log("✅ [MongoDB] Kết nối thành công tới database");
-
   // 2. Khởi tạo Socket.IO (phải trước runConsumer vì consumer gọi sendNotificationToUser)
   initSocket(server);
 

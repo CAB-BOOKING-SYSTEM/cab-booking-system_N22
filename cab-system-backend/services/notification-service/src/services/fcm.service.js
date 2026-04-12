@@ -17,30 +17,42 @@ const admin = require("firebase-admin");
 const path = require("path");
 const fs = require("fs");
 
+const isTruthy = (value) =>
+  ["true", "1", "yes", "on"].includes(String(value).toLowerCase());
+
 // ─── Khởi tạo Firebase Admin SDK (singleton) ─────────────────────────────────
 
 const SERVICE_ACCOUNT_PATH = path.resolve(
   __dirname,
-  "../config/cab-booking-firebase-adminsdk.json"
+  "../config/cab-booking-firebase-adminsdk.json",
 );
 
 if (admin.apps.length === 0) {
   try {
-    const accountPath =
-      process.env.FIREBASE_SERVICE_ACCOUNT_PATH || SERVICE_ACCOUNT_PATH;
+    const fcmEnabled = isTruthy(process.env.FCM_ENABLED ?? "true");
 
-    if (!fs.existsSync(accountPath)) {
-      console.warn(
-        `⚠️  [FCM] Không tìm thấy service account tại: ${accountPath}`
-      );
-      console.warn(
-        "⚠️  [FCM] Push Notification bị vô hiệu hoá đến khi cấu hình đúng file."
-      );
+    if (!fcmEnabled) {
+      console.warn("⚠️  [FCM] FCM đang tắt (FCM_ENABLED=false)");
     } else {
-      admin.initializeApp({
-        credential: admin.credential.cert(require(accountPath)),
-      });
-      console.log("✅ [FCM] Firebase Admin SDK đã khởi tạo thành công");
+      const configuredPath =
+        process.env.FIREBASE_SERVICE_ACCOUNT_PATH || SERVICE_ACCOUNT_PATH;
+      const accountPath = path.isAbsolute(configuredPath)
+        ? configuredPath
+        : path.resolve(process.cwd(), configuredPath);
+
+      if (!fs.existsSync(accountPath)) {
+        console.warn(
+          `⚠️  [FCM] Không tìm thấy service account tại: ${accountPath}`,
+        );
+        console.warn(
+          "⚠️  [FCM] Push Notification bị vô hiệu hoá đến khi cấu hình đúng file.",
+        );
+      } else {
+        admin.initializeApp({
+          credential: admin.credential.cert(require(accountPath)),
+        });
+        console.log("✅ [FCM] Firebase Admin SDK đã khởi tạo thành công");
+      }
     }
   } catch (err) {
     console.error("❌ [FCM] Lỗi khởi tạo Firebase Admin SDK:", err.message);
@@ -77,7 +89,7 @@ const getUserDeviceToken = async (userId) => {
 const sendPushNotification = async (userId, title, body, payloadData = {}) => {
   if (admin.apps.length === 0) {
     console.warn(
-      `⚠️  [FCM] Firebase chưa khởi tạo — bỏ qua push cho userId=${userId}`
+      `⚠️  [FCM] Firebase chưa khởi tạo — bỏ qua push cho userId=${userId}`,
     );
     return false;
   }
@@ -112,14 +124,14 @@ const sendPushNotification = async (userId, title, body, payloadData = {}) => {
 
     const messageId = await admin.messaging().send(message);
     console.log(
-      `📲 [FCM] Gửi thành công — userId=${userId}, messageId=${messageId}`
+      `📲 [FCM] Gửi thành công — userId=${userId}, messageId=${messageId}`,
     );
     return true;
   } catch (error) {
     const code = error?.errorInfo?.code || error?.code || "unknown";
     console.error(
       `❌ [FCM] Gửi thất bại — userId=${userId}, code=${code}:`,
-      error.message
+      error.message,
     );
     return false;
   }

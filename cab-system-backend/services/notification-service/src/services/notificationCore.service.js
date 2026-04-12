@@ -1,18 +1,3 @@
-/**
- * @file notificationCore.service.js
- * @description Business Logic layer cho Notification Service.
- *
- * Tầng Service chịu trách nhiệm:
- *   1. Build nội dung thông báo từ event payload
- *   2. Kiểm tra idempotency (tránh duplicate)
- *   3. Lưu Notification vào MongoDB
- *   4. Quyết định kênh gửi: Socket.IO (online) → FCM (offline) → failed
- *   5. Cung cấp các hàm query cho Controller (REST API)
- *
- * Controller và Consumer Service chỉ được gọi vào tầng này,
- * KHÔNG được tương tác trực tiếp với Model hay 3rd-party SDK.
- */
-
 "use strict";
 
 const Notification = require("../models/notification.model");
@@ -25,196 +10,378 @@ const {
   duplicateEventsTotal,
 } = require("../metrics/prometheus");
 
-// ─── Hằng số ──────────────────────────────────────────────────────────────────
+const DEFAULT_USER_ROLE = "customer";
 
-/** Map từ topic → Notification.type lưu trong DB */
-const TOPIC_TO_TYPE = {
-  "ride.assigned": "RideAssigned",
-  "payment.completed": "PaymentCompleted",
-  "payment.failed": "PaymentFailed",
-};
+function getEventData(notificationPayload = {}) {
+  if (notificationPayload && typeof notificationPayload.data === "object") {
+    return notificationPayload.data || {};
+  }
 
-// ─── Build nội dung thông báo theo từng topic ─────────────────────────────────
+  return notificationPayload || {};
+}
 
-/**
- * Map event payload → { userId, userRole, title, body } để lưu DB và hiển thị.
- *
- * @param {string} topic   - Topic/routing-key name
- * @param {Object} payload - Parsed payload từ message broker
- * @returns {{ userId: string, userRole: string, title: string, body: string }}
- * @throws {Error} Nếu topic không được hỗ trợ
- */
-function buildNotificationContent(topic, payload) {
-  switch (topic) {
-    case "ride.assigned":
+function toPascalCase(routingKey) {
+  return String(routingKey || "notification.event")
+    .split(".")
+    .filter(Boolean)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join("");
+}
+
+function getNotificationType(routingKey) {
+  return toPascalCase(routingKey);
+}
+
+function formatCurrency(value, currency) {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  const numericValue = Number(value);
+  if (Number.isNaN(numericValue)) {
+    return `${value}${currency ? ` ${currency}` : ""}`.trim();
+  }
+
+  const formatted = new Intl.NumberFormat("vi-VN").format(numericValue);
+  return currency ? `${formatted} ${currency}` : formatted;
+}
+
+function extractRecipientId(notificationPayload = {}) {
+  const eventData = getEventData(notificationPayload);
+
+  return (
+    eventData.userId ||
+    eventData.customerId ||
+    eventData.driverId ||
+    notificationPayload.userId ||
+    notificationPayload.customerId ||
+    notificationPayload.driverId ||
+    null
+  );
+}
+
+function inferUserRole(routingKey, notificationPayload = {}, recipientId) {
+  const eventData = getEventData(notificationPayload);
+
+  if (eventData.userRole) {
+    return eventData.userRole;
+  }
+
+  if (routingKey.startsWith("driver.") || recipientId === eventData.driverId) {
+    return "driver";
+  }
+
+  if (recipientId === eventData.customerId) {
+    return "customer";
+  }
+
+  return DEFAULT_USER_ROLE;
+}
+
+function buildNotificationContent(routingKey, notificationPayload = {}) {
+  const eventData = getEventData(notificationPayload);
+  const recipientId = extractRecipientId(notificationPayload);
+  const userRole = inferUserRole(routingKey, notificationPayload, recipientId);
+  const bookingRef =
+    eventData.bookingId || eventData.rideId || eventData.requestId || "";
+  const moneyText = formatCurrency(eventData.amount, eventData.currency);
+
+  switch (routingKey) {
+    case "user.registered":
       return {
-        userId: payload.customerId,
-        userRole: "customer",
-        title: "Tài xế đang đến!",
-        body: `Tài xế ${payload.driverInfo.name} đang đến đón bạn bằng xe ${payload.driverInfo.vehicle} — BKS: ${payload.driverInfo.plateNumber}. ETA: ${payload.etaMinutes} phút.`,
+        userId: recipientId,
+        userRole,
+        title: "Chào mừng bạn đến với Cab Booking",
+        body: `Tài khoản của bạn đã được tạo thành công${eventData.fullName ? `, ${eventData.fullName}` : ""}.`,
       };
-
+    case "user.profile_updated":
+      return {
+        userId: recipientId,
+        userRole,
+        title: "Hồ sơ đã được cập nhật",
+        body: `Thông tin hồ sơ của bạn vừa được cập nhật${eventData.updatedFields ? `: ${Array.isArray(eventData.updatedFields) ? eventData.updatedFields.join(", ") : eventData.updatedFields}` : ""}.`,
+      };
+    case "user.account_banned":
+      return {
+        userId: recipientId,
+        userRole,
+        title: "Tài khoản đã bị tạm khóa",
+        body: `Tài khoản của bạn đã bị tạm khóa${eventData.reason ? ` vì: ${eventData.reason}` : ""}.`,
+      };
+    case "booking.created":
+      return {
+        userId: recipientId,
+        userRole,
+        title: "Đơn đặt xe đã được tạo",
+        body: `Đơn đặt xe${bookingRef ? ` #${bookingRef}` : ""} của bạn đã được ghi nhận thành công.`,
+      };
+    case "booking.accepted":
+      return {
+        userId: recipientId,
+        userRole,
+        title: "Đơn đặt xe đã được xác nhận",
+        body: `Đơn đặt xe${bookingRef ? ` #${bookingRef}` : ""} đã được tài xế xác nhận${eventData.driverName ? ` bởi ${eventData.driverName}` : ""}.`,
+      };
+    case "booking.cancelled":
+      return {
+        userId: recipientId,
+        userRole,
+        title: "Đơn đặt xe đã bị hủy",
+        body: `Đơn đặt xe${bookingRef ? ` #${bookingRef}` : ""} đã bị hủy${eventData.reason ? ` vì: ${eventData.reason}` : ""}.`,
+      };
+    case "ride.arrived":
+      return {
+        userId: recipientId,
+        userRole,
+        title: "Tài xế đã đến điểm đón",
+        body: `Tài xế${eventData.driverName ? ` ${eventData.driverName}` : ""} đã đến điểm đón${eventData.rideId ? ` cho chuyến #${eventData.rideId}` : ""}.`,
+      };
+    case "ride.started":
+      return {
+        userId: recipientId,
+        userRole,
+        title: "Chuyến đi đã bắt đầu",
+        body: `Chuyến đi${eventData.rideId ? ` #${eventData.rideId}` : ""} đã bắt đầu.`,
+      };
+    case "ride.completed":
+      return {
+        userId: recipientId,
+        userRole,
+        title: "Chuyến đi đã hoàn thành",
+        body: `Chuyến đi${eventData.rideId ? ` #${eventData.rideId}` : ""} đã hoàn thành. Cảm ơn bạn đã đồng hành cùng Cab Booking.`,
+      };
+    case "driver.ride.completed":
+      return {
+        userId: recipientId,
+        userRole,
+        title: "Chuyến đi đã hoàn thành",
+        body: `Cảm ơn bạn đã hoàn thành chuyến đi${eventData.rideId ? ` #${eventData.rideId}` : ""}.`,
+      };
     case "payment.completed":
       return {
-        userId: payload.userId,
-        userRole: payload.userRole || "customer",
+        userId: recipientId,
+        userRole,
         title: "Thanh toán thành công ✅",
-        body: `Chuyến đi ${
-          payload.rideId
-        } đã được thanh toán ${payload.amount.toLocaleString("vi-VN")} ${
-          payload.currency
-        } qua ${payload.paymentMethod}. Mã GD: ${payload.transactionId}.`,
+        body: `Chuyến đi${eventData.rideId ? ` #${eventData.rideId}` : ""} đã được thanh toán thành công${moneyText ? ` với số tiền ${moneyText}` : ""}${eventData.paymentMethod ? ` qua ${eventData.paymentMethod}` : ""}.`,
       };
-
     case "payment.failed":
       return {
-        userId: payload.userId,
-        userRole: "customer",
+        userId: recipientId,
+        userRole,
         title: "Thanh toán thất bại ❌",
-        body: `Không thể thanh toán chuyến đi ${
-          payload.rideId
-        } (${payload.amount.toLocaleString("vi-VN")} ${
-          payload.currency
-        }). Lý do: ${
-          payload.reason
-        }. Vui lòng thử lại hoặc đổi phương thức thanh toán.`,
+        body: `Không thể thanh toán cho chuyến đi${eventData.rideId ? ` #${eventData.rideId}` : ""}${moneyText ? ` (${moneyText})` : ""}${eventData.reason ? `: ${eventData.reason}` : ""}.`,
       };
-
+    case "pricing.estimate.calculated":
+      return {
+        userId: recipientId,
+        userRole,
+        title: "Đã có ước tính giá cước",
+        body: `Giá ước tính cho hành trình${eventData.rideId ? ` #${eventData.rideId}` : ""}${formatCurrency(eventData.estimatedPrice, eventData.currency) ? ` là ${formatCurrency(eventData.estimatedPrice, eventData.currency)}` : ""}.`,
+      };
+    case "pricing.promotion.applied":
+      return {
+        userId: recipientId,
+        userRole,
+        title: "Khuyến mãi đã được áp dụng",
+        body: `Ưu đãi${eventData.promotionCode ? ` ${eventData.promotionCode}` : ""} đã được áp dụng${formatCurrency(eventData.discountAmount, eventData.currency) ? `, giảm ${formatCurrency(eventData.discountAmount, eventData.currency)}` : ""}.`,
+      };
+    case "review.created":
+      return {
+        userId: recipientId,
+        userRole,
+        title: "Bạn vừa có một đánh giá mới",
+        body: `Có một đánh giá mới liên quan đến chuyến đi${eventData.rideId ? ` #${eventData.rideId}` : ""}${eventData.rating ? ` với số sao ${eventData.rating}` : ""}.`,
+      };
     default:
-      throw new Error(`[NotificationCore] Topic không được hỗ trợ: ${topic}`);
+      return {
+        userId: recipientId,
+        userRole,
+        title: notificationPayload.title || "Thông báo mới",
+        body:
+          notificationPayload.body ||
+          `Bạn vừa có một thông báo mới (${routingKey}).`,
+      };
   }
 }
 
-// ─── Core: Xử lý & phân phối thông báo ───────────────────────────────────────
+function normalizeNotificationPayload(routingKey, notificationPayload = {}) {
+  const eventData = getEventData(notificationPayload);
+  const content =
+    notificationPayload.title && notificationPayload.body
+      ? {
+          userId:
+            notificationPayload.userId ||
+            extractRecipientId(notificationPayload),
+          userRole:
+            notificationPayload.userRole ||
+            inferUserRole(
+              routingKey,
+              notificationPayload,
+              extractRecipientId(notificationPayload),
+            ),
+          title: notificationPayload.title,
+          body: notificationPayload.body,
+        }
+      : buildNotificationContent(routingKey, notificationPayload);
 
-/**
- * Luồng xử lý chính khi nhận một event:
- *   validate → idempotency → save DB → Socket.IO → FCM (fallback)
- *
- * Được gọi bởi consumer sau khi validate schema.
- *
- * @param {string} topic   - Topic hoặc routing key
- * @param {Object} payload - Parsed & validated JSON payload
- * @returns {Promise<void>}
- */
-async function processNotification(topic, payload) {
-  // ── 1. Kiểm tra idempotency ────────────────────────────────────────────────
-  if (payload.eventId) {
+  return {
+    eventId:
+      notificationPayload.eventId ||
+      notificationPayload.id ||
+      eventData.eventId ||
+      null,
+    eventType:
+      notificationPayload.eventType ||
+      notificationPayload.eventName ||
+      notificationPayload.type ||
+      routingKey,
+    routingKey,
+    timestamp:
+      notificationPayload.timestamp ||
+      eventData.timestamp ||
+      new Date().toISOString(),
+    source:
+      notificationPayload.source ||
+      notificationPayload.sourceService ||
+      eventData.source ||
+      eventData.sourceService ||
+      null,
+    userId: content.userId,
+    userRole: content.userRole,
+    title: content.title,
+    body: content.body,
+    data: eventData,
+    metaData: notificationPayload.metaData || notificationPayload,
+  };
+}
+
+async function processNotification(routingKey, payload = {}) {
+  const normalizedPayload = normalizeNotificationPayload(routingKey, payload);
+
+  if (normalizedPayload.eventId) {
     const existing = await Notification.findOne({
-      sourceEventId: payload.eventId,
+      sourceEventId: normalizedPayload.eventId,
     }).lean();
 
     if (existing) {
       console.warn(
-        `⚠️  [NotificationCore] Duplicate event bị bỏ qua — eventId=${payload.eventId}, topic=${topic}`,
+        `⚠️  [NotificationCore] Duplicate event bị bỏ qua — eventId=${normalizedPayload.eventId}, routingKey=${routingKey}`,
       );
-      // ── Metric: đếm duplicate bị bỏ qua ──────────────────────────────────
-      duplicateEventsTotal.inc({ topic });
-      brokerMessagesProcessedTotal.inc({ topic, status: "duplicate" });
+      duplicateEventsTotal.inc({ topic: routingKey });
+      brokerMessagesProcessedTotal.inc({
+        topic: routingKey,
+        status: "duplicate",
+      });
       return;
     }
   }
 
-  // ── Bắt đầu đo latency xử lý ──────────────────────────────────────────────
-  const stopTimer = notificationProcessingDuration.startTimer({ topic });
+  const stopTimer = notificationProcessingDuration.startTimer({
+    topic: routingKey,
+  });
 
   try {
-    // ── 2. Build nội dung thông báo ──────────────────────────────────────────
-    const { userId, userRole, title, body } = buildNotificationContent(
-      topic,
-      payload,
-    );
+    const notificationType = getNotificationType(routingKey);
 
-    // ── 3. Lưu vào MongoDB (status = pending) ────────────────────────────────
+    if (!normalizedPayload.userId) {
+      throw new Error(
+        `[NotificationCore] Không xác định được userId cho routingKey=${routingKey}`,
+      );
+    }
+
     const notification = new Notification({
-      userId,
-      userRole,
-      type: TOPIC_TO_TYPE[topic],
-      title,
-      body,
-      payload,
-      sourceEventId: payload.eventId,
+      userId: normalizedPayload.userId,
+      userRole: normalizedPayload.userRole || DEFAULT_USER_ROLE,
+      type: notificationType,
+      title: normalizedPayload.title,
+      body: normalizedPayload.body,
+      payload: normalizedPayload,
+      metaData: normalizedPayload.metaData,
+      sourceEventId: normalizedPayload.eventId,
       status: "pending",
     });
 
     await notification.save();
-    stopTimer(); // Ghi nhận thời gian đến sau khi save DB thành công
+    stopTimer();
+
     console.log(
-      `💾 [NotificationCore] Đã lưu — type=${TOPIC_TO_TYPE[topic]}, userId=${userId}`,
+      `💾 [NotificationCore] Đã lưu — type=${notificationType}, userId=${normalizedPayload.userId}`,
     );
 
-    // ── 4. Thử gửi qua Socket.IO (user online) ──────────────────────────────
-    const isOnline = sendNotificationToUser(userId, "new_notification", {
-      notificationId: notification._id,
-      type: TOPIC_TO_TYPE[topic],
-      title,
-      body,
-      data: payload,
-    });
+    const isOnline = sendNotificationToUser(
+      normalizedPayload.userId,
+      "new_notification",
+      {
+        notificationId: notification._id,
+        type: notificationType,
+        title: normalizedPayload.title,
+        body: normalizedPayload.body,
+        routingKey,
+        data: normalizedPayload.data,
+        metaData: normalizedPayload.metaData,
+      },
+    );
 
     if (isOnline) {
       await notification.markAsSent("in_app_socket");
-      // ── Metric: gửi thành công qua Socket ─────────────────────────────────
       notificationsSentTotal.inc({
-        type: TOPIC_TO_TYPE[topic],
+        type: notificationType,
         delivery_method: "in_app_socket",
       });
-      brokerMessagesProcessedTotal.inc({ topic, status: "success" });
+      brokerMessagesProcessedTotal.inc({
+        topic: routingKey,
+        status: "success",
+      });
       console.log(
-        `✅ [NotificationCore] Socket.IO thành công — userId=${userId}, status=sent`,
+        `✅ [NotificationCore] Socket.IO thành công — userId=${normalizedPayload.userId}, status=sent`,
       );
       return;
     }
 
-    // ── 5. Fallback: gửi Push Notification qua FCM (user offline) ───────────
     console.log(
-      `[NotificationCore] User offline, thử FCM fallback — userId=${userId}`,
+      `[NotificationCore] User offline, thử FCM fallback — userId=${normalizedPayload.userId}`,
     );
 
-    const isPushSent = await sendPushNotification(userId, title, body, payload);
+    const isPushSent = await sendPushNotification(
+      normalizedPayload.userId,
+      normalizedPayload.title,
+      normalizedPayload.body,
+      normalizedPayload,
+    );
 
     if (isPushSent) {
       await notification.markAsSent("push_fcm");
-      // ── Metric: gửi thành công qua FCM ────────────────────────────────────
       notificationsSentTotal.inc({
-        type: TOPIC_TO_TYPE[topic],
+        type: notificationType,
         delivery_method: "push_fcm",
       });
-      brokerMessagesProcessedTotal.inc({ topic, status: "success" });
+      brokerMessagesProcessedTotal.inc({
+        topic: routingKey,
+        status: "success",
+      });
       console.log(
-        `✅ [NotificationCore] FCM thành công — userId=${userId}, status=sent`,
+        `✅ [NotificationCore] FCM thành công — userId=${normalizedPayload.userId}, status=sent`,
       );
     } else {
       await notification.recordFailure(
         "Socket offline and FCM delivery failed",
       );
-      // ── Metric: cả 2 kênh đều thất bại ────────────────────────────────────
       notificationsSentTotal.inc({
-        type: TOPIC_TO_TYPE[topic],
+        type: notificationType,
         delivery_method: "failed",
       });
-      brokerMessagesProcessedTotal.inc({ topic, status: "error" });
+      brokerMessagesProcessedTotal.inc({ topic: routingKey, status: "error" });
       console.error(
-        `❌ [NotificationCore] Cả 2 kênh thất bại — userId=${userId}, status=failed`,
+        `❌ [NotificationCore] Cả 2 kênh thất bại — userId=${normalizedPayload.userId}, status=failed`,
       );
     }
-  } catch (err) {
-    stopTimer(); // Đảm bảo timer luôn được dừng dù có lỗi
-    brokerMessagesProcessedTotal.inc({ topic, status: "error" });
-    throw err; // Re-throw để consumer xử lý retry
+  } catch (error) {
+    stopTimer();
+    brokerMessagesProcessedTotal.inc({ topic: routingKey, status: "error" });
+    throw error;
   }
 }
 
-// ─── Query Methods (dùng cho REST API / Controller) ──────────────────────────
-
-/**
- * Lấy danh sách thông báo của một user, có phân trang.
- *
- * @param {string} userId    - Business ID của user
- * @param {number} [page=1]  - Trang hiện tại
- * @param {number} [limit=20] - Số bản ghi mỗi trang
- * @returns {Promise<{ data: Object[], total: number, page: number, totalPages: number }>}
- */
 async function getNotificationsByUser(userId, page = 1, limit = 20) {
   const skip = (page - 1) * limit;
 
@@ -235,42 +402,23 @@ async function getNotificationsByUser(userId, page = 1, limit = 20) {
   };
 }
 
-/**
- * Đếm số thông báo chưa đọc của user (dùng cho badge count trên UI).
- *
- * @param {string} userId - Business ID của user
- * @returns {Promise<number>}
- */
 async function countUnread(userId) {
   return Notification.countUnread(userId);
 }
 
-/**
- * Đánh dấu một thông báo là đã đọc.
- * Chỉ cho phép đánh dấu nếu thông báo thuộc về đúng userId (tránh IDOR).
- *
- * @param {string} notificationId - MongoDB _id của thông báo
- * @param {string} userId         - Business ID của user thực hiện hành động
- * @returns {Promise<Object|null>} Document đã cập nhật, hoặc null nếu không tìm thấy
- */
 async function markOneAsRead(notificationId, userId) {
   const notification = await Notification.findOne({
     _id: notificationId,
-    userId, // Đảm bảo user chỉ đọc thông báo của chính mình
+    userId,
   });
 
-  if (!notification) return null;
+  if (!notification) {
+    return null;
+  }
 
   return notification.markAsRead();
 }
 
-/**
- * Đánh dấu TẤT CẢ thông báo chưa đọc của user là đã đọc.
- * Dùng khi user nhấn "Đánh dấu tất cả đã đọc".
- *
- * @param {string} userId - Business ID của user
- * @returns {Promise<number>} Số lượng bản ghi đã được cập nhật
- */
 async function markAllAsRead(userId) {
   const result = await Notification.updateMany(
     { userId, status: "sent" },
@@ -286,5 +434,7 @@ module.exports = {
   countUnread,
   markOneAsRead,
   markAllAsRead,
-  TOPIC_TO_TYPE, // Export để consumer service dùng khi subscribe topics
+  getNotificationType,
+  buildNotificationContent,
+  normalizeNotificationPayload,
 };

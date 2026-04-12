@@ -1,249 +1,440 @@
-/**
- * @file src/rabbitmq/consumer.js
- * @description RabbitMQ Consumer cho Notification Service
- */
-
 "use strict";
 
-const amqp = require("amqplib");
-const Notification = require("../models/notification.model");
-const { sendNotificationToUser } = require("../socket/socketHandler");
-const { sendPushNotification } = require("../services/fcm.service");
+const amqplib = require("amqplib");
+const { processNotification } = require("../services/notificationCore.service");
 
-let connection;
-let channel;
-let consumerTag;
-let reconnectTimer;
-let isShuttingDown = false;
+const QUEUE_NAME = "notification_queue";
 
-// Khai báo Exchange cho User Service
-const USER_EXCHANGE = "user.events";
-const QUEUE_NAME = "notification_user_queue";
-const RECONNECT_DELAY_MS = 5000;
-
-// Danh sách các sự kiện cần lắng nghe từ User Service JSON
-const ROUTING_KEYS = [
-  "user.registered",
-  "user.profile_updated",
-  "user.account_banned",
+const EXCHANGES = [
+  {
+    name: "user.events",
+    routingKeys: [
+      "user.registered",
+      "user.profile_updated",
+      "user.account_banned",
+    ],
+  },
+  {
+    name: "booking.events",
+    routingKeys: ["booking.created", "booking.accepted", "booking.cancelled"],
+  },
+  {
+    name: "ride.events",
+    routingKeys: ["ride.arrived", "ride.started", "ride.completed"],
+  },
+  {
+    name: "driver.events",
+    routingKeys: ["driver.ride.completed"],
+  },
+  {
+    name: "payment.events",
+    routingKeys: ["payment.completed", "payment.failed"],
+  },
+  {
+    name: "pricing.events",
+    routingKeys: ["pricing.estimate.calculated", "pricing.promotion.applied"],
+  },
+  {
+    name: "review.events",
+    routingKeys: ["review.created"],
+  },
 ];
 
-const clearReconnectTimer = () => {
-  if (reconnectTimer) {
-    clearTimeout(reconnectTimer);
-    reconnectTimer = null;
+let connection = null;
+let channel = null;
+let consumerTag = null;
+
+function parseMessageContent(message) {
+  const rawContent = message.content.toString("utf8");
+  return JSON.parse(rawContent);
+}
+
+function getEventData(payload = {}) {
+  if (payload && typeof payload.data === "object") {
+    return payload.data || {};
   }
-};
 
-const scheduleReconnect = () => {
-  if (isShuttingDown || reconnectTimer) return;
+  return payload || {};
+}
 
-  reconnectTimer = setTimeout(() => {
-    reconnectTimer = null;
-    runConsumer().catch((err) => {
-      console.error("❌ [RabbitMQ] Reconnect thất bại:", err.message);
-      scheduleReconnect();
-    });
-  }, RECONNECT_DELAY_MS);
+function extractRecipientId(payload = {}) {
+  const eventData = getEventData(payload);
 
-  console.warn(
-    `⚠️  [RabbitMQ] Mất kết nối broker. Sẽ thử kết nối lại sau ${RECONNECT_DELAY_MS}ms`,
+  return (
+    eventData.userId ||
+    eventData.customerId ||
+    eventData.driverId ||
+    payload.userId ||
+    payload.customerId ||
+    payload.driverId ||
+    null
   );
-};
+}
 
-const parseMessage = (msg) => {
-  try {
-    return JSON.parse(msg.content.toString("utf-8"));
-  } catch (error) {
-    console.error(
-      "❌ [RabbitMQ] Message không phải JSON hợp lệ:",
-      error.message,
-    );
+function inferUserRole(routingKey, payload = {}, recipientId) {
+  const eventData = getEventData(payload);
+
+  if (eventData.userRole) {
+    return eventData.userRole;
+  }
+
+  if (routingKey.startsWith("driver.") || recipientId === eventData.driverId) {
+    return "driver";
+  }
+
+  if (recipientId === eventData.customerId) {
+    return "customer";
+  }
+
+  return "customer";
+}
+
+function formatCurrency(value, currency) {
+  if (value === undefined || value === null) {
     return null;
   }
-};
 
-const pickUserId = (payload) => {
-  const data = payload?.data || {};
-  return payload?.userId || data.userId || data.id || null;
-};
+  const numericValue = Number(value);
+  if (Number.isNaN(numericValue)) {
+    return `${value}${currency ? ` ${currency}` : ""}`.trim();
+  }
 
-const buildUserNotificationContent = (routingKey, payload) => {
-  const data = payload?.data || {};
+  const formatted = new Intl.NumberFormat("vi-VN").format(numericValue);
+  return currency ? `${formatted} ${currency}` : formatted;
+}
+
+function buildNotificationPayload(routingKey, payload = {}) {
+  const eventData = getEventData(payload);
+  const recipientId = extractRecipientId(payload);
+  const userRole = inferUserRole(routingKey, payload, recipientId);
+  const bookingRef =
+    eventData.bookingId || eventData.rideId || eventData.requestId || "";
+  const eventId = payload.eventId || eventData.eventId || null;
+  const eventType =
+    payload.eventType || payload.eventName || payload.type || routingKey;
+  const timestamp =
+    payload.timestamp || eventData.timestamp || new Date().toISOString();
+  const source =
+    payload.source ||
+    payload.sourceService ||
+    eventData.source ||
+    eventData.sourceService ||
+    null;
+  const moneyText = formatCurrency(eventData.amount, eventData.currency);
 
   switch (routingKey) {
-    case "user.registered": {
-      const fullName = data.fullName || data.name || "bạn";
+    case "user.registered":
       return {
-        title: "Chào mừng đến với Cab Booking",
-        body: `Xin chào ${fullName}, tài khoản của bạn đã được tạo thành công.`,
+        eventId,
+        eventType,
+        timestamp,
+        source,
+        routingKey,
+        userId: recipientId,
+        userRole,
+        title: "Chào mừng bạn đến với Cab Booking",
+        body: `Tài khoản của bạn đã được tạo thành công${eventData.fullName ? `, ${eventData.fullName}` : ""}.`,
+        data: eventData,
+        metaData: payload,
       };
-    }
-
-    case "user.profile_updated": {
-      const updatedFields = Array.isArray(data.updatedFields)
-        ? data.updatedFields
-        : Object.keys(data).filter((key) => key !== "userId");
-      const fieldsText = updatedFields.length
-        ? updatedFields.join(", ")
-        : "thông tin hồ sơ";
+    case "user.profile_updated":
       return {
+        eventId,
+        eventType,
+        timestamp,
+        source,
+        routingKey,
+        userId: recipientId,
+        userRole,
         title: "Hồ sơ đã được cập nhật",
-        body: `Bạn vừa cập nhật thành công: ${fieldsText}.`,
+        body: `Thông tin hồ sơ của bạn vừa được cập nhật${eventData.updatedFields ? `: ${Array.isArray(eventData.updatedFields) ? eventData.updatedFields.join(", ") : eventData.updatedFields}` : ""}.`,
+        data: eventData,
+        metaData: payload,
       };
-    }
-
-    case "user.account_banned": {
-      const reason =
-        data.banReasonDescription ||
-        data.reason ||
-        "vi phạm chính sách hệ thống";
+    case "user.account_banned":
       return {
-        title: "Tài khoản bị tạm khóa",
-        body: `Tài khoản của bạn đã bị khóa. Lý do: ${reason}.`,
+        eventId,
+        eventType,
+        timestamp,
+        source,
+        routingKey,
+        userId: recipientId,
+        userRole,
+        title: "Tài khoản đã bị tạm khóa",
+        body: `Tài khoản của bạn đã bị tạm khóa${eventData.reason ? ` vì: ${eventData.reason}` : ""}.`,
+        data: eventData,
+        metaData: payload,
       };
-    }
-
+    case "booking.created":
+      return {
+        eventId,
+        eventType,
+        timestamp,
+        source,
+        routingKey,
+        userId: recipientId,
+        userRole,
+        title: "Đơn đặt xe đã được tạo",
+        body: `Đơn đặt xe${bookingRef ? ` #${bookingRef}` : ""} của bạn đã được ghi nhận thành công.`,
+        data: eventData,
+        metaData: payload,
+      };
+    case "booking.accepted":
+      return {
+        eventId,
+        eventType,
+        timestamp,
+        source,
+        routingKey,
+        userId: recipientId,
+        userRole,
+        title: "Đơn đặt xe đã được xác nhận",
+        body: `Đơn đặt xe${bookingRef ? ` #${bookingRef}` : ""} đã được tài xế xác nhận${eventData.driverName ? ` bởi ${eventData.driverName}` : ""}.`,
+        data: eventData,
+        metaData: payload,
+      };
+    case "booking.cancelled":
+      return {
+        eventId,
+        eventType,
+        timestamp,
+        source,
+        routingKey,
+        userId: recipientId,
+        userRole,
+        title: "Đơn đặt xe đã bị hủy",
+        body: `Đơn đặt xe${bookingRef ? ` #${bookingRef}` : ""} đã bị hủy${eventData.reason ? ` vì: ${eventData.reason}` : ""}.`,
+        data: eventData,
+        metaData: payload,
+      };
+    case "ride.arrived":
+      return {
+        eventId,
+        eventType,
+        timestamp,
+        source,
+        routingKey,
+        userId: recipientId,
+        userRole,
+        title: "Tài xế đã đến điểm đón",
+        body: `Tài xế${eventData.driverName ? ` ${eventData.driverName}` : ""} đã đến điểm đón${eventData.rideId ? ` cho chuyến #${eventData.rideId}` : ""}.`,
+        data: eventData,
+        metaData: payload,
+      };
+    case "ride.started":
+      return {
+        eventId,
+        eventType,
+        timestamp,
+        source,
+        routingKey,
+        userId: recipientId,
+        userRole,
+        title: "Chuyến đi đã bắt đầu",
+        body: `Chuyến đi${eventData.rideId ? ` #${eventData.rideId}` : ""} đã bắt đầu.`,
+        data: eventData,
+        metaData: payload,
+      };
+    case "ride.completed":
+      return {
+        eventId,
+        eventType,
+        timestamp,
+        source,
+        routingKey,
+        userId: recipientId,
+        userRole,
+        title: "Chuyến đi đã hoàn thành",
+        body: `Chuyến đi${eventData.rideId ? ` #${eventData.rideId}` : ""} đã hoàn thành. Cảm ơn bạn đã đồng hành cùng Cab Booking.`,
+        data: eventData,
+        metaData: payload,
+      };
+    case "driver.ride.completed":
+      return {
+        eventId,
+        eventType,
+        timestamp,
+        source,
+        routingKey,
+        userId: recipientId,
+        userRole,
+        title: "Chuyến đi đã hoàn thành",
+        body: `Cảm ơn bạn đã hoàn thành chuyến đi${eventData.rideId ? ` #${eventData.rideId}` : ""}.`,
+        data: eventData,
+        metaData: payload,
+      };
+    case "payment.completed":
+      return {
+        eventId,
+        eventType,
+        timestamp,
+        source,
+        routingKey,
+        userId: recipientId,
+        userRole,
+        title: "Thanh toán thành công ✅",
+        body: `Chuyến đi${eventData.rideId ? ` #${eventData.rideId}` : ""} đã được thanh toán thành công${moneyText ? ` với số tiền ${moneyText}` : ""}${eventData.paymentMethod ? ` qua ${eventData.paymentMethod}` : ""}.`,
+        data: eventData,
+        metaData: payload,
+      };
+    case "payment.failed":
+      return {
+        eventId,
+        eventType,
+        timestamp,
+        source,
+        routingKey,
+        userId: recipientId,
+        userRole,
+        title: "Thanh toán thất bại ❌",
+        body: `Không thể thanh toán cho chuyến đi${eventData.rideId ? ` #${eventData.rideId}` : ""}${moneyText ? ` (${moneyText})` : ""}${eventData.reason ? `: ${eventData.reason}` : ""}.`,
+        data: eventData,
+        metaData: payload,
+      };
+    case "pricing.estimate.calculated":
+      return {
+        eventId,
+        eventType,
+        timestamp,
+        source,
+        routingKey,
+        userId: recipientId,
+        userRole,
+        title: "Đã có ước tính giá cước",
+        body: `Giá ước tính cho hành trình${eventData.rideId ? ` #${eventData.rideId}` : ""}${formatCurrency(eventData.estimatedPrice, eventData.currency) ? ` là ${formatCurrency(eventData.estimatedPrice, eventData.currency)}` : ""}.`,
+        data: eventData,
+        metaData: payload,
+      };
+    case "pricing.promotion.applied":
+      return {
+        eventId,
+        eventType,
+        timestamp,
+        source,
+        routingKey,
+        userId: recipientId,
+        userRole,
+        title: "Khuyến mãi đã được áp dụng",
+        body: `Ưu đãi${eventData.promotionCode ? ` ${eventData.promotionCode}` : ""} đã được áp dụng${formatCurrency(eventData.discountAmount, eventData.currency) ? `, giảm ${formatCurrency(eventData.discountAmount, eventData.currency)}` : ""}.`,
+        data: eventData,
+        metaData: payload,
+      };
+    case "review.created":
+      return {
+        eventId,
+        eventType,
+        timestamp,
+        source,
+        routingKey,
+        userId: recipientId,
+        userRole,
+        title: "Bạn vừa có một đánh giá mới",
+        body: `Có một đánh giá mới liên quan đến chuyến đi${eventData.rideId ? ` #${eventData.rideId}` : ""}${eventData.rating ? ` với số sao ${eventData.rating}` : ""}.`,
+        data: eventData,
+        metaData: payload,
+      };
     default:
       return {
-        title: "Thông báo hệ thống",
-        body: "Bạn có một thông báo mới từ hệ thống.",
+        eventId,
+        eventType,
+        timestamp,
+        source,
+        routingKey,
+        userId: recipientId,
+        userRole,
+        title: payload.title || "Thông báo mới",
+        body: payload.body || `Bạn vừa có một thông báo mới (${routingKey}).`,
+        data: eventData,
+        metaData: payload,
       };
   }
-};
+}
 
-/**
- * Xử lý từng User event: build nội dung, lưu DB và phát qua Socket/FCM.
- */
-const handleUserEvent = async (routingKey, payload) => {
-  const userId = pickUserId(payload);
-  if (!userId) {
-    throw new Error(
-      `Không tìm thấy userId trong payload của event ${routingKey}`,
-    );
+async function ensureTopology(channel) {
+  await channel.assertQueue(QUEUE_NAME, { durable: true });
+
+  for (const exchange of EXCHANGES) {
+    await channel.assertExchange(exchange.name, "topic", { durable: true });
+    for (const routingKey of exchange.routingKeys) {
+      await channel.bindQueue(QUEUE_NAME, exchange.name, routingKey);
+    }
+  }
+}
+
+async function runConsumer() {
+  if (connection && channel) {
+    return { connection, channel };
   }
 
-  const data = payload?.data || {};
-  const { title, body } = buildUserNotificationContent(routingKey, payload);
+  const rabbitUrl = process.env.RABBITMQ_URL || "amqp://localhost:5672";
+  connection = await amqplib.connect(rabbitUrl);
 
-  const notification = new Notification({
-    userId,
-    userRole: payload?.userRole || data?.userRole || "customer",
-    type: "SystemAlert",
-    title,
-    body,
-    payload,
-    sourceEventId: payload?.eventId,
-    status: "pending",
+  connection.on("error", (error) => {
+    console.error("❌ [RabbitMQ] Connection error:", error.message);
   });
 
-  await notification.save();
-
-  const socketPayload = {
-    notificationId: notification._id,
-    type: notification.type,
-    title,
-    body,
-    data: payload,
-  };
-
-  const isOnline = sendNotificationToUser(
-    userId,
-    "new_notification",
-    socketPayload,
-  );
-  if (isOnline) {
-    await notification.markAsSent("in_app_socket");
-    return;
-  }
-
-  const isPushSent = await sendPushNotification(userId, title, body, payload);
-  if (isPushSent) {
-    await notification.markAsSent("push_fcm");
-    return;
-  }
-
-  await notification.recordFailure("Socket offline and FCM delivery failed");
-};
-
-const runConsumer = async () => {
-  if (isShuttingDown) return;
-  if (connection && channel) return;
-
-  const rabbitMqUrl = process.env.RABBITMQ_URL || "amqp://localhost:5672";
-
-  try {
-    connection = await amqp.connect(rabbitMqUrl);
-    connection.on("error", (err) => {
-      console.error("❌ [RabbitMQ] Connection error:", err.message);
-    });
-
-    connection.on("close", () => {
-      console.warn("⚠️  [RabbitMQ] Connection closed");
-      connection = null;
-      channel = null;
-      consumerTag = null;
-      scheduleReconnect();
-    });
-
-    channel = await connection.createChannel();
-    await channel.prefetch(10);
-
-    await channel.assertExchange(USER_EXCHANGE, "topic", { durable: true });
-    await channel.assertQueue(QUEUE_NAME, { durable: true });
-
-    for (const routingKey of ROUTING_KEYS) {
-      await channel.bindQueue(QUEUE_NAME, USER_EXCHANGE, routingKey);
-      console.log(`📡 [RabbitMQ] Bound queue with routing key: ${routingKey}`);
-    }
-
-    const consumeResult = await channel.consume(
-      QUEUE_NAME,
-      async (msg) => {
-        if (!msg) return;
-
-        const routingKey = msg.fields.routingKey;
-        const payload = parseMessage(msg);
-
-        if (!payload) {
-          channel.ack(msg);
-          return;
-        }
-
-        try {
-          await handleUserEvent(routingKey, payload);
-          channel.ack(msg);
-          console.log(`✅ [RabbitMQ] Đã xử lý event: ${routingKey}`);
-        } catch (err) {
-          console.error(
-            `❌ [RabbitMQ] Xử lý event thất bại (${routingKey}):`,
-            err.message,
-          );
-          channel.nack(msg, false, true);
-        }
-      },
-      { noAck: false },
-    );
-
-    consumerTag = consumeResult.consumerTag;
-    clearReconnectTimer();
-    console.log(
-      `✅ [RabbitMQ] Consumer đã sẵn sàng tại exchange=${USER_EXCHANGE}, queue=${QUEUE_NAME}`,
-    );
-  } catch (error) {
-    console.error("❌ [RabbitMQ] Lỗi khởi tạo Consumer:", error.message);
+  connection.on("close", () => {
+    console.warn("⚠️  [RabbitMQ] Connection closed");
     connection = null;
     channel = null;
     consumerTag = null;
-    scheduleReconnect();
-    throw error;
-  }
-};
+  });
 
-const disconnectConsumer = async () => {
-  isShuttingDown = true;
-  clearReconnectTimer();
+  channel = await connection.createChannel();
 
+  channel.on("error", (error) => {
+    console.error("❌ [RabbitMQ] Channel error:", error.message);
+  });
+
+  channel.on("close", () => {
+    console.warn("⚠️  [RabbitMQ] Channel closed");
+    channel = null;
+    consumerTag = null;
+  });
+
+  await ensureTopology(channel);
+  await channel.prefetch(10);
+
+  const consumeResult = await channel.consume(
+    QUEUE_NAME,
+    async (message) => {
+      if (!message) {
+        return;
+      }
+
+      const routingKey = message.fields.routingKey;
+
+      try {
+        const parsedPayload = parseMessageContent(message);
+        const notificationPayload = buildNotificationPayload(
+          routingKey,
+          parsedPayload,
+        );
+
+        await processNotification(routingKey, notificationPayload);
+        channel.ack(message);
+      } catch (error) {
+        console.error(
+          `❌ [RabbitMQ] Xử lý message thất bại — routingKey=${routingKey}:`,
+          error.message,
+        );
+        if (channel) {
+          channel.nack(message, false, false);
+        }
+      }
+    },
+    { noAck: false },
+  );
+
+  consumerTag = consumeResult.consumerTag;
+  console.log(
+    `✅ [RabbitMQ] Consumer đã sẵn sàng trên queue ${QUEUE_NAME} với ${EXCHANGES.length} exchanges`,
+  );
+
+  return { connection, channel };
+}
+
+async function disconnectConsumer() {
   try {
     if (channel && consumerTag) {
       await channel.cancel(consumerTag);
@@ -251,17 +442,23 @@ const disconnectConsumer = async () => {
     if (channel) {
       await channel.close();
     }
+  } finally {
+    channel = null;
+    consumerTag = null;
+  }
+
+  try {
     if (connection) {
       await connection.close();
     }
-
-    consumerTag = null;
-    channel = null;
+  } finally {
     connection = null;
-    console.log("🔌 [RabbitMQ] Đã ngắt kết nối an toàn");
-  } catch (err) {
-    console.error("❌ [RabbitMQ] Lỗi khi ngắt kết nối:", err.message);
   }
-};
+}
 
-module.exports = { runConsumer, disconnectConsumer };
+module.exports = {
+  runConsumer,
+  disconnectConsumer,
+  QUEUE_NAME,
+  EXCHANGES,
+};
