@@ -4,6 +4,9 @@ const cors = require("cors");
 const morgan = require("morgan");
 const { connectDB, sequelize } = require("./config/database");
 const { connectRabbitMQ } = require("./events/rabbitmq");
+const { connectKafka } = require("./events/kafka");
+const { initWebSocket } = require("./gateway/websocket");
+const http = require("http");
 const rideRoutes = require("./routes/rideRoutes");
 
 const app = express();
@@ -32,10 +35,15 @@ const start = async () => {
     await sequelize.sync({ alter: true });
     console.log("Database models synced");
 
-    // Connect to RabbitMQ
+    // Connect Brokers
     await connectRabbitMQ();
+    await connectKafka();
 
-    app.listen(PORT, () => {
+    // Create HTTP & WebSocket Gateway
+    const server = http.createServer(app);
+    initWebSocket(server);
+
+    server.listen(PORT, () => {
       console.log(`🚀 Ride Service running on port ${PORT}`);
     });
   } catch (error) {

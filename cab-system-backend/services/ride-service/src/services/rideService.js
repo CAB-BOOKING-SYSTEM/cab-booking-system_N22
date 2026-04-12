@@ -1,9 +1,11 @@
 const Ride = require("../models/rideModel");
 const { publishEvent } = require("../events/rabbitmq");
+const RideStateMachine = require("../utils/rideStateMachine");
 
 class RideService {
   async createRide(rideData) {
     try {
+      rideData.status = "CREATED";
       const ride = await Ride.create(rideData);
       
       // Publish event to RabbitMQ
@@ -46,11 +48,16 @@ class RideService {
       const ride = await Ride.findByPk(id);
       if (!ride) throw new Error("Ride not found");
 
-      const updateData = { status };
+      if (status && !RideStateMachine.canTransition(ride.status, status)) {
+        throw new Error(`Invalid state transition from ${ride.status} to ${status}`);
+      }
+
+      const updateData = {};
+      if (status) updateData.status = status;
       if (driverId) updateData.driverId = driverId;
       if (fare) updateData.fare = fare;
 
-      if (status === "STARTED") {
+      if (status === "IN_PROGRESS") {
         updateData.startTime = new Date();
       } else if (status === "COMPLETED") {
         updateData.endTime = new Date();

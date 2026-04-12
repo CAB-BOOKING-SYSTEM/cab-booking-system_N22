@@ -25,15 +25,15 @@ const Ride = sequelize.define("Ride", {
   },
   status: {
     type: DataTypes.ENUM(
-      "PENDING",
-      "SEARCHING",
-      "ACCEPTED",
-      "ARRIVED",
-      "STARTED",
+      "CREATED",
+      "MATCHING",
+      "ASSIGNED",
+      "PICKUP",
+      "IN_PROGRESS",
       "COMPLETED",
-      "CANCELLED"
+      "PAID"
     ),
-    defaultValue: "PENDING",
+    defaultValue: "CREATED",
   },
   fare: {
     type: DataTypes.DECIMAL(10, 2),

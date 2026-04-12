@@ -12,11 +12,13 @@
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
+    "kafkajs": "^2.2.4",
     "morgan": "^1.10.1",
     "pg": "^8.11.3",
     "pg-hstore": "^2.3.4",
     "redis": "^4.6.7",
     "sequelize": "^6.37.1",
+    "socket.io": "^4.8.3",
     "uuid": "^9.0.0"
   },
   "devDependencies": {
