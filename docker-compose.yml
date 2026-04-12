@@ -146,8 +146,12 @@ services:
     environment:
       - PORT=${PRICING_PORT}
       - DB_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/pricing_db
+      - REDIS_URL=redis://redis:6379
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@rabbitmq:5672
     depends_on:
       - postgres
+      - redis
+      - rabbitmq
 
   review-service:
     build:
