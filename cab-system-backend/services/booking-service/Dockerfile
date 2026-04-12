@@ -1,27 +1,36 @@
-# Stage 1: Base
-FROM node:24.14.0-bookworm-slim AS base
+<<<<<<< Updated upstream
+FROM node:20
+
 WORKDIR /app
+
+=======
+# dockerfile
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Copy package files
+>>>>>>> Stashed changes
 COPY package*.json ./
+RUN npm ci --only=production
 
-# Stage 2: Development
-FROM base AS development
-# Cài đặt toàn bộ package kể cả devDependencies
+<<<<<<< Updated upstream
 RUN npm install
-COPY . .
-# Biến môi trường nhận giá trị port từ docker-compose (lấy từ thư mục gốc)
-ARG PORT
-ENV PORT=${PORT}
-EXPOSE ${PORT}
-# Lệnh chạy server trong lúc code
-CMD ["npm", "run", "dev"]
 
-# Stage 3: Production
-FROM base AS production
-# Chỉ cài đặt package cần thiết cho production
-RUN npm install --omit=dev
 COPY . .
-ARG PORT
-ENV PORT=${PORT}
-EXPOSE ${PORT}
-# Lệnh deploy
+
 CMD ["npm", "start"]
+=======
+# Copy source code
+COPY . .
+
+# Create non-root user
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nodejs -u 1001
+
+USER nodejs
+
+EXPOSE 3001
+
+CMD ["node", "index.js"]
+>>>>>>> Stashed changes
