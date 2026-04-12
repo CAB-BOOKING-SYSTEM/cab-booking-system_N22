@@ -6,7 +6,7 @@ const app = express();
 app.use(express.json());
 
 app.use("/auth", proxy("http://cab_auth:${AUTH_PORT}"));
-app.use("/users", authMiddleware, proxy("http://cab_user:${USER_PORT}"));
+app.use("/api/v1/users", authMiddleware, proxy("http://cab_user:${USER_PORT}"));
 app.use("/drivers", authMiddleware, proxy("http://cab_driver:${DRIVER_PORT}"));
 app.use("/bookings", authMiddleware, proxy("http://cab_booking:${BOOKING_PORT}"));
 app.use("/rides", authMiddleware, proxy("http://cab_ride:${RIDE_PORT}"));
