@@ -1,14 +1,15 @@
 version: "3.8"
 
 services:
-  # --- 1. INFRASTRUCTURE ---
+  # ================= INFRA =================
   postgres:
     image: postgres:16.11-alpine3.23
     container_name: cab_postgres
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: 123456
-      POSTGRES_DB: payment_db
+      TZ: Asia/Ho_Chi_Minh
+      PGTZ: Asia/Ho_Chi_Minh
     ports:
       - "5432:5432"
     volumes:
@@ -28,136 +29,133 @@ services:
       - "5672:5672"
       - "15672:15672"
     environment:
-      RABBITMQ_DEFAULT_USER: admin
-      RABBITMQ_DEFAULT_PASS: password123
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
 
-
-  # --- AUTH ---
+  # ================= AUTH =================
   auth-service:
     build: ./services/auth-service
     container_name: cab_auth
     ports:
       - "3001:3001"
     environment:
-      - PORT=3001
-      - DB_URL=postgresql://postgres:123456@postgres:5432/auth_db
-      - JWT_SECRET=supersecret
+      PORT: 3001
+      DB_URL: postgresql://postgres:123456@postgres:5432/auth_db
+      JWT_SECRET: supersecret
     depends_on:
       - postgres
 
-
-  # --- BOOKING ---
+  # ================= BOOKING =================
   booking-service:
     build: ./services/booking-service
     container_name: cab_booking
     ports:
       - "3002:3002"
     environment:
-      - PORT=3002
-      - DB_URL=postgresql://postgres:123456@postgres:5432/booking_db
-      - RABBITMQ_URL=amqp://admin:password123@rabbitmq:5672
+      PORT: 3002
+      DB_URL: postgresql://postgres:123456@postgres:5432/booking_db
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
     depends_on:
       - postgres
       - rabbitmq
 
-
-  # --- DRIVER ---
+  # ================= DRIVER =================
   driver-service:
     build: ./services/driver-service
     container_name: cab_driver
     ports:
       - "3003:3003"
     environment:
-      - PORT=3003
-      - DB_URL=postgresql://postgres:123456@postgres:5432/driver_db
+      PORT: 3003
+      DB_URL: postgresql://postgres:123456@postgres:5432/driver_db
     depends_on:
       - postgres
 
-
-  # --- NOTIFICATION ---
+  # ================= NOTIFICATION =================
   notification-service:
     build: ./services/notification-service
     container_name: cab_notification
     ports:
       - "3004:3004"
     environment:
-      - PORT=3004
-      - DB_URL=postgresql://postgres:123456@postgres:5432/notification_db
+      PORT: 3004
+      DB_URL: postgresql://postgres:123456@postgres:5432/notification_db
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
     depends_on:
       - postgres
+      - rabbitmq
 
-
-  # --- PAYMENT ---
+  # ================= PAYMENT =================
   payment-service:
     build: ./services/payment-service
     container_name: cab_payment
     ports:
       - "3005:3005"
     environment:
-      - PORT=3005
-      - DB_URL=postgresql://postgres:123456@postgres:5432/payment_db
-      - RABBITMQ_URL=amqp://admin:password123@rabbitmq:5672
-      - NODE_ENV=development
+      PORT: 3005
+      NODE_ENV: development
+      DATABASE_URL: postgresql://postgres:123456@postgres:5432/payment_db
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      STRIPE_SECRET_KEY: test_key
+      VNP_TMNCODE: 75CCC85O
+      VNP_HASH_SECRET: D73GMMNTXMC73F8M4XJA3BJT2ZRPS37J
+      VNP_URL: https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
+      VNP_RETURN_URL: http://localhost:3005/api/payments/vnpay-return
     depends_on:
       - postgres
       - rabbitmq
 
-
-  # --- PRICING ---
+  # ================= PRICING =================
   pricing-service:
     build: ./services/pricing-service
     container_name: cab_pricing
     ports:
       - "3006:3006"
     environment:
-      - PORT=3006
-      - DB_URL=postgresql://postgres:123456@postgres:5432/pricing_db
+      PORT: 3006
+      DB_URL: postgresql://postgres:123456@postgres:5432/pricing_db
     depends_on:
       - postgres
 
-
-  # --- REVIEW ---
+  # ================= REVIEW =================
   review-service:
     build: ./services/review-service
-    container_name: rb_preview
+    container_name: cab_review
     ports:
       - "3007:3007"
     environment:
-      - PORT=3007
-      - DB_URL=postgresql://postgres:123456@postgres:5432/review_db
+      PORT: 3007
+      DB_URL: postgresql://postgres:123456@postgres:5432/review_db
     depends_on:
       - postgres
 
-
-  # --- RIDE ---
+  # ================= RIDE =================
   ride-service:
     build: ./services/ride-service
     container_name: cab_ride
     ports:
       - "3008:3008"
     environment:
-      - PORT=3008
-      - DB_URL=postgresql://postgres:123456@postgres:5432/ride_db
-      - RABBITMQ_URL=amqp://admin:password123@rabbitmq:5672
+      PORT: 3008
+      DB_URL: postgresql://postgres:123456@postgres:5432/ride_db
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
     depends_on:
       - postgres
       - rabbitmq
 
-
-  # --- USER ---
+  # ================= USER =================
   user-service:
     build: ./services/user-service
     container_name: cab_user
     ports:
       - "3009:3009"
     environment:
-      - PORT=3009
-      - DB_URL=postgresql://postgres:123456@postgres:5432/user_db
+      PORT: 3009
+      DB_URL: postgresql://postgres:123456@postgres:5432/user_db
     depends_on:
       - postgres
-
 
 volumes:
   postgres_data:

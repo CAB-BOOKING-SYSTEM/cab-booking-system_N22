@@ -1,29 +1,20 @@
 const express = require("express");
 const cors = require("cors");
-const morgan = require("morgan");
-
-const paymentRoutes = require("./routes/paymentsRoute");
 
 const app = express();
-
-// Middleware
 app.use(cors());
 app.use(express.json());
-app.use(morgan("dev"));
+app.use(express.urlencoded({ extended: true }));
 
-// Routes
-app.use("/api/payments", paymentRoutes);
-
-// Test route — chỉ mount khi không phải production
-if (process.env.NODE_ENV !== "production") {
-  const testRoute = require("./routes/testRoute");
-  app.use("/api/payments/test", testRoute);
-  console.log("⚠️  Test route enabled: POST /api/payments/test");
-}
-
-// Health check
-app.get("/health", (req, res) => {
-  res.json({ status: "Payment service OK" });
+app.use("/api/payments", require("./routes/payment.routes"));
+// 🔥 thêm dòng này
+app.use("/api/test", require("./routes/test.route"));
+app.get("/", (req, res) => res.json({ message: "Payment Service is running" }));
+app.get("/success", (req, res) => {
+  res.send("✅ PAYMENT SUCCESS");
 });
 
+app.get("/failed", (req, res) => {
+  res.send("❌ PAYMENT FAILED");
+});
 module.exports = app;

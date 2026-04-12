@@ -1,43 +1,40 @@
 require("dotenv").config();
 
-const app = require("./src/app");
-const messageBroker = require("./src/utils/messageBroker");
-const PaymentService = require("./src/services/paymentsService");
+const express = require("express");
+const cors = require("cors");
 
-const RETRY_INTERVAL = 5000;
+const app = express();
 
-async function waitForRabbitMQ(retries = 10) {
-  for (let i = 1; i <= retries; i++) {
-    try {
-      await messageBroker.connect();
-      console.log("RabbitMQ connected");
-      return; // thành công → thoát
-    } catch (error) {
-      console.error(`RabbitMQ not ready (attempt ${i}/${retries}), retrying in ${RETRY_INTERVAL / 1000}s...`);
-      await new Promise((res) => setTimeout(res, RETRY_INTERVAL));
-    }
-  }
-  throw new Error("Cannot connect to RabbitMQ after max retries");
-}
+// Middleware
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-async function start() {
-  try {
-    console.log("Connecting to RabbitMQ...");
-    await waitForRabbitMQ();
+// ENV
+const PORT = process.env.PORT || 3009;
+const DB_URL = process.env.DB_URL || "Not configured";
 
-    // Đợi kết nối ổn định rồi mới start consumer
-    const paymentService = new PaymentService();
-    await paymentService.startConsumer();
-    console.log("Consumer started");
+// Log
+console.log("🧠 ENV:", process.env.NODE_ENV || "development");
+console.log("🗄️ DB:", DB_URL);
 
-    const PORT = process.env.PORT || 3005;
-    app.listen(PORT, () => {
-      console.log(`Payment service running on port ${PORT}`);
-    });
-  } catch (error) {
-    console.error("Service start failed:", error.message);
-    process.exit(1);
-  }
-}
+// Health check
+app.get("/", (req, res) => {
+  res.status(200).json({
+    message: "User service running 🚀",
+    time: new Date().toISOString(),
+  });
+});
 
-start();
+// 👉 ví dụ API user
+app.get("/users", (req, res) => {
+  res.json([
+    { id: 1, name: "User 1" },
+    { id: 2, name: "User 2" },
+  ]);
+});
+
+// Start server
+app.listen(PORT, () => {
+  console.log(`🚀 User service running on port ${PORT}`);
+});

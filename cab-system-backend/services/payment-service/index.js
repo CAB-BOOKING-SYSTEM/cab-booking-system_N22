@@ -1,31 +1,19 @@
-require("dotenv").config()
+require("dotenv").config();
 
-const app = require("./src/app")
-const messageBroker = require("./src/utils/messageBroker")
-const paymentService = require("./src/services/paymentsService")
+const { connectDB } = require("./src/config/db");
+const { connectRabbitMQ } = require("./src/config/rabbitMQ");
+const paymentService = require("./src/services/payment.service");
+const app = require("./src/app");
 
 async function start() {
-  try {
+  await connectDB();
+  await connectRabbitMQ(); // 🔥 thêm dòng này
+  await paymentService.startConsumer();
 
-    console.log("Connecting RabbitMQ...")
-
-    await messageBroker.connect()
-
-    console.log("RabbitMQ connected")
-
-    // start consumer
-    await paymentService.startConsumer()
-
-    app.listen(process.env.PORT, () => {
-      console.log(`Payment service running on ${process.env.PORT}`)
-    })
-
-  } catch (error) {
-
-    console.error("Service start failed:", error)
-    process.exit(1)
-
-  }
+  const PORT = process.env.PORT || 3005;
+  app.listen(PORT, () => {
+    console.log(`🚀 Payment Service running on http://localhost:${PORT}`);
+  });
 }
 
-start()
+start();
