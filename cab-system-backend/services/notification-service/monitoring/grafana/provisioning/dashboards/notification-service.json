@@ -187,7 +187,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
       "id": 6,
       "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
-      "title": "Latency xử lý Kafka → DB (P50 / P95 / P99)",
+      "title": "Latency xử lý Broker → DB (P50 / P95 / P99)",
       "type": "timeseries",
       "targets": [
         {

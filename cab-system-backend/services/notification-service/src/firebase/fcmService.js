@@ -27,7 +27,7 @@ const fs = require("fs");
 
 const SERVICE_ACCOUNT_PATH = path.resolve(
   __dirname,
-  "../config/cab-booking-firebase-adminsdk.json"
+  "../config/cab-booking-firebase-adminsdk.json",
 );
 
 /**
@@ -45,10 +45,10 @@ if (admin.apps.length === 0) {
     if (!fs.existsSync(accountPath)) {
       // Chưa có file service account — chạy được nhưng FCM sẽ không hoạt động
       console.warn(
-        `⚠️  [FCM] Không tìm thấy Firebase service account tại: ${accountPath}`
+        `⚠️  [FCM] Không tìm thấy Firebase service account tại: ${accountPath}`,
       );
       console.warn(
-        "⚠️  [FCM] Push Notification sẽ bị vô hiệu hoá cho đến khi cấu hình đúng file."
+        "⚠️  [FCM] Push Notification sẽ bị vô hiệu hoá cho đến khi cấu hình đúng file.",
       );
     } else {
       const serviceAccount = require(accountPath);
@@ -89,19 +89,19 @@ const getUserDeviceToken = async (userId) => {
 /**
  * Gửi Push Notification tới thiết bị của user qua FCM.
  *
- * Được gọi từ kafka/consumer.js khi user không có kết nối Socket.IO (offline).
+ * Được gọi từ rabbitmq/consumer.js khi user không có kết nối Socket.IO (offline).
  *
  * @param {string} userId      - Business ID người nhận
  * @param {string} title       - Tiêu đề thông báo (hiển thị trên thanh thông báo)
  * @param {string} body        - Nội dung thông báo
- * @param {Object} payloadData - Metadata từ Kafka event (eventId, type, rideId,...)
+ * @param {Object} payloadData - Metadata từ broker event (eventId, type, rideId,...)
  * @returns {Promise<boolean>} true nếu gửi thành công, false nếu thất bại
  */
 const sendPushNotification = async (userId, title, body, payloadData = {}) => {
   // Kiểm tra Firebase đã được khởi tạo chưa
   if (admin.apps.length === 0) {
     console.warn(
-      `⚠️  [FCM] Firebase chưa khởi tạo — bỏ qua push cho userId=${userId}`
+      `⚠️  [FCM] Firebase chưa khởi tạo — bỏ qua push cho userId=${userId}`,
     );
     return false;
   }
@@ -112,7 +112,7 @@ const sendPushNotification = async (userId, title, body, payloadData = {}) => {
 
     if (!deviceToken) {
       console.warn(
-        `⚠️  [FCM] Không tìm thấy device token của userId=${userId}. Không thể gửi Push.`
+        `⚠️  [FCM] Không tìm thấy device token của userId=${userId}. Không thể gửi Push.`,
       );
       return false;
     }
@@ -157,7 +157,7 @@ const sendPushNotification = async (userId, title, body, payloadData = {}) => {
     // ── 3. Gửi qua Firebase ──────────────────────────────────────────────────
     const messageId = await admin.messaging().send(message);
     console.log(
-      `📲 [FCM] Đã gửi Push thành công — userId=${userId}, messageId=${messageId}`
+      `📲 [FCM] Đã gửi Push thành công — userId=${userId}, messageId=${messageId}`,
     );
     return true;
   } catch (error) {
@@ -165,7 +165,7 @@ const sendPushNotification = async (userId, title, body, payloadData = {}) => {
     const fcmErrorCode = error?.errorInfo?.code || error?.code || "unknown";
     console.error(
       `❌ [FCM] Gửi Push thất bại — userId=${userId}, errorCode=${fcmErrorCode}:`,
-      error.message
+      error.message,
     );
     return false;
   }

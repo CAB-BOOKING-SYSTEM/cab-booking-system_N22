@@ -1,6 +1,6 @@
 /**
  * @file rideAssigned.schema.js
- * @description Schema định nghĩa cấu trúc payload cho Kafka event: ride.assigned
+ * @description Schema định nghĩa cấu trúc payload cho event: ride.assigned
  * @topic ride.assigned
  * @producer Matching Service
  * @consumer Notification Service
@@ -51,7 +51,7 @@ const rideAssignedExample = {
 
 /**
  * Danh sách các trường bắt buộc của RideAssignedPayload
- * Dùng để validate payload khi consume từ Kafka
+ * Dùng để validate payload khi consume từ message broker
  */
 const RIDE_ASSIGNED_REQUIRED_FIELDS = [
   "eventId",
@@ -73,7 +73,7 @@ const DRIVER_INFO_REQUIRED_FIELDS = [
 
 /**
  * Hàm validate payload của sự kiện ride.assigned
- * @param {Object} payload - Dữ liệu nhận được từ Kafka message
+ * @param {Object} payload - Dữ liệu nhận được từ message broker
  * @returns {{ isValid: boolean, errors: string[] }}
  */
 function validateRideAssignedPayload(payload) {
@@ -89,7 +89,7 @@ function validateRideAssignedPayload(payload) {
   // Kiểm tra type đúng giá trị
   if (payload.type && payload.type !== "RideAssigned") {
     errors.push(
-      `Trường "type" không hợp lệ: nhận "${payload.type}", mong đợi "RideAssigned"`
+      `Trường "type" không hợp lệ: nhận "${payload.type}", mong đợi "RideAssigned"`,
     );
   }
 

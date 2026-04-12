@@ -1,6 +1,6 @@
 /**
  * @file paymentFailed.schema.js
- * @description Schema định nghĩa cấu trúc payload cho Kafka event: payment.failed
+ * @description Schema định nghĩa cấu trúc payload cho event: payment.failed
  * @topic payment.failed
  * @producer Payment Service
  * @consumer Notification Service
@@ -40,7 +40,7 @@ const paymentFailedExample = {
 
 /**
  * Danh sách các trường bắt buộc của PaymentFailedPayload
- * Dùng để validate payload khi consume từ Kafka
+ * Dùng để validate payload khi consume từ message broker
  */
 const PAYMENT_FAILED_REQUIRED_FIELDS = [
   "eventId",
@@ -59,7 +59,7 @@ const MAX_RETRY_COUNT = 3;
 
 /**
  * Hàm validate payload của sự kiện payment.failed
- * @param {Object} payload - Dữ liệu nhận được từ Kafka message
+ * @param {Object} payload - Dữ liệu nhận được từ message broker
  * @returns {{ isValid: boolean, errors: string[] }}
  */
 function validatePaymentFailedPayload(payload) {
@@ -75,7 +75,7 @@ function validatePaymentFailedPayload(payload) {
   // Kiểm tra type đúng giá trị
   if (payload.type && payload.type !== "PaymentFailed") {
     errors.push(
-      `Trường "type" không hợp lệ: nhận "${payload.type}", mong đợi "PaymentFailed"`
+      `Trường "type" không hợp lệ: nhận "${payload.type}", mong đợi "PaymentFailed"`,
     );
   }
 
@@ -98,7 +98,7 @@ function validatePaymentFailedPayload(payload) {
   // Cảnh báo nếu đã vượt quá số lần retry tối đa
   if (payload.retryCount > MAX_RETRY_COUNT) {
     errors.push(
-      `Trường "retryCount" (${payload.retryCount}) đã vượt quá giới hạn tối đa (${MAX_RETRY_COUNT})`
+      `Trường "retryCount" (${payload.retryCount}) đã vượt quá giới hạn tối đa (${MAX_RETRY_COUNT})`,
     );
   }
 

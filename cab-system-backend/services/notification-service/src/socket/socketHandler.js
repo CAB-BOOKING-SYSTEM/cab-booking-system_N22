@@ -5,7 +5,7 @@
  * Chịu trách nhiệm:
  *   - Khởi tạo Socket.IO server gắn vào HTTP server của Express
  *   - Duy trì Map ánh xạ userId → socket.id của những user đang online
- *   - Cung cấp hàm sendNotificationToUser() để Kafka consumer gọi khi có event mới
+ *   - Cung cấp hàm sendNotificationToUser() để RabbitMQ consumer gọi khi có event mới
  *
  * ⚠️  LƯU Ý SCALE-OUT:
  *   Hiện tại userSockets dùng in-memory Map — phù hợp cho 1 instance (dev/staging).
@@ -57,7 +57,7 @@ const initSocket = (server) => {
     socket.on("register", (userId) => {
       if (!userId || typeof userId !== "string") {
         console.warn(
-          `⚠️  [Socket.IO] Nhận "register" với userId không hợp lệ từ socketId=${socket.id}`
+          `⚠️  [Socket.IO] Nhận "register" với userId không hợp lệ từ socketId=${socket.id}`,
         );
         return;
       }
@@ -65,7 +65,7 @@ const initSocket = (server) => {
       // Nếu user đã có socket cũ (tab khác / reconnect), ghi đè bằng socket mới
       userSockets.set(userId, socket.id);
       console.log(
-        `✅ [Socket.IO] Đã đăng ký — userId=${userId}, socketId=${socket.id} | Tổng online: ${userSockets.size}`
+        `✅ [Socket.IO] Đã đăng ký — userId=${userId}, socketId=${socket.id} | Tổng online: ${userSockets.size}`,
       );
     });
 
@@ -76,7 +76,7 @@ const initSocket = (server) => {
         if (socketId === socket.id) {
           userSockets.delete(userId);
           console.log(
-            `❌ [Socket.IO] User offline — userId=${userId}, reason=${reason} | Còn online: ${userSockets.size}`
+            `❌ [Socket.IO] User offline — userId=${userId}, reason=${reason} | Còn online: ${userSockets.size}`,
           );
           break;
         }
@@ -100,7 +100,7 @@ const initSocket = (server) => {
 const sendNotificationToUser = (userId, eventType, payload) => {
   if (!io) {
     console.error(
-      "❌ [Socket.IO] io chưa được khởi tạo. Hãy gọi initSocket() trước."
+      "❌ [Socket.IO] io chưa được khởi tạo. Hãy gọi initSocket() trước.",
     );
     return false;
   }
@@ -110,13 +110,13 @@ const sendNotificationToUser = (userId, eventType, payload) => {
   if (socketId) {
     io.to(socketId).emit(eventType, payload);
     console.log(
-      `🚀 [Socket.IO] Đã đẩy real-time — event=${eventType}, userId=${userId}, socketId=${socketId}`
+      `🚀 [Socket.IO] Đã đẩy real-time — event=${eventType}, userId=${userId}, socketId=${socketId}`,
     );
     return true; // User online — gửi thành công
   }
 
   console.log(
-    `⚠️  [Socket.IO] User offline — event=${eventType} không gửi được tới userId=${userId}`
+    `⚠️  [Socket.IO] User offline — event=${eventType} không gửi được tới userId=${userId}`,
   );
   return false; // User offline — cần fallback (FCM/APNs)
 };

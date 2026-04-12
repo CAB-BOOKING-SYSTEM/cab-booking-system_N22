@@ -28,40 +28,12 @@ volumes:
     driver: local
 
 services:
-  # ── 1. Zookeeper ─────────────────────────────────────────────────────────────
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.6.0
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-      ZOOKEEPER_SYNC_LIMIT: 2
-    networks:
-      - cab-overlay
-    deploy:
-      mode: replicated
-      replicas: 1
-      placement:
-        constraints:
-          - node.role == manager   # Zookeeper chạy trên manager node để ổn định hơn
-      restart_policy:
-        condition: on-failure
-        delay: 10s
-        max_attempts: 3
-
-  # ── 2. Kafka Broker ───────────────────────────────────────────────────────────
-  kafka:
-    image: confluentinc/cp-kafka:7.6.0
+  # ── 1. RabbitMQ ──────────────────────────────────────────────────────────────
+  rabbitmq:
+    image: rabbitmq:3.13-management
     ports:
-      - "9092:9092"
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-      KAFKA_LOG_RETENTION_HOURS: 168
+      - "5672:5672"
+      - "15672:15672"
     networks:
       - cab-overlay
     deploy:
@@ -75,7 +47,7 @@ services:
         delay: 10s
         max_attempts: 3
 
-  # ── 3. MongoDB ────────────────────────────────────────────────────────────────
+  # ── 2. MongoDB ────────────────────────────────────────────────────────────────
   mongodb:
     image: mongo:6.0
     ports:
@@ -95,7 +67,7 @@ services:
         delay: 10s
         max_attempts: 3
 
-  # ── 4. Redis ──────────────────────────────────────────────────────────────────
+  # ── 3. Redis ──────────────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
     ports:
@@ -116,7 +88,7 @@ services:
         delay: 5s
         max_attempts: 3
 
-  # ── 5. Notification Service ───────────────────────────────────────────────────
+  # ── 4. Notification Service ───────────────────────────────────────────────────
   notification-service:
     # Image phải được push lên registry trước khi deploy Swarm
     # VD: docker build -t registry.gitlab.com/<group>/cab-notification-service:v1.0.0 .
@@ -127,7 +99,8 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3004
-      - KAFKA_BROKER=kafka:29092
+      - RABBITMQ_ENABLED=true
+      - RABBITMQ_URL=amqp://rabbitmq:5672
       - DB_URL=mongodb://mongodb:27017/cab_notifications
       - REDIS_URL=redis://redis:6379
     # Secrets nhạy cảm (Firebase, JWT) nên dùng Docker Secrets thay vì env

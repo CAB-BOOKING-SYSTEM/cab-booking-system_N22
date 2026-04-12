@@ -7,7 +7,7 @@ const express = require("express");
 const cors = require("cors");
 const morgan = require("morgan");
 const mongoose = require("mongoose");
-const { runConsumer, disconnectConsumer } = require("./src/kafka/consumer");
+const { runConsumer, disconnectConsumer } = require("./src/rabbitmq/consumer");
 const { initSocket, getOnlineCount } = require("./src/socket/socketHandler");
 const notificationRoutes = require("./src/routes/notification.routes");
 const {
@@ -20,7 +20,9 @@ const server = http.createServer(app);
 const PORT = process.env.PORT || 3004;
 const DB_URL = process.env.DB_URL;
 const NODE_ENV = process.env.NODE_ENV || "development";
-const KAFKA_ENABLED = process.env.KAFKA_ENABLED !== "false";
+const RABBITMQ_ENABLED = ["true", "1", "yes", "on"].includes(
+  String(process.env.RABBITMQ_ENABLED || "true").toLowerCase(),
+);
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
 app.use(cors());
@@ -64,7 +66,7 @@ const start = async () => {
   // 1. Kết nối MongoDB
   if (!DB_URL) {
     console.error(
-      "❌ Biến môi trường DB_URL chưa được cấu hình. Dừng service."
+      "❌ Biến môi trường DB_URL chưa được cấu hình. Dừng service.",
     );
     process.exit(1);
   }
@@ -75,22 +77,24 @@ const start = async () => {
   // 2. Khởi tạo Socket.IO (phải trước runConsumer vì consumer gọi sendNotificationToUser)
   initSocket(server);
 
-  // 3. Khởi động Kafka Consumer (chỉ khi KAFKA_ENABLED=true)
-  if (KAFKA_ENABLED) {
-    runConsumer().catch((err) => {
-      console.error("❌ [Kafka] Consumer gặp lỗi nghiêm trọng:", err.message);
+  // 3. Khởi động RabbitMQ Consumer
+  if (RABBITMQ_ENABLED) {
+    await runConsumer().catch((err) => {
+      console.error(
+        "❌ [RabbitMQ] Consumer gặp lỗi nghiêm trọng:",
+        err.message,
+      );
     });
-    console.log("✅ [Kafka] Consumer đã khởi động");
   } else {
     console.warn(
-      "⚠️  [Kafka] Bị tắt (KAFKA_ENABLED=false) — chỉ chạy REST + Socket.IO"
+      "⚠️  [RabbitMQ] Bị tắt (RABBITMQ_ENABLED=false) — chỉ chạy REST + Socket.IO",
     );
   }
 
   // 4. Khởi động HTTP server (Socket.IO dùng chung server này)
   server.listen(PORT, () => {
     console.log(
-      `🚀 Notification Service đang chạy tại cổng ${PORT} [${NODE_ENV}]`
+      `🚀 Notification Service đang chạy tại cổng ${PORT} [${NODE_ENV}]`,
     );
     console.log(`🔌 Socket.IO đang lắng nghe tại ws://localhost:${PORT}`);
   });
@@ -101,7 +105,7 @@ const start = async () => {
 
     server.close(async () => {
       try {
-        await disconnectConsumer(); // Ngắt Kafka consumer
+        await disconnectConsumer(); // Ngắt RabbitMQ consumer
         await mongoose.connection.close(); // Đóng kết nối MongoDB
         console.log("✅ Service đã tắt hoàn toàn. Goodbye!");
         process.exit(0);

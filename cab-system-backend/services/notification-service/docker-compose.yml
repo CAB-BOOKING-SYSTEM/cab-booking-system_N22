@@ -15,46 +15,26 @@ volumes:
   redis_data:
 
 services:
-  # ── 1. Zookeeper ─────────────────────────────────────────────────────────────
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.6.0
-    container_name: zookeeper
+  # ── 1. RabbitMQ ──────────────────────────────────────────────────────────────
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: rabbitmq
     restart: unless-stopped
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-    networks:
-      - cab-net
-    # Đã xóa bỏ hoàn toàn khối healthcheck gây lỗi
-
-  # ── 2. Kafka Broker ───────────────────────────────────────────────────────────
-  kafka:
-    image: confluentinc/cp-kafka:7.6.0
-    container_name: kafka
-    restart: unless-stopped
-    depends_on:
-      - zookeeper # Chỉ cần Zookeeper khởi tạo xong là Kafka chạy, bỏ qua healthcheck
     ports:
-      - "9092:9092"   # Dùng khi gọi từ host (dev / test)
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-      KAFKA_LOG_RETENTION_HOURS: 168
-      KAFKA_LOG4J_LOGGERS: >-
-        kafka.controller=WARN,
-        kafka.producer.async.DefaultEventHandler=WARN,
-        state.change.logger=WARN
+      - "5672:5672"   # AMQP
+      - "15672:15672" # RabbitMQ Management UI
     networks:
       - cab-net
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
-  # ── 3. MongoDB đã xóa — kết nối Atlas qua MONGO_URI trong file .env ──────────
+  # ── 2. MongoDB đã xóa — kết nối Atlas qua MONGO_URI trong file .env ──────────
 
-  # ── 4. Redis ──────────────────────────────────────────────────────────────────
+  # ── 3. Redis ──────────────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
     container_name: redis
@@ -73,7 +53,7 @@ services:
       retries: 5
       start_period: 10s
 
-  # ── 5. Notification Service ───────────────────────────────────────────────────
+  # ── 4. Notification Service ───────────────────────────────────────────────────
   notification-service:
     build:
       context: .
@@ -88,13 +68,14 @@ services:
       - PORT=3004
       # DB_URL lấy từ .env (MONGO_URI=mongodb+srv://...)
       - DB_URL=${MONGO_URI}
-      - KAFKA_BROKER=kafka:29092
+      - RABBITMQ_ENABLED=true
+      - RABBITMQ_URL=amqp://rabbitmq:5672
       - REDIS_URL=redis://redis:6379
     env_file:
       - .env                  # Firebase credentials & JWT_SECRET nạp từ file .env
     depends_on:
-      kafka:
-        condition: service_started
+      rabbitmq:
+        condition: service_healthy
       redis:
         condition: service_healthy
     networks:

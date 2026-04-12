@@ -2,7 +2,7 @@
  * @file notification.model.js
  * @description Mongoose Schema & Model cho collection "notifications" trong MongoDB.
  *
- * Collection này lưu trữ toàn bộ lịch sử thông báo được sinh ra từ các Kafka events:
+ * Collection này lưu trữ toàn bộ lịch sử thông báo được sinh ra từ các events:
  *   - ride.assigned    → RideAssigned
  *   - payment.completed → PaymentCompleted
  *   - payment.failed   → PaymentFailed
@@ -11,7 +11,7 @@
  *   1. Truy vấn lịch sử thông báo của một user (index: userId + createdAt)
  *   2. Tracking vòng đời thông báo: pending → sent → read / failed
  *   3. Retry mechanism: quét bản ghi "failed" để thử gửi lại
- *   4. Lưu trữ linh hoạt metadata gốc từ Kafka (payload: Mixed)
+ *   4. Lưu trữ linh hoạt metadata gốc từ broker (payload: Mixed)
  */
 
 const mongoose = require("mongoose");
@@ -33,7 +33,7 @@ const retryAttemptSchema = new mongoose.Schema(
       required: true,
     },
   },
-  { _id: false } // Không cần _id riêng cho từng phần tử trong mảng
+  { _id: false }, // Không cần _id riêng cho từng phần tử trong mảng
 );
 
 // ─── Main Schema: Notification ────────────────────────────────────────────────
@@ -51,8 +51,8 @@ const retryAttemptSchema = new mongoose.Schema(
  * @property {NotificationType} type            - Loại sự kiện sinh ra thông báo
  * @property {string}           title           - Tiêu đề thông báo (hiển thị trên UI / push)
  * @property {string}           body            - Nội dung chi tiết của thông báo
- * @property {Object}           payload         - Metadata gốc từ Kafka event (rideId, amount,...)
- * @property {string}           sourceEventId   - eventId gốc từ Kafka để tránh xử lý trùng (idempotency)
+ * @property {Object}           payload         - Metadata gốc từ event (rideId, amount,...)
+ * @property {string}           sourceEventId   - eventId gốc để tránh xử lý trùng (idempotency)
  * @property {NotificationStatus} status        - Trạng thái vòng đời của thông báo
  * @property {DeliveryMethod[]} deliveryMethod  - Các kênh đã gửi thông báo
  * @property {string|null}      errorMessage    - Lỗi cuối cùng nếu gửi thất bại
@@ -108,9 +108,9 @@ const notificationSchema = new mongoose.Schema(
       maxlength: [2000, "body không được vượt quá 2000 ký tự"],
     },
 
-    // ── Metadata gốc từ Kafka ────────────────────────────────────────────────
+    // ── Metadata gốc từ event broker ─────────────────────────────────────────
     /**
-     * Lưu nguyên toàn bộ payload từ Kafka event (rideId, amount, driverInfo,...).
+     * Lưu nguyên toàn bộ payload từ event broker (rideId, amount, driverInfo,...).
      * Dùng Mixed type vì mỗi event type có cấu trúc data khác nhau.
      * Client dùng data này để điều hướng màn hình (deep link).
      */
@@ -120,12 +120,12 @@ const notificationSchema = new mongoose.Schema(
     },
 
     /**
-     * eventId gốc từ Kafka — dùng để đảm bảo idempotency:
-     * tránh tạo thông báo trùng nếu Kafka deliver message nhiều hơn 1 lần.
+     * eventId gốc từ broker — dùng để đảm bảo idempotency:
+     * tránh tạo thông báo trùng nếu broker deliver message nhiều hơn 1 lần.
      */
     sourceEventId: {
       type: String,
-      unique: true, // Mỗi Kafka event chỉ sinh ra đúng 1 bản ghi
+      unique: true, // Mỗi event chỉ sinh ra đúng 1 bản ghi
       sparse: true, // Cho phép null (SystemAlert không có sourceEventId)
       trim: true,
     },
@@ -193,7 +193,7 @@ const notificationSchema = new mongoose.Schema(
   {
     timestamps: true, // Tự động sinh createdAt và updatedAt
     versionKey: false, // Tắt __v vì không cần optimistic concurrency ở đây
-  }
+  },
 );
 
 // ─── Indexes ──────────────────────────────────────────────────────────────────
@@ -278,7 +278,7 @@ notificationSchema.methods.markAsSent = function (channel) {
 notificationSchema.statics.findByUser = function (
   userId,
   page = 1,
-  limit = 20
+  limit = 20,
 ) {
   const skip = (page - 1) * limit;
   return this.find({ userId })

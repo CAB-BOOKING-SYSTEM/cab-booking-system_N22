@@ -3,13 +3,13 @@
  * @description Business Logic layer cho Notification Service.
  *
  * Tầng Service chịu trách nhiệm:
- *   1. Build nội dung thông báo từ Kafka payload
+ *   1. Build nội dung thông báo từ event payload
  *   2. Kiểm tra idempotency (tránh duplicate)
  *   3. Lưu Notification vào MongoDB
  *   4. Quyết định kênh gửi: Socket.IO (online) → FCM (offline) → failed
  *   5. Cung cấp các hàm query cho Controller (REST API)
  *
- * Controller và Kafka Service chỉ được gọi vào tầng này,
+ * Controller và Consumer Service chỉ được gọi vào tầng này,
  * KHÔNG được tương tác trực tiếp với Model hay 3rd-party SDK.
  */
 
@@ -19,7 +19,7 @@ const Notification = require("../models/notification.model");
 const { sendNotificationToUser } = require("../socket/socketHandler");
 const { sendPushNotification } = require("./fcm.service");
 const {
-  kafkaMessagesProcessedTotal,
+  brokerMessagesProcessedTotal,
   notificationsSentTotal,
   notificationProcessingDuration,
   duplicateEventsTotal,
@@ -27,7 +27,7 @@ const {
 
 // ─── Hằng số ──────────────────────────────────────────────────────────────────
 
-/** Map từ Kafka topic → Notification.type lưu trong DB */
+/** Map từ topic → Notification.type lưu trong DB */
 const TOPIC_TO_TYPE = {
   "ride.assigned": "RideAssigned",
   "payment.completed": "PaymentCompleted",
@@ -37,10 +37,10 @@ const TOPIC_TO_TYPE = {
 // ─── Build nội dung thông báo theo từng topic ─────────────────────────────────
 
 /**
- * Map Kafka payload → { userId, userRole, title, body } để lưu DB và hiển thị.
+ * Map event payload → { userId, userRole, title, body } để lưu DB và hiển thị.
  *
- * @param {string} topic   - Kafka topic name
- * @param {Object} payload - Parsed payload từ Kafka message
+ * @param {string} topic   - Topic/routing-key name
+ * @param {Object} payload - Parsed payload từ message broker
  * @returns {{ userId: string, userRole: string, title: string, body: string }}
  * @throws {Error} Nếu topic không được hỗ trợ
  */
@@ -88,12 +88,12 @@ function buildNotificationContent(topic, payload) {
 // ─── Core: Xử lý & phân phối thông báo ───────────────────────────────────────
 
 /**
- * Luồng xử lý chính khi nhận một Kafka event:
+ * Luồng xử lý chính khi nhận một event:
  *   validate → idempotency → save DB → Socket.IO → FCM (fallback)
  *
- * Được gọi bởi kafka.service.js sau khi validate schema.
+ * Được gọi bởi consumer sau khi validate schema.
  *
- * @param {string} topic   - Kafka topic
+ * @param {string} topic   - Topic hoặc routing key
  * @param {Object} payload - Parsed & validated JSON payload
  * @returns {Promise<void>}
  */
@@ -106,11 +106,11 @@ async function processNotification(topic, payload) {
 
     if (existing) {
       console.warn(
-        `⚠️  [NotificationCore] Duplicate event bị bỏ qua — eventId=${payload.eventId}, topic=${topic}`
+        `⚠️  [NotificationCore] Duplicate event bị bỏ qua — eventId=${payload.eventId}, topic=${topic}`,
       );
       // ── Metric: đếm duplicate bị bỏ qua ──────────────────────────────────
       duplicateEventsTotal.inc({ topic });
-      kafkaMessagesProcessedTotal.inc({ topic, status: "duplicate" });
+      brokerMessagesProcessedTotal.inc({ topic, status: "duplicate" });
       return;
     }
   }
@@ -122,7 +122,7 @@ async function processNotification(topic, payload) {
     // ── 2. Build nội dung thông báo ──────────────────────────────────────────
     const { userId, userRole, title, body } = buildNotificationContent(
       topic,
-      payload
+      payload,
     );
 
     // ── 3. Lưu vào MongoDB (status = pending) ────────────────────────────────
@@ -140,7 +140,7 @@ async function processNotification(topic, payload) {
     await notification.save();
     stopTimer(); // Ghi nhận thời gian đến sau khi save DB thành công
     console.log(
-      `💾 [NotificationCore] Đã lưu — type=${TOPIC_TO_TYPE[topic]}, userId=${userId}`
+      `💾 [NotificationCore] Đã lưu — type=${TOPIC_TO_TYPE[topic]}, userId=${userId}`,
     );
 
     // ── 4. Thử gửi qua Socket.IO (user online) ──────────────────────────────
@@ -159,16 +159,16 @@ async function processNotification(topic, payload) {
         type: TOPIC_TO_TYPE[topic],
         delivery_method: "in_app_socket",
       });
-      kafkaMessagesProcessedTotal.inc({ topic, status: "success" });
+      brokerMessagesProcessedTotal.inc({ topic, status: "success" });
       console.log(
-        `✅ [NotificationCore] Socket.IO thành công — userId=${userId}, status=sent`
+        `✅ [NotificationCore] Socket.IO thành công — userId=${userId}, status=sent`,
       );
       return;
     }
 
     // ── 5. Fallback: gửi Push Notification qua FCM (user offline) ───────────
     console.log(
-      `[NotificationCore] User offline, thử FCM fallback — userId=${userId}`
+      `[NotificationCore] User offline, thử FCM fallback — userId=${userId}`,
     );
 
     const isPushSent = await sendPushNotification(userId, title, body, payload);
@@ -180,28 +180,28 @@ async function processNotification(topic, payload) {
         type: TOPIC_TO_TYPE[topic],
         delivery_method: "push_fcm",
       });
-      kafkaMessagesProcessedTotal.inc({ topic, status: "success" });
+      brokerMessagesProcessedTotal.inc({ topic, status: "success" });
       console.log(
-        `✅ [NotificationCore] FCM thành công — userId=${userId}, status=sent`
+        `✅ [NotificationCore] FCM thành công — userId=${userId}, status=sent`,
       );
     } else {
       await notification.recordFailure(
-        "Socket offline and FCM delivery failed"
+        "Socket offline and FCM delivery failed",
       );
       // ── Metric: cả 2 kênh đều thất bại ────────────────────────────────────
       notificationsSentTotal.inc({
         type: TOPIC_TO_TYPE[topic],
         delivery_method: "failed",
       });
-      kafkaMessagesProcessedTotal.inc({ topic, status: "error" });
+      brokerMessagesProcessedTotal.inc({ topic, status: "error" });
       console.error(
-        `❌ [NotificationCore] Cả 2 kênh thất bại — userId=${userId}, status=failed`
+        `❌ [NotificationCore] Cả 2 kênh thất bại — userId=${userId}, status=failed`,
       );
     }
   } catch (err) {
     stopTimer(); // Đảm bảo timer luôn được dừng dù có lỗi
-    kafkaMessagesProcessedTotal.inc({ topic, status: "error" });
-    throw err; // Re-throw để Kafka consumer xử lý retry
+    brokerMessagesProcessedTotal.inc({ topic, status: "error" });
+    throw err; // Re-throw để consumer xử lý retry
   }
 }
 
@@ -274,7 +274,7 @@ async function markOneAsRead(notificationId, userId) {
 async function markAllAsRead(userId) {
   const result = await Notification.updateMany(
     { userId, status: "sent" },
-    { $set: { status: "read", readAt: new Date() } }
+    { $set: { status: "read", readAt: new Date() } },
   );
 
   return result.modifiedCount;
@@ -286,5 +286,5 @@ module.exports = {
   countUnread,
   markOneAsRead,
   markAllAsRead,
-  TOPIC_TO_TYPE, // Export để kafka.service.js dùng khi subscribe topics
+  TOPIC_TO_TYPE, // Export để consumer service dùng khi subscribe topics
 };

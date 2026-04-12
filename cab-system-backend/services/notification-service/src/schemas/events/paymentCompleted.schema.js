@@ -1,6 +1,6 @@
 /**
  * @file paymentCompleted.schema.js
- * @description Schema định nghĩa cấu trúc payload cho Kafka event: payment.completed
+ * @description Schema định nghĩa cấu trúc payload cho event: payment.completed
  * @topic payment.completed
  * @producer Payment Service
  * @consumer Notification Service
@@ -50,7 +50,7 @@ const paymentCompletedExample = {
 
 /**
  * Danh sách các trường bắt buộc của PaymentCompletedPayload
- * Dùng để validate payload khi consume từ Kafka
+ * Dùng để validate payload khi consume từ message broker
  */
 const PAYMENT_COMPLETED_REQUIRED_FIELDS = [
   "eventId",
@@ -80,7 +80,7 @@ const VALID_PAYMENT_METHODS = [
 
 /**
  * Hàm validate payload của sự kiện payment.completed
- * @param {Object} payload - Dữ liệu nhận được từ Kafka message
+ * @param {Object} payload - Dữ liệu nhận được từ message broker
  * @returns {{ isValid: boolean, errors: string[] }}
  */
 function validatePaymentCompletedPayload(payload) {
@@ -96,7 +96,7 @@ function validatePaymentCompletedPayload(payload) {
   // Kiểm tra type đúng giá trị
   if (payload.type && payload.type !== "PaymentCompleted") {
     errors.push(
-      `Trường "type" không hợp lệ: nhận "${payload.type}", mong đợi "PaymentCompleted"`
+      `Trường "type" không hợp lệ: nhận "${payload.type}", mong đợi "PaymentCompleted"`,
     );
   }
 
@@ -105,7 +105,7 @@ function validatePaymentCompletedPayload(payload) {
     errors.push(
       `Trường "userRole" không hợp lệ: nhận "${
         payload.userRole
-      }", chấp nhận ${VALID_USER_ROLES.join(" | ")}`
+      }", chấp nhận ${VALID_USER_ROLES.join(" | ")}`,
     );
   }
 
@@ -115,7 +115,7 @@ function validatePaymentCompletedPayload(payload) {
     !VALID_PAYMENT_METHODS.includes(payload.paymentMethod)
   ) {
     errors.push(
-      `Trường "paymentMethod" không hợp lệ: "${payload.paymentMethod}"`
+      `Trường "paymentMethod" không hợp lệ: "${payload.paymentMethod}"`,
     );
   }
 

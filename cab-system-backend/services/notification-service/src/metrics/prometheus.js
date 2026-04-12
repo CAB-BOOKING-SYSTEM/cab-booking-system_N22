@@ -34,13 +34,13 @@ promClient.collectDefaultMetrics({
 // ─── Custom Metrics ───────────────────────────────────────────────────────────
 
 /**
- * Counter: Tổng số thông báo đã được xử lý từ Kafka.
+ * Counter: Tổng số thông báo đã được xử lý từ message broker.
  * Labels:
- *   - topic: "ride.assigned" | "payment.completed" | "payment.failed"
+ *   - topic: topic/routing-key đã xử lý
  */
-const kafkaMessagesProcessedTotal = new promClient.Counter({
-  name: "cab_notification_kafka_messages_processed_total",
-  help: "Tổng số Kafka message đã được consumer xử lý",
+const brokerMessagesProcessedTotal = new promClient.Counter({
+  name: "cab_notification_broker_messages_processed_total",
+  help: "Tổng số message đã được consumer xử lý",
   labelNames: ["topic", "status"], // status: success | duplicate | error
   registers: [register],
 });
@@ -69,12 +69,12 @@ const socketOnlineUsersGauge = new promClient.Gauge({
 });
 
 /**
- * Histogram: Thời gian xử lý một Kafka message (từ lúc nhận đến khi lưu DB xong).
+ * Histogram: Thời gian xử lý một message (từ lúc nhận đến khi lưu DB xong).
  * Cho phép tính P50 / P95 / P99 latency trong Grafana.
  */
 const notificationProcessingDuration = new promClient.Histogram({
   name: "cab_notification_processing_duration_seconds",
-  help: "Thời gian xử lý một thông báo từ Kafka đến khi lưu DB (giây)",
+  help: "Thời gian xử lý một thông báo từ broker đến khi lưu DB (giây)",
   labelNames: ["topic"],
   buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5],
   registers: [register],
@@ -85,7 +85,7 @@ const notificationProcessingDuration = new promClient.Histogram({
  */
 const duplicateEventsTotal = new promClient.Counter({
   name: "cab_notification_duplicate_events_total",
-  help: "Số lần Kafka message bị bỏ qua do trùng eventId (idempotency)",
+  help: "Số lần message bị bỏ qua do trùng eventId (idempotency)",
   labelNames: ["topic"],
   registers: [register],
 });
@@ -114,7 +114,7 @@ module.exports = {
   register,
   metricsHandler,
   // Các metric để các service khác gọi .inc() / .set() / .observe()
-  kafkaMessagesProcessedTotal,
+  brokerMessagesProcessedTotal,
   notificationsSentTotal,
   socketOnlineUsersGauge,
   notificationProcessingDuration,
