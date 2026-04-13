@@ -1,4 +1,3 @@
- 
 const Redis = require('ioredis');
 const logger = require('../utils/logger');
 
@@ -16,6 +15,7 @@ class RedisClient {
           const delay = Math.min(times * 50, 2000);
           return delay;
         },
+        maxRetriesPerRequest: 3,
       });
 
       this.client.on('connect', () => {
@@ -42,32 +42,56 @@ class RedisClient {
   }
 
   async getNearbyDrivers(lng, lat, radiusKm = 5) {
-    const nearby = await this.client.georadius(
-      'drivers:location',
-      lng,
-      lat,
-      radiusKm,
-      'km',
-      'WITHDIST',
-      'ASC'
-    );
-    return nearby.map(([driverId, distance]) => ({
-      driverId,
-      distanceKm: parseFloat(distance),
-    }));
+    try {
+      const nearby = await this.client.georadius(
+        'drivers:location',
+        lng,
+        lat,
+        radiusKm,
+        'km',
+        'WITHDIST',
+        'ASC'
+      );
+      return nearby.map(([driverId, distance]) => ({
+        driverId,
+        distanceKm: parseFloat(distance),
+      }));
+    } catch (error) {
+      logger.error('Error getting nearby drivers from Redis:', error);
+      return [];
+    }
   }
 
   async cacheMatchResult(rideId, matchResult, ttlSeconds = 300) {
-    await this.client.setex(
-      `match:${rideId}`,
-      ttlSeconds,
-      JSON.stringify(matchResult)
-    );
+    try {
+      await this.client.setex(
+        `match:${rideId}`,
+        ttlSeconds,
+        JSON.stringify(matchResult)
+      );
+      logger.debug(`Cached match result for ride ${rideId}`);
+    } catch (error) {
+      logger.error(`Error caching match result for ride ${rideId}:`, error);
+    }
   }
 
   async getCachedMatch(rideId) {
-    const cached = await this.client.get(`match:${rideId}`);
-    return cached ? JSON.parse(cached) : null;
+    try {
+      const cached = await this.client.get(`match:${rideId}`);
+      return cached ? JSON.parse(cached) : null;
+    } catch (error) {
+      logger.error(`Error getting cached match for ride ${rideId}:`, error);
+      return null;
+    }
+  }
+
+  async deleteCachedMatch(rideId) {
+    try {
+      await this.client.del(`match:${rideId}`);
+      logger.debug(`Deleted cached match for ride ${rideId}`);
+    } catch (error) {
+      logger.error(`Error deleting cached match for ride ${rideId}:`, error);
+    }
   }
 
   async close() {

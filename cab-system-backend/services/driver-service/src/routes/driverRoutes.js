@@ -5,13 +5,28 @@ const authMiddleware = require('../middleware/auth');
 
 const router = express.Router();
 
-// ✅ Public route (login)
+// ✅ Public routes (không cần auth)
+router.post('/register', [
+  body('phone').isMobilePhone().withMessage('Số điện thoại không hợp lệ'),
+  body('fullName').notEmpty().withMessage('Họ tên không được để trống'),
+  body('licensePlate').notEmpty().withMessage('Biển số xe không được để trống'),
+  body('vehicleType').isIn(['4_seat', '7_seat', 'luxury']).withMessage('Loại xe không hợp lệ'),
+  body('email').optional().isEmail().withMessage('Email không hợp lệ'),
+  body('password').optional().isLength({ min: 6 }).withMessage('Mật khẩu phải có ít nhất 6 ký tự')
+], driverController.register);
+
 router.post('/login', [
-  body('email').isEmail(),
-  body('password').notEmpty(),
+  body('email').isEmail().withMessage('Email không hợp lệ'),
+  body('password').notEmpty().withMessage('Mật khẩu không được để trống'),
 ], driverController.login);
 
-// ✅ Protected routes
+// ✅ Public route để lấy danh sách tài xế online (cho matching service)
+router.get('/online/list', [
+  query('lat').optional().isFloat(),
+  query('lng').optional().isFloat(),
+], driverController.getOnlineDrivers);
+
+// ✅ Protected routes (yêu cầu authentication)
 //router.use(authMiddleware);
 
 // Profile
@@ -78,11 +93,5 @@ router.get('/:driverId/ride-history', [
 router.get('/:driverId/current-ride', [
   param('driverId').notEmpty(),
 ], driverController.getCurrentRide);
-
-// Nearby drivers
-router.get('/online/list', [
-  query('lat').optional().isFloat(),
-  query('lng').optional().isFloat(),
-], driverController.getOnlineDrivers);
 
 module.exports = router;

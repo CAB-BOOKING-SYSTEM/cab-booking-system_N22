@@ -28,6 +28,8 @@ class FeatureStoreService {
         avgResponseTime: await this.getDriverAvgResponseTime(driverId),
         completedTrips: await this.getDriverCompletedTrips(driverId),
         cancellationRate: await this.getDriverCancellationRate(driverId),
+        avgRating: await this.getDriverRating(driverId),
+        totalDistance: await this.getDriverTotalDistance(driverId),
         lastActiveAt: new Date().toISOString(),
       };
 
@@ -52,8 +54,11 @@ class FeatureStoreService {
   async getDriverRating(driverId) {
     // In production, call Driver Service API
     try {
-      const response = await axios.get(`${process.env.DRIVER_SERVICE_URL}/api/drivers/${driverId}`);
-      return response.data.rating || 5.0;
+      const driverServiceUrl = process.env.DRIVER_SERVICE_URL || 'http://cab_driver:3003';
+      const response = await axios.get(`${driverServiceUrl}/api/drivers/${driverId}`, {
+        timeout: 3000,
+      });
+      return response.data.data?.rating || 5.0;
     } catch (error) {
       logger.warn(`Failed to get rating for ${driverId}, using default`);
       return 5.0;
@@ -62,6 +67,7 @@ class FeatureStoreService {
 
   async getDriverAcceptanceRate(driverId) {
     // Simulate - in production, calculate from historical data
+    // Có thể lấy từ Redis hoặc database
     return 0.92;
   }
 
@@ -73,8 +79,11 @@ class FeatureStoreService {
   async getDriverCompletedTrips(driverId) {
     // Simulate - in production, get from Driver Service
     try {
-      const response = await axios.get(`${process.env.DRIVER_SERVICE_URL}/api/drivers/${driverId}`);
-      return response.data.totalTrips || 0;
+      const driverServiceUrl = process.env.DRIVER_SERVICE_URL || 'http://cab_driver:3003';
+      const response = await axios.get(`${driverServiceUrl}/api/drivers/${driverId}`, {
+        timeout: 3000,
+      });
+      return response.data.data?.totalTrips || 0;
     } catch (error) {
       return 0;
     }
@@ -85,6 +94,11 @@ class FeatureStoreService {
     return 0.05;
   }
 
+  async getDriverTotalDistance(driverId) {
+    // Simulate - tổng km đã chạy
+    return 1500;
+  }
+
   getDefaultFeatures(driverId) {
     return {
       driverId,
@@ -93,6 +107,8 @@ class FeatureStoreService {
       avgResponseTime: 30,
       completedTrips: 0,
       cancellationRate: 0.1,
+      avgRating: 5.0,
+      totalDistance: 0,
     };
   }
 
@@ -113,7 +129,8 @@ class FeatureStoreService {
 
   clearCache() {
     this.cache.clear();
+    logger.info('Feature store cache cleared');
   }
 }
 
-module.exports = new FeatureStoreService(); 
+module.exports = new FeatureStoreService();

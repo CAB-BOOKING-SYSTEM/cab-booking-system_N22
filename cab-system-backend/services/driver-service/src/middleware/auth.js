@@ -1,4 +1,4 @@
- const jwt = require('jsonwebtoken');
+const jwt = require('jsonwebtoken');
 const logger = require('../utils/logger');
 
 module.exports = async (req, res, next) => {
@@ -8,27 +8,49 @@ module.exports = async (req, res, next) => {
     if (!token) {
       return res.status(401).json({
         success: false,
-        message: 'No token provided',
+        message: 'Không tìm thấy token xác thực',
       });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'supersecret');
+    
+    // Kiểm tra token hết hạn
+    if (decoded.exp && decoded.exp < Date.now() / 1000) {
+      return res.status(401).json({
+        success: false,
+        message: 'Token đã hết hạn',
+      });
+    }
+    
     req.user = decoded;
     
     // Check if user has driver role
     if (req.user.role !== 'driver' && req.user.role !== 'admin') {
       return res.status(403).json({
         success: false,
-        message: 'Access denied. Driver role required.',
+        message: 'Truy cập bị từ chối. Yêu cầu quyền tài xế.',
       });
     }
     
     next();
   } catch (error) {
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({
+        success: false,
+        message: 'Token không hợp lệ',
+      });
+    }
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({
+        success: false,
+        message: 'Token đã hết hạn',
+      });
+    }
+    
     logger.error('Auth middleware error:', error);
-    return res.status(401).json({
+    return res.status(500).json({
       success: false,
-      message: 'Invalid or expired token',
+      message: 'Lỗi xác thực',
     });
   }
 };

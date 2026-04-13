@@ -1,4 +1,4 @@
- require('dotenv').config();
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
@@ -18,15 +18,39 @@ app.use(morgan('combined'));
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-  res.json({
+  const health = {
     status: 'healthy',
     service: 'matching-service',
     timestamp: new Date().toISOString(),
-  });
+    uptime: process.uptime(),
+    dependencies: {
+      postgres: database.pgPool ? 'connected' : 'disconnected',
+      redis: redisClient.client ? 'connected' : 'disconnected',
+    },
+  };
+  res.json(health);
+});
+
+// Readiness probe
+app.get('/ready', async (req, res) => {
+  const isReady = database.pgPool && redisClient.client;
+  if (isReady) {
+    res.json({ ready: true });
+  } else {
+    res.status(503).json({ ready: false });
+  }
 });
 
 // Routes
 app.use('/api/matching', matchingRoutes);
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    message: `Route ${req.method} ${req.url} not found`,
+  });
+});
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -34,6 +58,7 @@ app.use((err, req, res, next) => {
   res.status(500).json({
     success: false,
     message: 'Internal server error',
+    error: process.env.NODE_ENV === 'development' ? err.message : undefined,
   });
 });
 
@@ -47,6 +72,8 @@ async function startServer() {
     app.listen(PORT, () => {
       logger.info(`🎯 Matching Service running on port ${PORT}`);
       logger.info(`   Environment: ${process.env.NODE_ENV || 'development'}`);
+      logger.info(`   PostgreSQL: ${database.pgPool ? '✅' : '❌'}`);
+      logger.info(`   Redis: ${redisClient.client ? '✅' : '❌'}`);
       logger.info(`   AI Scoring: ENABLED`);
       logger.info(`   Fallback: nearest-driver (auto on AI error)`);
     });
@@ -59,6 +86,13 @@ async function startServer() {
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   logger.info('SIGTERM received, closing server...');
+  await database.closeConnections();
+  await redisClient.close();
+  process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+  logger.info('SIGINT received, closing server...');
   await database.closeConnections();
   await redisClient.close();
   process.exit(0);

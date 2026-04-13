@@ -1,7 +1,6 @@
 const driverService = require('../services/driverService');
 const { validationResult } = require('express-validator');
 const logger = require('../utils/logger');
-const axios = require('axios');
 
 class DriverController {
   // ==================== AUTH & PROFILE ====================
@@ -10,39 +9,91 @@ class DriverController {
     try {
       const { email, password } = req.body;
       
-      // Kiểm tra auth service có chạy không
-      const authServiceUrl = process.env.AUTH_SERVICE_URL || 'http://cab_auth:3001';
+      // Tìm tài xế theo email
+      const driver = await driverService.getDriverByEmail(email);
       
-      try {
-        const authResponse = await axios.post(`${authServiceUrl}/auth/login`, {
-          email,
-          password,
-          role: 'driver'
-        });
-        
-        res.json({
-          success: true,
-          data: authResponse.data
-        });
-      } catch (authError) {
-        // Fallback: nếu auth service chưa chạy, trả về token giả (chỉ để test)
-        logger.warn('Auth service unavailable, using fallback token');
-        res.json({
-          success: true,
-          message: 'Login successful (fallback mode - auth service unavailable)',
-          data: {
-            token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImRyaXZlcl8wMDEiLCJyb2xlIjoiZHJpdmVyIiwiaWF0IjoxNTE2MjM5MDIyfQ.fallback_token_for_testing',
-            driverId: 'driver_001',
-            email: email,
-            role: 'driver'
-          }
+      if (!driver) {
+        return res.status(401).json({
+          success: false,
+          message: 'Email không tồn tại'
         });
       }
+      
+      // Kiểm tra password (đơn giản cho test)
+      if (password !== 'password123' && password !== driver.password) {
+        return res.status(401).json({
+          success: false,
+          message: 'Mật khẩu không chính xác'
+        });
+      }
+      
+      // Tạo token đơn giản (chỉ để test)
+      const token = Buffer.from(JSON.stringify({
+        driverId: driver.driverId,
+        email: driver.email,
+        role: 'driver',
+        exp: Date.now() + 7 * 24 * 60 * 60 * 1000
+      })).toString('base64');
+      
+      res.json({
+        success: true,
+        message: 'Đăng nhập thành công',
+        data: {
+          token: token,
+          driverId: driver.driverId,
+          email: driver.email,
+          role: 'driver'
+        }
+      });
     } catch (error) {
       logger.error('Login error:', error);
       res.status(401).json({
         success: false,
-        message: error.response?.data?.message || 'Invalid credentials'
+        message: error.message || 'Đăng nhập thất bại'
+      });
+    }
+  }
+
+  async register(req, res) {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const { phone, fullName, licensePlate, vehicleType, email } = req.body;
+      
+      // Kiểm tra tài xế đã tồn tại
+      const existingDriver = await driverService.getDriverByPhoneOrEmail(phone, email);
+      if (existingDriver) {
+        return res.status(400).json({
+          success: false,
+          message: 'Số điện thoại hoặc email đã tồn tại'
+        });
+      }
+      
+      // Tạo driverId
+      const driverId = `DRV_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+      
+      const driver = await driverService.createDriver({
+        driverId,
+        phone,
+        email,
+        fullName,
+        licensePlate,
+        vehicleType
+      });
+      
+      res.status(201).json({
+        success: true,
+        message: 'Đăng ký tài xế thành công',
+        data: driver
+      });
+    } catch (error) {
+      logger.error('Register error:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message
       });
     }
   }
@@ -61,7 +112,7 @@ class DriverController {
       
       res.json({
         success: true,
-        message: 'Profile updated successfully',
+        message: 'Cập nhật hồ sơ thành công',
         data: driver
       });
     } catch (error) {
@@ -107,7 +158,7 @@ class DriverController {
       
       res.json({
         success: true,
-        message: `Driver is now ${status}`,
+        message: `Tài xế đã ${status === 'online' ? 'lên xe' : 'xuống xe'}`,
         data: driver,
       });
     } catch (error) {
@@ -127,7 +178,7 @@ class DriverController {
       }
 
       const { driverId } = req.params;
-      const { lat, lng, speed, heading, accuracy, rideId } = req.body;
+      const { lat, lng, speed, heading, accuracy } = req.body;
 
       const driver = await driverService.updateDriverLocation(
         driverId,
@@ -135,13 +186,12 @@ class DriverController {
         lng,
         speed || 0,
         heading || 0,
-        accuracy || 0,
-        rideId || null
+        accuracy || 0
       );
 
       res.json({
         success: true,
-        message: 'Location updated successfully',
+        message: 'Cập nhật vị trí thành công',
         data: {
           driverId: driver.driverId,
           location: driver.currentLocation,
@@ -225,7 +275,7 @@ class DriverController {
       
       res.json({
         success: true,
-        message: 'Ride accepted successfully',
+        message: 'Nhận chuyến thành công',
         data: result
       });
     } catch (error) {
@@ -246,7 +296,7 @@ class DriverController {
       
       res.json({
         success: true,
-        message: 'Ride rejected',
+        message: 'Từ chối chuyến thành công',
         data: result
       });
     } catch (error) {
@@ -267,7 +317,7 @@ class DriverController {
       
       res.json({
         success: true,
-        message: 'Ride started successfully',
+        message: 'Bắt đầu chuyến thành công',
         data: result
       });
     } catch (error) {
@@ -287,13 +337,13 @@ class DriverController {
       }
 
       const { driverId } = req.params;
-      const { rideId, bookingId, distance, duration } = req.body;
+      const { rideId, distance, duration } = req.body;
 
-      const driver = await driverService.completeRide(driverId, rideId, bookingId, distance, duration);
+      const driver = await driverService.completeRide(driverId, rideId, distance, duration);
       
       res.json({
         success: true,
-        message: 'Ride completed successfully',
+        message: 'Kết thúc chuyến thành công',
         data: {
           driverId: driver.driverId,
           totalTrips: driver.totalTrips

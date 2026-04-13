@@ -7,10 +7,19 @@ class MatchingController {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
+        return res.status(400).json({ 
+          success: false,
+          errors: errors.array() 
+        });
       }
 
       const { rideId, userId, pickupLat, pickupLng, vehicleType } = req.body;
+
+      // Validate userId từ token nếu có
+      if (req.user && req.user.id && req.user.id !== userId) {
+        logger.warn(`User ID mismatch: token=${req.user.id}, request=${userId}`);
+        // Không block, chỉ log warning
+      }
 
       const result = await matchingService.findDriverForRide(
         rideId,
@@ -36,13 +45,21 @@ class MatchingController {
 
   async getMatchResult(req, res) {
     try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ 
+          success: false,
+          errors: errors.array() 
+        });
+      }
+
       const { rideId } = req.params;
       const result = await matchingService.getMatchResult(rideId);
 
       if (!result) {
         return res.status(404).json({
           success: false,
-          message: 'Match result not found',
+          message: 'Không tìm thấy kết quả ghép đôi',
         });
       }
 
@@ -59,14 +76,32 @@ class MatchingController {
     }
   }
 
+  async getMatchingStats(req, res) {
+    try {
+      const stats = await matchingService.getMatchingStats();
+      res.json({
+        success: true,
+        data: stats,
+      });
+    } catch (error) {
+      logger.error('Get matching stats error:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message,
+      });
+    }
+  }
+
   async healthCheck(req, res) {
+    const aiAvailable = await matchingService.checkAIAvailability();
     res.json({
       status: 'healthy',
       service: 'matching-service',
-      aiAvailable: true,
+      aiAvailable: aiAvailable,
       timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
     });
   }
 }
 
-module.exports = new MatchingController(); 
+module.exports = new MatchingController();

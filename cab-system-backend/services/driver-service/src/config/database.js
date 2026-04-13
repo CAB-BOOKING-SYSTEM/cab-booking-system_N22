@@ -12,24 +12,32 @@ class Database {
 
   async connectPostgreSQL() {
     try {
-      // Bước 1: Kết nối đến database mặc định (postgres) để tạo database
+      const dbName = process.env.DB_NAME || 'driver_db';
+      
+      // Bước 1: Kết nối đến database mặc định (postgres) để kiểm tra
       const defaultPool = new Pool({
         host: process.env.DB_HOST || 'postgres',
         port: process.env.DB_PORT || 5432,
         user: process.env.DB_USER || 'admin',
         password: process.env.DB_PASSWORD || 'password123',
-        database: 'postgres', // Kết nối đến database mặc định
+        database: 'postgres',
         max: 5,
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 2000,
       });
 
-      // Tạo database nếu chưa tồn tại
-      const dbName = process.env.DB_NAME || 'driver_db';
-      await defaultPool.query(`CREATE DATABASE IF NOT EXISTS ${dbName}`);
+      // Kiểm tra database đã tồn tại chưa (cú pháp PostgreSQL)
+      const checkDbQuery = 'SELECT 1 FROM pg_database WHERE datname = $1';
+      const res = await defaultPool.query(checkDbQuery, [dbName]);
+      
+      if (res.rowCount === 0) {
+        await defaultPool.query(`CREATE DATABASE ${dbName}`);
+        logger.info(`✅ Database ${dbName} created successfully`);
+      }
+      
       await defaultPool.end();
 
-      // Bước 2: Kết nối đến database vừa tạo
+      // Bước 2: Kết nối đến database chính
       this.pgPool = new Pool({
         host: process.env.DB_HOST || 'postgres',
         port: process.env.DB_PORT || 5432,
@@ -87,8 +95,11 @@ class Database {
 
   async connectMongoDB() {
     try {
-      const mongoUrl = process.env.MONGO_URL || 'mongodb://mongodb:27017/driver_db';
-      await mongoose.connect(mongoUrl);
+      const mongoUrl = process.env.MONGO_URL || 'mongodb://admin:password123@mongodb:27017/driver_db?authSource=admin';
+      await mongoose.connect(mongoUrl, {
+        useNewUrlParser: true,
+        useUnifiedTopology: true,
+      });
       
       this.mongoConnection = mongoose.connection;
       logger.info('✅ MongoDB connected successfully');

@@ -1,4 +1,4 @@
- // Using PostgreSQL via raw queries
+// PostgreSQL model for matching_requests table
 class MatchingRequest {
   static async create(pool, data) {
     const query = `
@@ -28,6 +28,16 @@ class MatchingRequest {
     return result.rows[0];
   }
 
+  static async findByIdAndDriver(pool, rideId, driverId) {
+    const query = `
+      SELECT mr.* FROM matching_requests mr
+      JOIN matching_results mres ON mr.id = mres.request_id
+      WHERE mr.ride_id = $1 AND mres.driver_id = $2
+    `;
+    const result = await pool.query(query, [rideId, driverId]);
+    return result.rows[0];
+  }
+
   static async getPendingRequests(pool, limit = 10) {
     const query = `
       SELECT * FROM matching_requests 
@@ -36,6 +46,17 @@ class MatchingRequest {
       LIMIT $1
     `;
     const result = await pool.query(query, [limit]);
+    return result.rows;
+  }
+
+  static async getRequestsByUser(pool, userId, limit = 50) {
+    const query = `
+      SELECT * FROM matching_requests 
+      WHERE user_id = $1 
+      ORDER BY created_at DESC 
+      LIMIT $2
+    `;
+    const result = await pool.query(query, [userId, limit]);
     return result.rows;
   }
 }

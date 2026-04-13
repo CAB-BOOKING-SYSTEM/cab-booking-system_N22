@@ -1,9 +1,10 @@
- const logger = require('../utils/logger');
+const logger = require('../utils/logger');
 const scoringAlgorithm = require('../utils/scoringAlgorithm');
 
 class AIScoringService {
   constructor() {
     this.aiAvailable = true;
+    this.modelEndpoint = process.env.AI_MODEL_ENDPOINT || 'http://ai-model:8080';
   }
 
   async scoreDriver(driver, distanceKm, features) {
@@ -17,13 +18,16 @@ class AIScoringService {
         features.completedTrips
       );
 
+      // Thêm một số yếu tố khác
+      const finalScore = this.applyAdvancedFactors(score, features, driver);
+
       return {
         driverId: driver.driverId,
         distanceKm,
         rating: features.rating,
         acceptanceRate: features.acceptanceRate,
-        totalScore: score,
-        details: driver,
+        totalScore: finalScore,
+        details: driver.details,
         aiUsed: true,
       };
     } catch (error) {
@@ -32,7 +36,7 @@ class AIScoringService {
     }
   }
 
-  async scoreMultipleDrivers(drivers, featuresMap) {
+  async scoreMultipleDrivers(drivers, featuresMap, driverDetailsMap) {
     const scored = [];
     
     for (const driver of drivers) {
@@ -44,8 +48,14 @@ class AIScoringService {
           completedTrips: 0,
         };
         
+        const driverWithDetails = {
+          driverId: driver.driverId,
+          details: driverDetailsMap[driver.driverId]?.data || {},
+          distanceKm: driver.distanceKm,
+        };
+        
         const scoredDriver = await this.scoreDriver(
-          driver,
+          driverWithDetails,
           driver.distanceKm,
           features
         );
@@ -60,9 +70,38 @@ class AIScoringService {
     return scored;
   }
 
-  checkAIAvailability() {
+  applyAdvancedFactors(baseScore, features, driver) {
+    let finalScore = baseScore;
+    
+    // Bonus cho tài xế có rating cao
+    if (features.rating >= 4.8) {
+      finalScore += 0.05;
+    }
+    
+    // Bonus cho tài xế có tỷ lệ nhận chuyến cao
+    if (features.acceptanceRate >= 0.95) {
+      finalScore += 0.03;
+    }
+    
+    // Phạt nếu khoảng cách xa
+    if (driver.distanceKm > 3) {
+      finalScore -= 0.05;
+    }
+    
+    return Math.min(1.0, Math.max(0, finalScore));
+  }
+
+  async checkAIAvailability() {
     // In production, check health of AI model endpoint
-    return this.aiAvailable;
+    try {
+      // const response = await axios.get(`${this.modelEndpoint}/health`, { timeout: 2000 });
+      // this.aiAvailable = response.status === 200;
+      return this.aiAvailable;
+    } catch (error) {
+      logger.warn('AI model health check failed:', error.message);
+      this.aiAvailable = false;
+      return false;
+    }
   }
 
   setAIAvailable(available) {

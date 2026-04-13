@@ -23,6 +23,9 @@ class Database {
         user,
         password,
         database: 'postgres',
+        max: 5,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 2000,
       });
 
       // Kiểm tra database đã tồn tại chưa
@@ -91,7 +94,8 @@ class Database {
           // Bỏ qua lỗi "already exists"
           if (!stmtError.message.includes('already exists') && 
               !stmtError.message.includes('duplicate key') &&
-              !stmtError.message.includes('already defined')) {
+              !stmtError.message.includes('already defined') &&
+              !stmtError.message.includes('already exists')) {
             logger.warn('SQL statement error:', stmtError.message);
           }
         }

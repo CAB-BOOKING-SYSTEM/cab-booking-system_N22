@@ -1,4 +1,4 @@
- class ScoringAlgorithm {
+class ScoringAlgorithm {
   calculateScore(distanceKm, rating, acceptanceRate, avgResponseTime, completedTrips) {
     // Normalize distance: closer is better (max 5km)
     const distanceScore = Math.max(0, 1 - distanceKm / 5);
@@ -15,13 +15,13 @@
     // Experience score: more trips is better (cap at 1000)
     const experienceScore = Math.min(1, (completedTrips || 0) / 1000);
     
-    // Weighted sum
+    // Weighted sum - tối ưu cho matching
     const totalScore = 
-      distanceScore * 0.35 +
-      ratingScore * 0.30 +
-      acceptanceScore * 0.15 +
-      responseScore * 0.10 +
-      experienceScore * 0.10;
+      distanceScore * 0.35 +      // Khoảng cách quan trọng nhất
+      ratingScore * 0.30 +         // Rating cũng rất quan trọng
+      acceptanceScore * 0.15 +     // Tỷ lệ nhận chuyến
+      responseScore * 0.10 +       // Thời gian phản hồi
+      experienceScore * 0.10;      // Kinh nghiệm
     
     return parseFloat(totalScore.toFixed(4));
   }
@@ -51,6 +51,34 @@
     multiplier = multiplier * (1 + timeFactor * 0.5);
     
     return Math.min(multiplier, 5.0);
+  }
+
+  calculateDriverScoreForRide(driver, rideFeatures, context) {
+    // Advanced scoring based on ride context
+    let score = this.calculateScore(
+      driver.distanceKm,
+      driver.rating,
+      driver.acceptanceRate,
+      driver.avgResponseTime,
+      driver.completedTrips
+    );
+    
+    // Adjust for traffic conditions
+    if (context.trafficFactor) {
+      score = score * (1 - context.trafficFactor * 0.2);
+    }
+    
+    // Adjust for time of day
+    const hour = new Date().getHours();
+    if (hour >= 7 && hour <= 9) {
+      // Morning rush - prefer experienced drivers
+      score = score * (1 + driver.completedTrips / 2000);
+    } else if (hour >= 17 && hour <= 19) {
+      // Evening rush
+      score = score * (1 + driver.rating / 10);
+    }
+    
+    return Math.min(1.0, score);
   }
 }
 
