@@ -34,7 +34,7 @@ CMD ["npm", "run", "dev"]
 FROM base AS builder
 
 # Cài đặt dependencies production
-RUN npm ci --only=production
+RUN npm install --omit=dev
 
 # Stage 4: Production
 FROM node:20-alpine AS production
