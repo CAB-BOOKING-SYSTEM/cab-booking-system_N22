@@ -205,7 +205,8 @@ services:
       target: development
     container_name: cab_matching
     ports:
-      - "${MATCHING_PORT}:${MATCHING_PORT}"
+      ports:
+      - "${MATCHING_PORT:-3001}:${MATCHING_PORT:-3001}"
     environment:
       - PORT=${MATCHING_PORT}
       - NODE_ENV=development
