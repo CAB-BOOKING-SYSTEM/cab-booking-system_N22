@@ -1,20 +1,6 @@
 {
   "name": "booking-service",
   "version": "1.0.0",
-<<<<<<< Updated upstream
-  "main": "src/index.js",
-  "dependencies": {
-    "amqplib": "^0.10.9",
-    "cors": "^2.8.5",
-    "dotenv": "^17.2.3",
-    "express": "^5.2.1",
-    "mongoose": "^9.1.5",
-    "morgan": "^1.10.1"
-  },
-  "scripts": {
-    "start": "node src/index.js",
-    "dev": "nodemon index.js"
-=======
   "description": "Booking Service for CAB Booking System",
   "main": "index.js",
   "scripts": {
@@ -35,7 +21,6 @@
     "amqplib": "^0.10.3",
     "axios": "^1.5.0",
     "uuid": "^9.0.0"
->>>>>>> Stashed changes
   },
   "devDependencies": {
     "nodemon": "^3.0.1",
