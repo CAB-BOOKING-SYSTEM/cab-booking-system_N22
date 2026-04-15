@@ -11,8 +11,8 @@ services:
       - auth-service
       - user-service
       - booking-service
-    env_file:
-      - .env  
+    # env_file:
+    #   - .env  
 
   # --- 1. INFRASTRUCTURE ---
   postgres:
