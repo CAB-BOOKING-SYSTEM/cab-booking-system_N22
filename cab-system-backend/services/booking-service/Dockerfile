@@ -1,26 +1,12 @@
-<<<<<<< Updated upstream
-FROM node:20
-
-WORKDIR /app
-
-=======
 # dockerfile
 FROM node:18-alpine
 
 WORKDIR /app
 
 # Copy package files
->>>>>>> Stashed changes
 COPY package*.json ./
 RUN npm ci --only=production
 
-<<<<<<< Updated upstream
-RUN npm install
-
-COPY . .
-
-CMD ["npm", "start"]
-=======
 # Copy source code
 COPY . .
 
@@ -33,4 +19,3 @@ USER nodejs
 EXPOSE 3001
 
 CMD ["node", "index.js"]
->>>>>>> Stashed changes
