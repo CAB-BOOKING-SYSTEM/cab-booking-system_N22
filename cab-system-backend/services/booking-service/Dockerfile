@@ -1,11 +1,16 @@
-# dockerfile
+# Dockerfile (sửa lại)
 FROM node:18-alpine
 
 WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
-RUN npm ci --only=production
+
+# ❌ Cách cũ (bị lỗi)
+# RUN npm ci --only=production
+
+# ✅ Cách mới (dùng npm install)
+RUN npm install --omit=dev
 
 # Copy source code
 COPY . .
