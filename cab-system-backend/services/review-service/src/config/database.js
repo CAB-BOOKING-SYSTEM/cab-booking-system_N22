@@ -5,6 +5,11 @@ let poolInstance = null;
 const maskConnectionString = (connectionString) =>
   connectionString.replace(/:(.*?)@/, ":****@");
 
+const sleep = (ms) =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+
 const resolveConnectionString = () => {
   if (process.env.DB_URL) {
     return process.env.DB_URL;
@@ -43,21 +48,34 @@ const getPool = () => {
 };
 
 const connectDatabase = async () => {
-  try {
-    const pool = getPool();
-    await pool.query("SELECT 1");
-    console.log("[DB] PostgreSQL connected successfully");
-    return pool;
-  } catch (error) {
-    console.error("[DB] PostgreSQL connection failed:", error);
+  const maxRetries = Number(process.env.DB_CONNECT_MAX_RETRIES || 10);
+  const retryDelayMs = Number(process.env.DB_CONNECT_RETRY_DELAY_MS || 3000);
+  const pool = getPool();
 
-    if (error.code === "28P01") {
+  for (let attempt = 1; attempt <= maxRetries; attempt += 1) {
+    try {
+      await pool.query("SELECT 1");
+      console.log("[DB] PostgreSQL connected successfully");
+      return pool;
+    } catch (error) {
+      const isLastAttempt = attempt === maxRetries;
       console.error(
-        "[DB] Invalid credentials. Set DB_URL or POSTGRES_USER/POSTGRES_PASSWORD correctly in .env."
+        `[DB] PostgreSQL connection failed (attempt ${attempt}/${maxRetries}):`,
+        error
       );
-    }
 
-    throw error;
+      if (error.code === "28P01") {
+        console.error(
+          "[DB] Invalid credentials. Set DB_URL or POSTGRES_USER/POSTGRES_PASSWORD correctly in .env."
+        );
+      }
+
+      if (isLastAttempt) {
+        throw error;
+      }
+
+      await sleep(retryDelayMs);
+    }
   }
 };
 
