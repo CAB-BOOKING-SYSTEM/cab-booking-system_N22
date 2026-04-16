@@ -11,6 +11,8 @@ services:
       - auth-service
       - user-service
       - booking-service
+    # env_file:
+    #   - .env  
 
   # --- 1. INFRASTRUCTURE ---
   postgres:
@@ -255,6 +257,9 @@ services:
       - DB_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/user_db
     depends_on:
       - postgres
+    volumes: 
+      - ./cab-system-backend/services/user-service:/app
+      - /app/node_modules
 
   matching-service:
     build:
