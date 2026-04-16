@@ -1,5 +1,3 @@
-version: "3.8"
-
 # ──────────────────────────────────────────────────────────────────────────────
 # NETWORK: Tất cả service giao tiếp nội bộ qua network riêng, không lộ ra ngoài
 # ──────────────────────────────────────────────────────────────────────────────
@@ -21,12 +19,13 @@ services:
     container_name: rabbitmq
     restart: unless-stopped
     ports:
-      - "5672:5672"   # AMQP
+      - "5672:5672" # AMQP
       - "15672:15672" # RabbitMQ Management UI
     networks:
       - cab-net
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      # Kiểm tra cổng mạng thực tế thay vì chỉ ping
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_port_connectivity"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -58,21 +57,19 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      target: runner          # Chỉ build đến stage runner (production)
     image: cab-notification-service:latest
     restart: unless-stopped
     ports:
-      - "3004:3004"           # Dev: 1 replica → 1 port cố định, không conflict
+      - "3004:3004" # Dev: 1 replica → 1 port cố định, không conflict
     environment:
       - NODE_ENV=production
       - PORT=3004
-      # DB_URL lấy từ .env (MONGO_URI=mongodb+srv://...)
-      - DB_URL=${MONGO_URI}
+      - DB_URL=${DB_URL}
       - RABBITMQ_ENABLED=true
       - RABBITMQ_URL=amqp://rabbitmq:5672
       - REDIS_URL=redis://redis:6379
     env_file:
-      - .env                  # Firebase credentials & JWT_SECRET nạp từ file .env
+      - .env # Firebase credentials & JWT_SECRET nạp từ file .env
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -89,9 +86,9 @@ services:
     # ── Swarm-compatible deploy block ──────────────────────────────────────────
     deploy:
       mode: replicated
-      replicas: 1             # docker-compose dev: 1 replica (replicas > 1 chỉ dùng với docker stack deploy)
+      replicas: 1 # docker-compose dev: 1 replica (replicas > 1 chỉ dùng với docker stack deploy)
       update_config:
-        parallelism: 1        # Rolling update: cập nhật từng replica một
+        parallelism: 1 # Rolling update: cập nhật từng replica một
         delay: 10s
         failure_action: rollback
       rollback_config:

@@ -44,6 +44,10 @@ let connection = null;
 let channel = null;
 let consumerTag = null;
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function parseMessageContent(message) {
   const rawContent = message.content.toString("utf8");
   return JSON.parse(rawContent);
@@ -367,7 +371,41 @@ async function runConsumer() {
   }
 
   const rabbitUrl = process.env.RABBITMQ_URL || "amqp://localhost:5672";
-  connection = await amqplib.connect(rabbitUrl);
+
+  const maxRetries = Math.max(
+    1,
+    Number.parseInt(process.env.RABBITMQ_MAX_RETRIES || "8", 10),
+  );
+  const retryDelayMs = Math.max(
+    500,
+    Number.parseInt(process.env.RABBITMQ_RETRY_DELAY_MS || "3000", 10),
+  );
+
+  let lastError = null;
+  for (let attempt = 1; attempt <= maxRetries; attempt += 1) {
+    try {
+      connection = await amqplib.connect(rabbitUrl);
+      lastError = null;
+      break;
+    } catch (error) {
+      lastError = error;
+      console.error(
+        `❌ [RabbitMQ] Kết nối thất bại (${attempt}/${maxRetries}):`,
+        error.message,
+      );
+
+      if (attempt < maxRetries) {
+        console.log(
+          `⏳ [RabbitMQ] Sẽ thử kết nối lại sau ${retryDelayMs}ms...`,
+        );
+        await sleep(retryDelayMs);
+      }
+    }
+  }
+
+  if (!connection) {
+    throw lastError || new Error("RabbitMQ connection failed after retries");
+  }
 
   connection.on("error", (error) => {
     console.error("❌ [RabbitMQ] Connection error:", error.message);
