@@ -1,0 +1,115 @@
+# ============================================
+# CAB Booking System - .gitignore
+# ============================================
+
+# --------------------
+# Dependencies
+# --------------------
+node_modules/
+.npm
+.pnpm
+.yarn/
+yarn-error.log
+npm-debug.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# --------------------
+# Environment Variables
+# --------------------
+.env
+.env.*
+!.env.example
+
+# --------------------
+# Build Outputs
+# --------------------
+dist/
+build/
+.out/
+.next/
+.output/
+.cache/
+
+# --------------------
+# Docker
+# --------------------
+*.tar.gz
+docker-compose.override.yml
+.dockerignore
+
+# --------------------
+# IDE & Editors
+# --------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# --------------------
+# OS Generated Files
+# --------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# --------------------
+# Logs
+# --------------------
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# --------------------
+# Testing & Coverage
+# --------------------
+coverage/
+.nyc_output/
+*.lcov
+
+# --------------------
+# Database
+# --------------------
+*.db
+*.sqlite
+*.sqlite3
+
+# --------------------
+# Python (for AI/ML)
+# --------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# --------------------
+# Misc
+# --------------------
+*.pid
+*.seed
+*.pid.lock
+*.tgz
+
+# --------------------
+# Project Specific
+# --------------------
+# Add your project-specific ignores below
+/temp/
+/uploads/
+/downloads/

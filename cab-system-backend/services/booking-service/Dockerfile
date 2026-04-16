@@ -1,27 +1,26 @@
-# Stage 1: Base
-FROM node:24.14.0-bookworm-slim AS base
+# Dockerfile (sửa lại)
+FROM node:18-alpine
+
 WORKDIR /app
+
+# Copy package files
 COPY package*.json ./
 
-# Stage 2: Development
-FROM base AS development
-# Cài đặt toàn bộ package kể cả devDependencies
-RUN npm install
-COPY . .
-# Biến môi trường nhận giá trị port từ docker-compose (lấy từ thư mục gốc)
-ARG PORT
-ENV PORT=${PORT}
-EXPOSE ${PORT}
-# Lệnh chạy server trong lúc code
-CMD ["npm", "run", "dev"]
+# ❌ Cách cũ (bị lỗi)
+# RUN npm ci --only=production
 
-# Stage 3: Production
-FROM base AS production
-# Chỉ cài đặt package cần thiết cho production
+# ✅ Cách mới (dùng npm install)
 RUN npm install --omit=dev
+
+# Copy source code
 COPY . .
-ARG PORT
-ENV PORT=${PORT}
-EXPOSE ${PORT}
-# Lệnh deploy
-CMD ["npm", "start"]
+
+# Create non-root user
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nodejs -u 1001
+
+USER nodejs
+
+EXPOSE 3001
+
+CMD ["node", "index.js"]
