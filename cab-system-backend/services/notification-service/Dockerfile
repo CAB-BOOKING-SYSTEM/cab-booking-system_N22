@@ -7,6 +7,7 @@ WORKDIR /app
 RUN apk add --no-cache python3 make g++
 COPY package*.json ./
 
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Stage 2 — Development: Dành cho lúc dev local (nhận code từ nhánh main)
 # ──────────────────────────────────────────────────────────────────────────────
@@ -20,11 +21,11 @@ EXPOSE ${PORT}
 CMD ["npm", "run", "dev"]
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Stage 3 — Builder: Chuẩn bị build cho Production (nhận code từ nhánh của Hiền)
+# Stage 3 — Builder: Chuẩn bị build cho Production
 # ──────────────────────────────────────────────────────────────────────────────
 FROM base AS builder
-# npm ci giúp cài đúng version trong package-lock.json
-RUN npm ci
+# Đổi từ npm ci sang npm install
+RUN npm install
 COPY . .
 # Loại bỏ devDependencies để giảm tối đa dung lượng cho image cuối cùng
 RUN npm prune --production
