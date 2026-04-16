@@ -1,0 +1,17 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Grafana Dashboard Provisioning
+# Grafana tự động load các file .json trong thư mục dashboards/ khi khởi động
+# ──────────────────────────────────────────────────────────────────────────────
+
+apiVersion: 1
+
+providers:
+  - name: "CAB Booking Dashboards"
+    orgId: 1
+    type: file
+    disableDeletion: true      # Không cho xoá dashboard qua UI
+    updateIntervalSeconds: 30  # Tự reload nếu file .json thay đổi
+    allowUiUpdates: false      # Dashboard chỉ được sửa qua file, không qua UI
+    options:
+      path: /etc/grafana/provisioning/dashboards
+      foldersFromFilesStructure: true
