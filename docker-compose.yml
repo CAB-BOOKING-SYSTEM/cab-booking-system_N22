@@ -118,6 +118,10 @@ services:
     environment:
       - PORT=${DRIVER_PORT}
       - DB_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/driver_db
+      - MONGO_URL=mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongodb:27017/driver_db?authSource=admin
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - JWT_SECRET=${JWT_SECRET}
     depends_on:
       - postgres
 
@@ -220,6 +224,35 @@ services:
       - DB_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/user_db
     depends_on:
       - postgres
+
+  matching-service:
+    build:
+      context: cab-system-backend/services/matching-service
+      target: development
+    container_name: cab_matching
+    ports:
+      - "${MATCHING_PORT:-3001}:${MATCHING_PORT:-3001}"
+    environment:
+      - PORT=${MATCHING_PORT}
+      - NODE_ENV=development
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=${POSTGRES_USER}
+      - DB_PASSWORD=${POSTGRES_PASSWORD}
+      - DB_NAME=matching_db
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - DRIVER_SERVICE_URL=http://cab_driver:${DRIVER_PORT}
+      - JWT_SECRET=${JWT_SECRET}
+      - LOG_LEVEL=info
+    depends_on:
+      - postgres
+      - redis
+      - driver-service
+    volumes:
+      - ./cab-system-backend/services/matching-service:/app
+      - /app/node_modules
+    restart: unless-stopped
 
 volumes:
   postgres_data:
