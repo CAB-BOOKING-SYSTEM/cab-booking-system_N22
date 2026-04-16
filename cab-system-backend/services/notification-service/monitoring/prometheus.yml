@@ -1,0 +1,48 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Prometheus Scrape Configuration — CAB Notification Service
+#
+# Reload không cần restart (khi dùng --web.enable-lifecycle):
+#   curl -X POST http://localhost:9090/-/reload
+# ──────────────────────────────────────────────────────────────────────────────
+
+global:
+  scrape_interval: 15s       # Kéo metrics mỗi 15 giây
+  evaluation_interval: 15s   # Đánh giá alerting rules mỗi 15 giây
+  external_labels:
+    environment: production
+    project: cab-booking-system
+
+# ── Alerting (tuỳ chọn, bật khi tích hợp Alertmanager) ──────────────────────
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets: ["alertmanager:9093"]
+
+# ── Rule files (chứa alerting / recording rules) ─────────────────────────────
+rule_files:
+  - "rules/*.yml"
+
+# ── Scrape Jobs ───────────────────────────────────────────────────────────────
+scrape_configs:
+
+  # 1. Prometheus tự giám sát chính nó
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # 2. Notification Service — endpoint /metrics do prom-client expose
+  - job_name: cab-notification-service
+    metrics_path: /metrics
+    scrape_interval: 10s     # Scrape nhanh hơn vì đây là service chính cần theo dõi
+    static_configs:
+      - targets:
+          - "notification-service:3004"   # Docker Swarm / Compose: dùng service name
+        labels:
+          service: notification-service
+          team: backend
+
+  # 3. Node Exporter — thu thập metrics hệ thống (CPU, RAM, Disk) của host
+  #    Cần thêm node-exporter vào docker-stack.yml khi muốn bật
+  # - job_name: node-exporter
+  #   static_configs:
+  #     - targets: ["node-exporter:9100"]
