@@ -25,7 +25,13 @@ services:
       - "${POSTGRES_PORT}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./cab-system-backend/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
   mongodb:
     image: mongo:8.2.5
@@ -44,6 +50,12 @@ services:
     container_name: cab_redis
     ports:
       - "${REDIS_PORT}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
 
   rabbitmq:
     image: rabbitmq:4.2.2-management-alpine
@@ -56,6 +68,37 @@ services:
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_running"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.3.0
+    container_name: cab_zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+
+  kafka:
+    image: confluentinc/cp-kafka:7.3.0
+    container_name: cab_kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
 
   # --- 2. MICROSERVICES ---
   auth-service:
@@ -102,6 +145,10 @@ services:
     environment:
       - PORT=${DRIVER_PORT}
       - DB_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/driver_db
+      - MONGO_URL=mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongodb:27017/driver_db?authSource=admin
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - JWT_SECRET=${JWT_SECRET}
     depends_on:
       - postgres
 
@@ -148,8 +195,12 @@ services:
     environment:
       - PORT=${PRICING_PORT}
       - DB_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/pricing_db
+      - REDIS_URL=redis://redis:6379
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@rabbitmq:5672
     depends_on:
       - postgres
+      - redis
+      - rabbitmq
 
   review-service:
     build:
@@ -163,8 +214,16 @@ services:
     environment:
       - PORT=${REVIEW_PORT}
       - DB_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/review_db
+      - REDIS_URL=redis://redis:6379
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@rabbitmq:5672
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
 
   ride-service:
     build:
@@ -179,8 +238,10 @@ services:
       - PORT=${RIDE_PORT}
       - DB_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/ride_db
       - RABBITMQ_URL=amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@rabbitmq:5672
+      - KAFKA_BROKER=kafka:9092
     depends_on:
       - postgres
+      - kafka
 
   user-service:
     build:
@@ -199,6 +260,35 @@ services:
     volumes: 
       - ./cab-system-backend/services/user-service:/app
       - /app/node_modules
+
+  matching-service:
+    build:
+      context: cab-system-backend/services/matching-service
+      target: development
+    container_name: cab_matching
+    ports:
+      - "${MATCHING_PORT:-3001}:${MATCHING_PORT:-3001}"
+    environment:
+      - PORT=${MATCHING_PORT}
+      - NODE_ENV=development
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=${POSTGRES_USER}
+      - DB_PASSWORD=${POSTGRES_PASSWORD}
+      - DB_NAME=matching_db
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - DRIVER_SERVICE_URL=http://cab_driver:${DRIVER_PORT}
+      - JWT_SECRET=${JWT_SECRET}
+      - LOG_LEVEL=info
+    depends_on:
+      - postgres
+      - redis
+      - driver-service
+    volumes:
+      - ./cab-system-backend/services/matching-service:/app
+      - /app/node_modules
+    restart: unless-stopped
 
 volumes:
   postgres_data:

@@ -1,27 +1,38 @@
-require("dotenv").config();
+const path = require("path");
+const dotenv = require("dotenv");
 
-const express = require("express");
-const cors = require("cors");
-const app = express();
+// Load env in this order: local service .env, repo root .env.
+dotenv.config({ path: path.resolve(__dirname, ".env") });
+dotenv.config({ path: path.resolve(__dirname, "../../../../.env") });
 
-const PORT = process.env.PORT || 3000;
-const DB_URL = process.env.DB_URL || "Chua_cau_hinh_DB";
+const app = require("./src/app");
+const { connectDatabase } = require("./src/config/database");
+const { connectRedis } = require("./src/config/redis");
+const { connectRabbitMQ } = require("./src/config/rabbitmq");
+const PaymentConsumer = require("./payment.consumer");
 
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+const PORT = process.env.PORT || process.env.REVIEW_PORT || 3007;
 
-console.log(`APP đang chạy ở chế độ: ${process.env.NODE_ENV}`);
-console.log(`Database URL: ${DB_URL}`);
+const bootstrap = async () => {
+  try {
+    console.log(
+      `[Bootstrap] Review Service is starting in ${process.env.NODE_ENV || "development"} mode`
+    );
 
-app.get("/", (req, res) => {
-  res.status(200).json({
-    message: "Service is running smoothly!",
-    timestamp: new Date().toISOString(),
-    service: "Review Service",
-  });
-});
+    await connectDatabase();
+    await connectRedis();
+    await connectRabbitMQ();
 
-app.listen(PORT, () => {
-  console.log(`🚀 Service is running on port ${PORT}`);
-});
+    const paymentConsumer = new PaymentConsumer();
+    await paymentConsumer.start();
+
+    app.listen(PORT, () => {
+      console.log(`[Bootstrap] Review Service is running on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error("[Bootstrap] Failed to start Review Service:", error);
+    process.exit(1);
+  }
+};
+
+bootstrap();
