@@ -1,0 +1,201 @@
+version: "3.8"
+
+services:
+  gateway:
+    build:
+      context: ./gateway # Đường dẫn tương ứng với thư mục gateway trong ảnh
+    container_name: cab_gateway
+    ports:
+      - "${GATEWAY_PORT}:3000" # Giả sử gateway chạy port 3000
+    depends_on:
+      - auth-service
+      - user-service
+      - booking-service
+
+  # --- 1. INFRASTRUCTURE ---
+  postgres:
+    image: postgres:16.11-alpine3.23
+    container_name: cab_postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  mongodb:
+    image: mongo:8.2.5
+    container_name: cab_mongodb
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
+    ports:
+      - "${MONGO_PORT}:27017"
+    volumes:
+      - mongodb_data:/data/db
+
+  redis:
+    image: redis:alpine3.22
+    container_name: cab_redis
+    ports:
+      - "${REDIS_PORT}:6379"
+
+  rabbitmq:
+    image: rabbitmq:4.2.2-management-alpine
+    container_name: cab_rabbitmq
+    ports:
+      - "${RABBITMQ_PORT_NODE}:5672"
+      - "${RABBITMQ_PORT_UI}:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
+  # --- 2. MICROSERVICES ---
+  auth-service:
+    build:
+      context: cab-system-backend/services/auth-service
+      target: development
+      args:
+        - PORT=${AUTH_PORT}
+    container_name: cab_auth
+    ports:
+      - "${AUTH_PORT}:${AUTH_PORT}"
+    environment:
+      - PORT=${AUTH_PORT}
+      - DB_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/auth_db
+      - JWT_SECRET=${JWT_SECRET}
+    depends_on:
+      - postgres
+
+  booking-service:
+    build:
+      context: cab-system-backend/services/booking-service
+      target: development
+      args:
+        - PORT=${BOOKING_PORT}
+    container_name: cab_booking
+    ports:
+      - "${BOOKING_PORT}:${BOOKING_PORT}"
+    environment:
+      - PORT=${BOOKING_PORT}
+      - DB_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/booking_db
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@rabbitmq:5672
+    depends_on:
+      - postgres
+
+  driver-service:
+    build:
+      context: cab-system-backend/services/driver-service
+      target: development
+      args:
+        - PORT=${DRIVER_PORT}
+    container_name: cab_driver
+    ports:
+      - "${DRIVER_PORT}:${DRIVER_PORT}"
+    environment:
+      - PORT=${DRIVER_PORT}
+      - DB_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/driver_db
+    depends_on:
+      - postgres
+
+  notification-service:
+    build:
+      context: cab-system-backend/services/notification-service
+      target: development
+      args:
+        - PORT=${NOTIFICATION_PORT}
+    container_name: cab_notification
+    ports:
+      - "${NOTIFICATION_PORT}:${NOTIFICATION_PORT}"
+    environment:
+      - PORT=${NOTIFICATION_PORT}
+      - DB_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/notification_db
+    depends_on:
+      - postgres
+
+  payment-service:
+    build:
+      context: cab-system-backend/services/payment-service
+      target: development
+      args:
+        - PORT=${PAYMENT_PORT}
+    container_name: cab_payment
+    ports:
+      - "${PAYMENT_PORT}:${PAYMENT_PORT}"
+    environment:
+      - PORT=${PAYMENT_PORT}
+      - DB_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/payment_db
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@rabbitmq:5672
+    depends_on:
+      - postgres
+
+  pricing-service:
+    build:
+      context: cab-system-backend/services/pricing-service
+      target: development
+      args:
+        - PORT=${PRICING_PORT}
+    container_name: cab_pricing
+    ports:
+      - "${PRICING_PORT}:${PRICING_PORT}"
+    environment:
+      - PORT=${PRICING_PORT}
+      - DB_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/pricing_db
+    depends_on:
+      - postgres
+
+  review-service:
+    build:
+      context: cab-system-backend/services/review-service
+      target: development
+      args:
+        - PORT=${REVIEW_PORT}
+    container_name: rb_preview
+    ports:
+      - "${REVIEW_PORT}:${REVIEW_PORT}"
+    environment:
+      - PORT=${REVIEW_PORT}
+      - DB_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/review_db
+    depends_on:
+      - postgres
+
+  ride-service:
+    build:
+      context: cab-system-backend/services/ride-service
+      target: development
+      args:
+        - PORT=${RIDE_PORT}
+    container_name: cab_ride
+    ports:
+      - "${RIDE_PORT}:${RIDE_PORT}"
+    environment:
+      - PORT=${RIDE_PORT}
+      - DB_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/ride_db
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@rabbitmq:5672
+    depends_on:
+      - postgres
+
+  user-service:
+    build:
+      context: cab-system-backend/services/user-service
+      target: development
+      args:
+        - PORT=${USER_PORT}
+    container_name: cab_user
+    ports:
+      - "${USER_PORT}:${USER_PORT}"
+    environment:
+      - PORT=${USER_PORT}
+      - DB_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/user_db
+    depends_on:
+      - postgres
+
+volumes:
+  postgres_data:
+  mongodb_data:
+  rabbitmq_data:
