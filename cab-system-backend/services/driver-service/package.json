@@ -22,6 +22,8 @@
     "mongoose": "^8.0.0",
     "morgan": "^1.10.0",
     "pg": "^8.11.3",
+    "socket.io": "^4.7.2",
+    "uuid": "^13.0.0",
     "winston": "^3.11.0"
   },
   "devDependencies": {

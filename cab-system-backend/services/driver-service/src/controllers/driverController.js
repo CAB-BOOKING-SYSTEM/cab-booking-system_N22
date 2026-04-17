@@ -307,7 +307,67 @@ class DriverController {
       });
     }
   }
+  // ==================== WALLET MANAGEMENT ====================
 
+  async getWallet(req, res) {
+    try {
+      const { driverId } = req.params;
+      const walletService = require('../services/walletService');
+      const wallet = await walletService.getWallet(driverId);
+      
+      res.json({
+        success: true,
+        data: {
+          driverId: wallet.driverId,
+          balance: wallet.balance,
+          totalEarned: wallet.totalEarned,
+          totalWithdrawn: wallet.totalWithdrawn,
+          pendingWithdraw: wallet.pendingWithdraw,
+          updatedAt: wallet.updatedAt
+        }
+      });
+    } catch (error) {
+      logger.error('Get wallet error:', error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  }
+
+  async requestWithdraw(req, res) {
+    try {
+      const { driverId } = req.params;
+      const { amount, bankAccount } = req.body;
+      
+      if (!amount || amount <= 0) {
+        return res.status(400).json({ success: false, message: 'Số tiền không hợp lệ' });
+      }
+      
+      const walletService = require('../services/walletService');
+      const result = await walletService.requestWithdraw(driverId, amount, bankAccount);
+      
+      res.json(result);
+    } catch (error) {
+      logger.error('Request withdraw error:', error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  }
+
+  async getTransactionHistory(req, res) {
+    try {
+      const { driverId } = req.params;
+      const { page = 1, limit = 20 } = req.query;
+      
+      const walletService = require('../services/walletService');
+      const history = await walletService.getTransactionHistory(driverId, parseInt(page), parseInt(limit));
+      
+      res.json({
+        success: true,
+        data: history
+      });
+    } catch (error) {
+      logger.error('Get transaction history error:', error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  }
   async startRide(req, res) {
     try {
       const { driverId } = req.params;
