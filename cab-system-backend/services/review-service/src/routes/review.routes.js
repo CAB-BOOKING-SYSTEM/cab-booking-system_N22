@@ -1,21 +1,14 @@
 const express = require("express");
 
 const ReviewController = require("../../review.controller");
+const authMiddleware = require("../middleware/auth");
 
 const router = express.Router();
 
-let authMiddleware = null;
+// Zero Trust: all review-service routes require valid JWT.
+router.use(authMiddleware);
 
-try {
-  authMiddleware = require("../../../../gateway/src/middlewares/auth");
-} catch (error) {
-  console.warn("[ReviewRoutes] Auth middleware not found, route will run without auth middleware");
-}
-
-if (authMiddleware) {
-  router.post("/", authMiddleware, ReviewController.createReview);
-} else {
-  router.post("/", ReviewController.createReview);
-}
+router.post("/", ReviewController.createReview);
+router.post("/report", ReviewController.createReport);
 
 module.exports = router;
