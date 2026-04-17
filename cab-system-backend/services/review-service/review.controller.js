@@ -7,7 +7,7 @@ const getUserIdFromRequest = (req) =>
 
 /**
  * POST /reviews
- * Body: { bookingId, rating, comment, tags, tipAmount }
+ * Body: { bookingId, rating, comment, tags }
  */
 const createReview = async (req, res) => {
   try {
@@ -25,7 +25,6 @@ const createReview = async (req, res) => {
       rating: req.body?.rating,
       comment: req.body?.comment,
       tags: req.body?.tags,
-      tipAmount: req.body?.tipAmount,
     });
 
     return res.status(201).json({

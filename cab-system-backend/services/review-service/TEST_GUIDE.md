@@ -12,7 +12,7 @@ eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImMxZjcxYTkzLThiNTktNGQ2NC04N2ZkLWU
 
 ---
 
-## 2. Test luồng Review & Tiền Tip (tipAmount)
+## 2. Test luồng Review
 
 ### Bước A: Tạo giả lập hóa đơn (Mở khóa Review)
 Chỉ khách hàng đã "được trừ tiền" (có trạng thái `READY_FOR_REVIEW`) mới được quyền đánh giá chuyến xe. 
@@ -34,11 +34,10 @@ Tạo một Request mới trên Postman:
     "bookingId": "880e8400-e29b-41d4-a716-446655441111",
     "rating": 5,
     "comment": "Tài xế thân thiện, xe thơm mùi quế.",
-    "tags": ["Sạch sẽ", "Chuyên nghiệp"],
-    "tipAmount": 50000 
+    "tags": ["Sạch sẽ", "Chuyên nghiệp"]
 }
 ```
-**=> Phản hồi hợp lệ:** Status `201 Created` và nhận lại `tipAmount: 50000`.
+**=> Phản hồi hợp lệ:** Status `201 Created`.
 
 ---
 
@@ -67,4 +66,4 @@ API này dùng để báo cáo tài xế phóng nhanh / vượt ẩu.
    - Exchange: `review.events`
    - Routing key: `review.created`
 4. Quay lại Postman bắn thử API Review bước 2 thêm phát nữa.
-5. Quay lại Tab Queues, mở `test_event` ra bấm **Get message**, bạn sẽ thấy cục JSON có cục tiền 50k thơm lừng chuyển thẳng lên cho Payment Service bắt lấy.
+5. Quay lại Tab Queues, mở `test_event` ra bấm **Get message**, bạn sẽ thấy thông báo Event vừa được bắn lên.

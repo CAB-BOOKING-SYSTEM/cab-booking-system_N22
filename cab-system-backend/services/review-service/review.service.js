@@ -163,7 +163,7 @@ class ReviewService {
     this.reviewProducer = new ReviewProducer();
   }
 
-  validatePayload({ bookingId, rating, comment, tags, tipAmount }) {
+  validatePayload({ bookingId, rating, comment, tags }) {
     if (!bookingId) {
       throw new AppError("bookingId is required", 400);
     }
@@ -192,21 +192,11 @@ class ReviewService {
         .filter((tag) => tag.length > 0);
     }
 
-    let normalizedTipAmount = 0;
-    if (tipAmount !== undefined && tipAmount !== null) {
-      normalizedTipAmount = Number(tipAmount);
-      if (!Number.isFinite(normalizedTipAmount) || normalizedTipAmount < 0) {
-        throw new AppError("tipAmount must be a number greater than or equal to 0", 400);
-      }
-      normalizedTipAmount = Number(normalizedTipAmount.toFixed(2));
-    }
-
     return {
       bookingId,
       rating: normalizedRating,
       comment: normalizedComment,
       tags: normalizedTags,
-      tipAmount: normalizedTipAmount,
     };
   }
 
@@ -250,14 +240,13 @@ class ReviewService {
    * 3) Recompute and update driver features in Redis
    * 4) Publish review.created event to RabbitMQ (with tipAmount if > 0)
    */
-  async createReview({ customerId, bookingId, rating, comment, tags, tipAmount }) {
+  async createReview({ customerId, bookingId, rating, comment, tags }) {
     try {
       const normalizedPayload = this.validatePayload({
         bookingId,
         rating,
         comment,
         tags,
-        tipAmount,
       });
 
       await this.repository.initModel();
@@ -299,10 +288,6 @@ class ReviewService {
         tags: normalizedPayload.tags,
       };
 
-      if (normalizedPayload.tipAmount > 0) {
-        eventData.tipAmount = normalizedPayload.tipAmount;
-      }
-
       const publishedEvent = await this.reviewProducer.publishReviewCreated(eventData);
 
       return {
@@ -315,7 +300,6 @@ class ReviewService {
         status: createdReview.status,
         createdAt: createdReview.created_at,
         tags: normalizedPayload.tags,
-        tipAmount: normalizedPayload.tipAmount,
         driverFeatures,
         eventId: publishedEvent.eventId,
       };
