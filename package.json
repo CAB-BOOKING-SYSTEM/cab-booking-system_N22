@@ -4,7 +4,7 @@
   "workspaces": [
     "cab-system-frontend/customer-app",
     "cab-system-frontend/driver-app",
-    "packages/*"
+    "cab-system-frontend/packages/*"
   ],
   "scripts": {
     "start:customer": "npm run start --workspace @cab/customer-app",
