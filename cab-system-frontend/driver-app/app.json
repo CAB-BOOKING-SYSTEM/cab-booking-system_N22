@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "driver-app",
-    "slug": "driver-app",
+    "name": "CAB Driver App",
+    "slug": "cab-driver-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",

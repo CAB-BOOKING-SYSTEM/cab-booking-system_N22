@@ -1,4 +1,20 @@
 {
+  "name": "cab-booking-system",
+  "private": true,
+  "workspaces": [
+    "cab-system-frontend/customer-app",
+    "cab-system-frontend/driver-app",
+    "packages/*"
+  ],
+  "scripts": {
+    "start:customer": "npm run start --workspace @cab/customer-app",
+    "start:driver": "npm run start --workspace @cab/driver-app"
+  },
+  "devDependencies": {
+    "babel-preset-expo": "~54.0.10",
+    "@types/react": "^19.0.12",
+    "typescript": "^5.7.3"
+  },
   "dependencies": {
     "stripe": "^22.0.1"
   }
