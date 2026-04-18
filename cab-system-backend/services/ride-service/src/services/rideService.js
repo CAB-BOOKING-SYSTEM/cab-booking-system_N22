@@ -80,6 +80,37 @@ class RideService {
     }
   }
 
+  async cancelRide(id, { reason, cancelledBy }) {
+    try {
+      const ride = await Ride.findByPk(id);
+      if (!ride) throw new Error("Ride not found");
+
+      if (!RideStateMachine.canTransition(ride.status, "CANCELLED")) {
+        throw new Error(`Invalid state transition from ${ride.status} to CANCELLED`);
+      }
+
+      await ride.update({
+        status: "CANCELLED",
+        cancelReason: reason || null,
+        endTime: new Date(),
+      });
+
+      // Publish event to RabbitMQ
+      await publishEvent("ride_cancelled", {
+        rideId: ride.id,
+        userId: ride.userId,
+        driverId: ride.driverId,
+        reason,
+        cancelledBy,
+      });
+
+      return ride;
+    } catch (error) {
+      console.error("Error cancelling ride:", error);
+      throw error;
+    }
+  }
+
   async deleteRide(id) {
     try {
       const ride = await Ride.findByPk(id);
