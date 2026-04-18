@@ -19,8 +19,7 @@ class ReviewRepository {
   }
 
   /**
-   * Step 1 - Model initialization in PostgreSQL.
-   * This represents the Review model mapped to `reviews` table.
+   * Initialize service-owned PostgreSQL models.
    */
   async initModel() {
     try {
@@ -39,6 +38,20 @@ class ReviewRepository {
 
           CREATE INDEX IF NOT EXISTS idx_reviews_driver_id ON reviews(driver_id);
           CREATE INDEX IF NOT EXISTS idx_reviews_created_at ON reviews(created_at DESC);
+
+          CREATE TABLE IF NOT EXISTS reports (
+            report_id UUID PRIMARY KEY,
+            ride_id UUID NOT NULL,
+            user_id UUID NOT NULL,
+            reason VARCHAR(150) NOT NULL,
+            description TEXT,
+            status VARCHAR(20) NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'RESOLVED')),
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          );
+
+          CREATE INDEX IF NOT EXISTS idx_reports_ride_id ON reports(ride_id);
+          CREATE INDEX IF NOT EXISTS idx_reports_user_id ON reports(user_id);
+          CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
         `);
       }
 
@@ -93,6 +106,24 @@ class ReviewRepository {
         throw new AppError("This booking has already been reviewed", 409);
       }
 
+      throw error;
+    }
+  }
+
+  async createReport({ rideId, userId, reason, description }) {
+    try {
+      const reportId = randomUUID();
+
+      const query = `
+        INSERT INTO reports (report_id, ride_id, user_id, reason, description, status)
+        VALUES ($1, $2, $3, $4, $5, 'PENDING')
+        RETURNING report_id, ride_id, user_id, reason, description, status, created_at;
+      `;
+
+      const result = await this.pool.query(query, [reportId, rideId, userId, reason, description]);
+      return result.rows[0];
+    } catch (error) {
+      console.error("[ReviewRepository] createReport error:", error);
       throw error;
     }
   }
@@ -169,12 +200,45 @@ class ReviewService {
     };
   }
 
+  validateReportPayload({ rideId, reason, description }) {
+    if (!rideId) {
+      throw new AppError("rideId is required", 400);
+    }
+
+    if (!reason) {
+      throw new AppError("reason is required", 400);
+    }
+
+    const normalizedReason = String(reason).trim();
+    if (!normalizedReason) {
+      throw new AppError("reason is required", 400);
+    }
+
+    if (normalizedReason.length > 150) {
+      throw new AppError("reason must be less than or equal to 150 characters", 400);
+    }
+
+    let normalizedDescription = null;
+    if (description !== undefined && description !== null) {
+      normalizedDescription = String(description).trim();
+      if (normalizedDescription.length > 1500) {
+        throw new AppError("description must be less than or equal to 1500 characters", 400);
+      }
+    }
+
+    return {
+      rideId,
+      reason: normalizedReason,
+      description: normalizedDescription,
+    };
+  }
+
   /**
-   * Step 2 -> Step 3 -> Step 4 data pipeline:
+   * Review data pipeline:
    * 1) Validate payload and booking readiness
    * 2) Save review to PostgreSQL
    * 3) Recompute and update driver features in Redis
-   * 4) Publish review.created event to RabbitMQ
+   * 4) Publish review.created event to RabbitMQ (with tipAmount if > 0)
    */
   async createReview({ customerId, bookingId, rating, comment, tags }) {
     try {
@@ -215,14 +279,16 @@ class ReviewService {
       const driverFeatures = await this.repository.calculateDriverFeatures(readyState.driverId);
       await this.featureStoreService.setDriverFeatures(readyState.driverId, driverFeatures);
 
-      const publishedEvent = await this.reviewProducer.publishReviewCreated({
+      const eventData = {
         reviewId: createdReview.id,
         bookingId: createdReview.booking_id,
         customerId: createdReview.customer_id,
         driverId: createdReview.driver_id,
         rating: createdReview.rating,
         tags: normalizedPayload.tags,
-      });
+      };
+
+      const publishedEvent = await this.reviewProducer.publishReviewCreated(eventData);
 
       return {
         id: createdReview.id,
@@ -245,6 +311,47 @@ class ReviewService {
       }
 
       throw new AppError("Failed to create review", 500);
+    }
+  }
+
+  /**
+   * Trip report API:
+   * Save customer incident report for ride follow-up workflow.
+   */
+  async createReport({ userId, rideId, reason, description }) {
+    try {
+      const normalizedPayload = this.validateReportPayload({
+        rideId,
+        reason,
+        description,
+      });
+
+      await this.repository.initModel();
+
+      const createdReport = await this.repository.createReport({
+        rideId: normalizedPayload.rideId,
+        userId,
+        reason: normalizedPayload.reason,
+        description: normalizedPayload.description,
+      });
+
+      return {
+        reportId: createdReport.report_id,
+        rideId: createdReport.ride_id,
+        userId: createdReport.user_id,
+        reason: createdReport.reason,
+        description: createdReport.description,
+        status: createdReport.status,
+        createdAt: createdReport.created_at,
+      };
+    } catch (error) {
+      console.error("[ReviewService] createReport error:", error);
+
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw new AppError("Failed to create report", 500);
     }
   }
 }
