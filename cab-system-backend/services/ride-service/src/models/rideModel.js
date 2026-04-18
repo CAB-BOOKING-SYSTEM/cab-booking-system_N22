@@ -31,7 +31,8 @@ const Ride = sequelize.define("Ride", {
       "PICKUP",
       "IN_PROGRESS",
       "COMPLETED",
-      "PAID"
+      "PAID",
+      "CANCELLED"
     ),
     defaultValue: "CREATED",
   },
@@ -41,6 +42,10 @@ const Ride = sequelize.define("Ride", {
   },
   startTime: {
     type: DataTypes.DATE,
+    allowNull: true,
+  },
+  cancelReason: {
+    type: DataTypes.STRING,
     allowNull: true,
   },
   endTime: {

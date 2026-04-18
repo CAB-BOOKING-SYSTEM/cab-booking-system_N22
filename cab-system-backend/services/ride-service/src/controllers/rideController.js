@@ -37,6 +37,16 @@ class RideController {
     }
   }
 
+  async cancelRide(req, res) {
+    try {
+      const { reason, cancelledBy } = req.body;
+      const ride = await rideService.cancelRide(req.params.id, { reason, cancelledBy });
+      res.json(ride);
+    } catch (error) {
+      res.status(400).json({ error: error.message });
+    }
+  }
+
   async deleteRide(req, res) {
     try {
       await rideService.deleteRide(req.params.id);

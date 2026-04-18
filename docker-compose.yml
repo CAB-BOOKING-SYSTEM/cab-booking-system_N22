@@ -239,9 +239,11 @@ services:
       - DB_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/ride_db
       - RABBITMQ_URL=amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@rabbitmq:5672
       - KAFKA_BROKER=kafka:9092
+      - REDIS_URL=redis://redis:6379
     depends_on:
       - postgres
       - kafka
+      - redis
 
   user-service:
     build:
