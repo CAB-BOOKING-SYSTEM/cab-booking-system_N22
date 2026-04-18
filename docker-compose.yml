@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   gateway:
     build:
@@ -112,12 +110,9 @@ services:
       - "${AUTH_PORT}:${AUTH_PORT}"
     environment:
       - PORT=${AUTH_PORT}
-      - DB_USER=${POSTGRES_USER}
-      - DB_HOST=postgres
-      - DB_NAME=auth_db
-      - DB_PASSWORD=${POSTGRES_PASSWORD}
-      - DB_PORT=5432
-      - JWT_SECRET=${JWT_SECRET}
+      - DB_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/auth_db
+      - JWT_SECRET=${JWT_SECRET:-supersecret}
+      - JWT_REFRESH_SECRET=${JWT_SECRET:-supersecret}
       - REDIS_URL=redis://redis:6379
     depends_on:
       postgres:
