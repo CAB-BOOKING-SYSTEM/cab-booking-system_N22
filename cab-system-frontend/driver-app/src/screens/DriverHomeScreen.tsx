@@ -1,9 +1,9 @@
 import { Text, View } from "react-native";
 
-export function HomeScreen() {
+export function DriverHomeScreen() {
   return (
     <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-      <Text>HomeScreen</Text>
+      <Text>DriverHomeScreen</Text>
     </View>
   );
 }

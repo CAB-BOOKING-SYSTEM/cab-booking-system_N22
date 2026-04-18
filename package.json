@@ -11,11 +11,14 @@
     "start:driver": "npm run start --workspace @cab/driver-app"
   },
   "devDependencies": {
+    "@types/react": "~19.1.10",
     "babel-preset-expo": "~54.0.10",
-    "@types/react": "^19.0.12",
     "typescript": "^5.7.3"
   },
   "dependencies": {
+    "react": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-screens": "~4.16.0",
     "stripe": "^22.0.1"
   }
 }
