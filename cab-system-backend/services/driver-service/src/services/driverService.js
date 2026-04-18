@@ -5,6 +5,7 @@ const redisGeoService = require('./redisGeoService');
 const logger = require('../utils/logger');
 const axios = require('axios');
 const eventPublisher = require('./eventPublisher');
+const redisClient = require('../config/redis'); // THÊM DÒNG NÀY
 
 class DriverService {
   async createDriver(driverData) {
@@ -13,7 +14,6 @@ class DriverService {
       await driver.save();
       logger.info(`Driver created: ${driver.driverId}`);
       
-      // Publish event
       await eventPublisher.publishEvent('driver.created', {
         driverId: driver.driverId,
         email: driver.email,
@@ -93,6 +93,7 @@ class DriverService {
     }
   }
 
+  // ========== ĐÃ SỬA - THÊM TỌA ĐỘ MẶC ĐỊNH ==========
   async updateDriverStatus(driverId, newStatus) {
     try {
       const driver = await Driver.findOneAndUpdate(
@@ -106,18 +107,23 @@ class DriverService {
       }
 
       // Update Redis geo index
-      if (newStatus === 'online' && driver.currentLocation) {
-        await redisGeoService.updateDriverLocation(
-          driverId,
-          driver.currentLocation.lat,
-          driver.currentLocation.lng,
-          'online'
-        );
+      if (newStatus === 'online') {
+        // Lấy tọa độ từ currentLocation hoặc dùng mặc định
+        let lat = driver.currentLocation?.lat;
+        let lng = driver.currentLocation?.lng;
+        
+        // Nếu chưa có tọa độ, dùng tọa độ mặc định (Hồ Gươm, Hà Nội)
+        if (!lat || !lng) {
+          lat = 21.0285;
+          lng = 105.8542;
+          logger.warn(`⚠️ Driver ${driverId} has no location, using default (${lat}, ${lng})`);
+        }
+        
+        await redisGeoService.updateDriverLocation(driverId, lat, lng, 'online');
       } else if (newStatus === 'offline') {
         await redisGeoService.updateDriverLocation(driverId, null, null, 'offline');
       }
 
-      // Publish event
       await eventPublisher.publishEvent('driver.status.changed', {
         driverId,
         oldStatus: driver.status,
@@ -140,7 +146,6 @@ class DriverService {
         throw new Error('Driver not found');
       }
 
-      // Update current location in MongoDB
       driver.currentLocation = {
         lat,
         lng,
@@ -148,7 +153,6 @@ class DriverService {
       };
       await driver.save();
 
-      // Save to location history
       const history = new LocationHistory({
         driverId,
         lat,
@@ -160,7 +164,6 @@ class DriverService {
       });
       await history.save();
 
-      // Update Redis geo index if online
       if (driver.status === 'online') {
         await redisGeoService.updateDriverLocation(driverId, lat, lng, 'online');
       }
@@ -196,7 +199,6 @@ class DriverService {
     try {
       const nearby = await redisGeoService.getNearbyDrivers(lat, lng, radiusKm, vehicleType);
       
-      // Fetch full driver details
       const drivers = await Promise.all(
         nearby.map(async (item) => {
           const driver = await Driver.findOne({ driverId: item.driverId });
@@ -393,28 +395,6 @@ class DriverService {
     } catch (error) {
       logger.error('Error getting current ride:', error);
       throw error;
-    }
-  }
-  async getDriverByEmail(email) {
-  try {
-      return await Driver.findOne({ email });
-    } catch (error) {
-      logger.error('Error getting driver by email:', error);
-      return null;
-    }
-  }
-
-  async getDriverByPhoneOrEmail(phone, email) {
-    try {
-      return await Driver.findOne({
-        $or: [
-          { phone },
-          { email: email || null }
-        ]
-      });
-    } catch (error) {
-      logger.error('Error checking existing driver:', error);
-      return null;
     }
   }
 }

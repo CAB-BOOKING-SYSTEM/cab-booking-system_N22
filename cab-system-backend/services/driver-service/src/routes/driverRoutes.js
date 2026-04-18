@@ -5,41 +5,39 @@ const authMiddleware = require('../middleware/auth');
 
 const router = express.Router();
 
-// ✅ Public routes (không cần auth)
+// Public routes
 router.post('/register', [
-  body('phone').isMobilePhone().withMessage('Số điện thoại không hợp lệ'),
-  body('fullName').notEmpty().withMessage('Họ tên không được để trống'),
-  body('licensePlate').notEmpty().withMessage('Biển số xe không được để trống'),
-  body('vehicleType').isIn(['4_seat', '7_seat', 'luxury']).withMessage('Loại xe không hợp lệ'),
-  body('email').optional().isEmail().withMessage('Email không hợp lệ'),
-  body('password').optional().isLength({ min: 6 }).withMessage('Mật khẩu phải có ít nhất 6 ký tự')
+  body('phone').isMobilePhone(),
+  body('fullName').notEmpty(),
+  body('licensePlate').notEmpty(),
+  body('vehicleType').isIn(['4_seat', '7_seat', 'luxury']),
+  body('email').optional().isEmail(),
 ], driverController.register);
 
 router.post('/login', [
-  body('email').isEmail().withMessage('Email không hợp lệ'),
-  body('password').notEmpty().withMessage('Mật khẩu không được để trống'),
+  body('email').isEmail(),
+  body('password').notEmpty(),
 ], driverController.login);
 
-// ✅ Public route để lấy danh sách tài xế online (cho matching service)
+// Public route for matching service
 router.get('/online/list', [
   query('lat').optional().isFloat(),
   query('lng').optional().isFloat(),
 ], driverController.getOnlineDrivers);
 
-// ✅ Protected routes (yêu cầu authentication)
-//router.use(authMiddleware);
+// ⚠️ ĐÃ XÓA HTTP LOCATION API - Mobile App phải dùng WebSocket
+// router.post('/:driverId/location', ...) - ĐÃ XÓA
 
-// Profile
+// Profile routes
 router.put('/:driverId/profile', [
   param('driverId').notEmpty(),
   body('fullName').optional().isString(),
-  body('phone').optional(),
   body('vehicleType').optional().isIn(['4_seat', '7_seat', 'luxury']),
 ], driverController.updateProfile);
 
 router.get('/:driverId', driverController.getDriverInfo);
 
-// Status
+// Status routes
 router.post('/:driverId/toggle-status', [
   param('driverId').notEmpty(),
   body('status').isIn(['online', 'offline']),
@@ -68,13 +66,7 @@ router.post('/:driverId/complete-ride', [
   body('duration').isInt({ min: 0 }),
 ], driverController.completeRide);
 
-// GPS
-router.post('/:driverId/location', [
-  param('driverId').notEmpty(),
-  body('lat').isFloat({ min: -90, max: 90 }),
-  body('lng').isFloat({ min: -180, max: 180 }),
-], driverController.updateLocation);
-
+// Location history (read-only)
 router.get('/:driverId/location-history', [
   param('driverId').notEmpty(),
 ], driverController.getLocationHistory);
@@ -93,5 +85,26 @@ router.get('/:driverId/ride-history', [
 router.get('/:driverId/current-ride', [
   param('driverId').notEmpty(),
 ], driverController.getCurrentRide);
+// ==================== WALLET MANAGEMENT ====================
 
+// Xem ví
+router.get('/:driverId/wallet', driverController.getWallet);
+
+// Yêu cầu rút tiền
+router.post('/:driverId/wallet/withdraw', [
+  param('driverId').notEmpty(),
+  body('amount').isFloat({ min: 10000 }).withMessage('Số tiền tối thiểu 10,000đ'),
+  body('bankAccount').optional(),
+], driverController.requestWithdraw);
+
+// Lịch sử giao dịch
+router.get('/:driverId/wallet/transactions', [
+  param('driverId').notEmpty(),
+  query('page').optional().isInt({ min: 1 }),
+  query('limit').optional().isInt({ min: 1, max: 100 }),
+], driverController.getTransactionHistory);
+// ==================== WALLET MANAGEMENT ====================
+router.get('/:driverId/wallet', driverController.getWallet);
+router.post('/:driverId/wallet/withdraw', driverController.requestWithdraw);
+router.get('/:driverId/wallet/transactions', driverController.getTransactionHistory);
 module.exports = router;
