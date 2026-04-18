@@ -9,8 +9,14 @@ services:
       - auth-service
       - user-service
       - booking-service
-    # env_file:
-    #   - .env
+      - driver-service
+      - ride-service
+      - pricing-service
+      - payment-service
+      - notification-service
+      - review-service
+    environment:
+      - JWT_SECRET=${JWT_SECRET:-supersecret}
 
   # --- 1. INFRASTRUCTURE ---
   postgres:
