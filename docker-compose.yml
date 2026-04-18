@@ -12,7 +12,7 @@ services:
       - user-service
       - booking-service
     # env_file:
-    #   - .env  
+    #   - .env
 
   # --- 1. INFRASTRUCTURE ---
   postgres:
@@ -112,10 +112,18 @@ services:
       - "${AUTH_PORT}:${AUTH_PORT}"
     environment:
       - PORT=${AUTH_PORT}
-      - DB_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/auth_db
+      - DB_USER=${POSTGRES_USER}
+      - DB_HOST=postgres
+      - DB_NAME=auth_db
+      - DB_PASSWORD=${POSTGRES_PASSWORD}
+      - DB_PORT=5432
       - JWT_SECRET=${JWT_SECRET}
+      - REDIS_URL=redis://redis:6379
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
   booking-service:
     build:
@@ -224,7 +232,6 @@ services:
       rabbitmq:
         condition: service_healthy
 
-
   ride-service:
     build:
       context: cab-system-backend/services/ride-service
@@ -257,7 +264,7 @@ services:
       - DB_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/user_db
     depends_on:
       - postgres
-    volumes: 
+    volumes:
       - ./cab-system-backend/services/user-service:/app
       - /app/node_modules
 
