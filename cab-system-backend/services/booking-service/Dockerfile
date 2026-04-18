@@ -1,26 +1,25 @@
-# Dockerfile (sửa lại)
-FROM node:18-alpine
+# Stage 1: Base
+FROM node:18-alpine AS base
 
 WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
 
-# ❌ Cách cũ (bị lỗi)
-# RUN npm ci --only=production
-
-# ✅ Cách mới (dùng npm install)
-RUN npm install --omit=dev
-
-# Copy source code
+# Stage 2: Development
+FROM base AS development
+RUN npm install
 COPY . .
+ARG PORT
+ENV PORT=${PORT}
+EXPOSE ${PORT}
+CMD ["npm", "run", "dev"]
 
-# Create non-root user
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nodejs -u 1001
-
-USER nodejs
-
-EXPOSE 3001
-
-CMD ["node", "index.js"]
+# Stage 3: Production
+FROM base AS production
+RUN npm install --omit=dev
+COPY . .
+ARG PORT
+ENV PORT=${PORT}
+EXPOSE ${PORT}
+CMD ["npm", "start"]

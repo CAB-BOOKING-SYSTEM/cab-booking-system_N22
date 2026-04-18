@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   gateway:
     build:
@@ -11,8 +9,14 @@ services:
       - auth-service
       - user-service
       - booking-service
-    # env_file:
-    #   - .env  
+      - driver-service
+      - ride-service
+      - pricing-service
+      - payment-service
+      - notification-service
+      - review-service
+    environment:
+      - JWT_SECRET=${JWT_SECRET:-supersecret}
 
   # --- 1. INFRASTRUCTURE ---
   postgres:
@@ -113,9 +117,14 @@ services:
     environment:
       - PORT=${AUTH_PORT}
       - DB_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/auth_db
-      - JWT_SECRET=${JWT_SECRET}
+      - JWT_SECRET=${JWT_SECRET:-supersecret}
+      - JWT_REFRESH_SECRET=${JWT_SECRET:-supersecret}
+      - REDIS_URL=redis://redis:6379
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
   booking-service:
     build:
@@ -224,7 +233,6 @@ services:
       rabbitmq:
         condition: service_healthy
 
-
   ride-service:
     build:
       context: cab-system-backend/services/ride-service
@@ -257,7 +265,7 @@ services:
       - DB_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/user_db
     depends_on:
       - postgres
-    volumes: 
+    volumes:
       - ./cab-system-backend/services/user-service:/app
       - /app/node_modules
 

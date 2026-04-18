@@ -1,14 +1,14 @@
 // controllers/auth.js
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
-import redisClient from '../core/redis.js';
-import User from '../models/userModel.js';
-import UserOtp from '../models/userOTP.js'; 
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import redisClient from "../core/redis.js";
+import User from "../models/userModel.js";
+import UserOtp from "../models/userOTP.js";
 
 const JWT_SECRET = process.env.JWT_SECRET;
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
-const ACCESS_EXPIRES = process.env.JWT_EXPIRES_IN || '15m';
-const REFRESH_EXPIRES = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || JWT_SECRET;
+const ACCESS_EXPIRES = process.env.JWT_EXPIRES_IN || "15m";
+const REFRESH_EXPIRES = process.env.JWT_REFRESH_EXPIRES_IN || "7d";
 
 // Helper: Tạo Access Token
 const generateAccessToken = (user) => {
@@ -17,26 +17,24 @@ const generateAccessToken = (user) => {
       sub: user.id,
       email: user.email,
       role: user.role,
-      username: user.username
+      username: user.username,
     },
     JWT_SECRET,
-    { expiresIn: ACCESS_EXPIRES }
+    { expiresIn: ACCESS_EXPIRES },
   );
 };
 
 // Helper: Tạo Refresh Token
 const generateRefreshToken = (userId) => {
-  return jwt.sign(
-    { sub: userId },
-    JWT_REFRESH_SECRET,
-    { expiresIn: REFRESH_EXPIRES }
-  );
+  return jwt.sign({ sub: userId }, JWT_REFRESH_SECRET, {
+    expiresIn: REFRESH_EXPIRES,
+  });
 };
 
 // Helper: Blacklist token
 const blacklistToken = async (token, expiresInSeconds) => {
   if (!token) return;
-  await redisClient.set(`blacklist:${token}`, '1', { EX: expiresInSeconds });
+  await redisClient.set(`blacklist:${token}`, "1", { EX: expiresInSeconds });
 };
 
 // Helper: Kiểm tra token có bị blacklist không
@@ -48,16 +46,16 @@ const isBlacklisted = async (token) => {
 // ====================== REGISTER ======================
 export const register = async (req, res) => {
   try {
-    const { email, username, password, role = 'customer' } = req.body;
+    const { email, username, password, role = "customer" } = req.body;
 
     if (!email || !username || !password) {
-      return res.status(400).json({ message: 'Missing required fields' });
+      return res.status(400).json({ message: "Missing required fields" });
     }
 
     // Kiểm tra email tồn tại
     const existingUser = await User.findByEmail(email); // bạn cần implement method này
     if (existingUser) {
-      return res.status(409).json({ message: 'Email already exists' });
+      return res.status(409).json({ message: "Email already exists" });
     }
 
     // Hash password
@@ -69,16 +67,17 @@ export const register = async (req, res) => {
       email,
       username,
       password: hashedPassword,
-      role: ['customer', 'driver', 'admin'].includes(role) ? role : 'customer'
+      role: ["customer", "driver", "admin"].includes(role) ? role : "customer",
     });
 
     res.status(201).json({
-      message: 'User registered successfully. Please verify your email if needed.',
-      user: { id: newUser.id, email: newUser.email, role: newUser.role }
+      message:
+        "User registered successfully. Please verify your email if needed.",
+      user: { id: newUser.id, email: newUser.email, role: newUser.role },
     });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: "Server error" });
   }
 };
 
@@ -89,12 +88,12 @@ export const login = async (req, res) => {
 
     const user = await User.findByEmail(email);
     if (!user || !user.password) {
-      return res.status(401).json({ message: 'Invalid credentials' });
+      return res.status(401).json({ message: "Invalid credentials" });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(401).json({ message: 'Invalid credentials' });
+      return res.status(401).json({ message: "Invalid credentials" });
     }
 
     // Tạo tokens
@@ -105,30 +104,30 @@ export const login = async (req, res) => {
     await redisClient.set(
       `refresh:${user.id}`,
       refreshToken,
-      { EX: 7 * 24 * 60 * 60 } // 7 ngày
+      { EX: 7 * 24 * 60 * 60 }, // 7 ngày
     );
 
     // Set Refresh Token vào HttpOnly Cookie
-    res.cookie('refreshToken', refreshToken, {
+    res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 ngày
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 ngày
     });
 
     res.json({
-      message: 'Login successful',
+      message: "Login successful",
       accessToken,
       user: {
         id: user.id,
         email: user.email,
         username: user.username,
-        role: user.role
-      }
+        role: user.role,
+      },
     });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: "Server error" });
   }
 };
 
@@ -137,12 +136,14 @@ export const refresh = async (req, res) => {
   try {
     const oldRefreshToken = req.cookies.refreshToken;
     if (!oldRefreshToken) {
-      return res.status(401).json({ message: 'No refresh token provided' });
+      return res.status(401).json({ message: "No refresh token provided" });
     }
 
     // Kiểm tra blacklist
     if (await isBlacklisted(oldRefreshToken)) {
-      return res.status(401).json({ message: 'Refresh token has been revoked' });
+      return res
+        .status(401)
+        .json({ message: "Refresh token has been revoked" });
     }
 
     // Verify refresh token
@@ -152,13 +153,15 @@ export const refresh = async (req, res) => {
     // Lấy refresh token hiện tại từ Redis
     const currentRefreshInRedis = await redisClient.get(`refresh:${userId}`);
     if (!currentRefreshInRedis || currentRefreshInRedis !== oldRefreshToken) {
-      return res.status(401).json({ message: 'Invalid or reused refresh token' });
+      return res
+        .status(401)
+        .json({ message: "Invalid or reused refresh token" });
     }
 
     // Lấy thông tin user
     const user = await User.findById(userId);
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).json({ message: "User not found" });
     }
 
     // === TOKEN ROTATION ===
@@ -174,30 +177,28 @@ export const refresh = async (req, res) => {
     const newRefreshToken = generateRefreshToken(user.id);
 
     // Cập nhật refresh token mới vào Redis
-    await redisClient.set(
-      `refresh:${user.id}`,
-      newRefreshToken,
-      { EX: 7 * 24 * 60 * 60 }
-    );
+    await redisClient.set(`refresh:${user.id}`, newRefreshToken, {
+      EX: 7 * 24 * 60 * 60,
+    });
 
     // Set cookie mới
-    res.cookie('refreshToken', newRefreshToken, {
+    res.cookie("refreshToken", newRefreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
     res.json({
-      message: 'Token refreshed successfully',
-      accessToken: newAccessToken
+      message: "Token refreshed successfully",
+      accessToken: newAccessToken,
     });
   } catch (error) {
-    if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({ message: 'Refresh token expired' });
+    if (error.name === "TokenExpiredError") {
+      return res.status(401).json({ message: "Refresh token expired" });
     }
     console.error(error);
-    res.status(401).json({ message: 'Invalid refresh token' });
+    res.status(401).json({ message: "Invalid refresh token" });
   }
 };
 
@@ -206,7 +207,7 @@ export const logout = async (req, res) => {
   try {
     const refreshToken = req.cookies.refreshToken;
     const authHeader = req.headers.authorization;
-    const accessToken = authHeader && authHeader.split(' ')[1];
+    const accessToken = authHeader && authHeader.split(" ")[1];
 
     // Blacklist Access Token (nếu có)
     if (accessToken) {
@@ -237,15 +238,15 @@ export const logout = async (req, res) => {
     }
 
     // Xóa cookie
-    res.clearCookie('refreshToken', {
+    res.clearCookie("refreshToken", {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict'
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
     });
 
-    res.json({ message: 'Logged out successfully' });
+    res.json({ message: "Logged out successfully" });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: 'Logout failed' });
+    res.status(500).json({ message: "Logout failed" });
   }
 };
