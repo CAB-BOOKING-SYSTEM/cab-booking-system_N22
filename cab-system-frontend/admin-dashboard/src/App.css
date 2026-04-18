@@ -1,0 +1,57 @@
+.admin-layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  width: 260px;
+  border-right: 1px solid #e5e7eb;
+  background: #111827;
+  color: #f9fafb;
+  padding: 24px 16px;
+  box-sizing: border-box;
+}
+
+.sidebar h2 {
+  margin: 0 0 16px;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.menu {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.menu a {
+  color: #d1d5db;
+  text-decoration: none;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-weight: 500;
+}
+
+.menu a.active {
+  color: #ffffff;
+  background: #2563eb;
+}
+
+.content {
+  flex: 1;
+  padding: 24px;
+  background: #f9fafb;
+  box-sizing: border-box;
+}
+
+.page h1 {
+  margin: 0 0 8px;
+  font-size: 28px;
+  color: #111827;
+}
+
+.page p {
+  margin: 0;
+  color: #4b5563;
+  max-width: 860px;
+}
