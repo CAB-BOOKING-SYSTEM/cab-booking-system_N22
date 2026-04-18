@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "baseUrl": ".",
+    "allowJs": true,
+    "checkJs": false,
+    "jsx": "react-jsx",
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "paths": {
+      "@cab/shared-types": ["cab-system-frontend/packages/shared-types/src/index.ts"],
+      "@cab/shared-utils": ["cab-system-frontend/packages/shared-utils/src/index.ts"],
+      "@cab/api-client": ["cab-system-frontend/packages/api-client/src/index.ts"],
+      "@cab/mobile-ui": ["cab-system-frontend/packages/mobile-ui/src/index.ts"],
+      "@cab/map-core": ["cab-system-frontend/packages/map-core/src/index.ts"],
+      "@cab/realtime": ["cab-system-frontend/packages/realtime/src/index.ts"]
+    }
+  },
+  "exclude": ["node_modules", "dist", "build"]
+}
