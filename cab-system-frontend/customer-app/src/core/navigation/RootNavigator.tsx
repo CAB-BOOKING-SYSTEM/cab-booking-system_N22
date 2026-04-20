@@ -7,10 +7,16 @@ import { ActivityScreen } from "../../screens/ActivityScreen";
 import { HomeScreen } from "../../screens/HomeScreen";
 import { LoginScreen } from "../../screens/LoginScreen";
 import { ProfileScreen } from "../../screens/ProfileScreen";
+import { RatingFeedbackScreen } from "../../screens/RatingFeedbackScreen";
 
 type RootStackParamList = {
   Auth: undefined;
   MainTabs: undefined;
+  RatingFeedback: {
+    bookingId: string;
+    driverName: string;
+    driverAvatarUrl?: string;
+  };
 };
 
 type MainTabsParamList = {
@@ -53,9 +59,12 @@ export function RootNavigator() {
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {isLoggedIn ? (
-          <Stack.Screen name="MainTabs">
-            {() => <MainTabs onLogout={() => setIsLoggedIn(false)} />}
-          </Stack.Screen>
+          <>
+            <Stack.Screen name="MainTabs">
+              {() => <MainTabs onLogout={() => setIsLoggedIn(false)} />}
+            </Stack.Screen>
+            <Stack.Screen name="RatingFeedback" component={RatingFeedbackScreen} />
+          </>
         ) : (
           <Stack.Screen name="Auth">
             {() => <LoginScreen onLogin={() => setIsLoggedIn(true)} />}
