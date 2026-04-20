@@ -10,6 +10,17 @@ const logger = require('./utils/logger');
 const app = express();
 const PORT = process.env.PORT || 3010;
 
+// ========== BẮT LỖI TOÀN CỤC ==========
+process.on('uncaughtException', (err) => {
+  logger.error('❌ Uncaught Exception:', err);
+  // Không exit, để service tiếp tục chạy
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error('❌ Unhandled Rejection:', reason);
+  // Không exit, để service tiếp tục chạy
+});
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -62,8 +73,16 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start server
+// ========== HÀM START VỚI RETRY ==========
+let isStarting = false;
+let retryCount = 0;
+const MAX_RETRIES = 10;
+const RETRY_DELAY = 5000;
+
 async function startServer() {
+  if (isStarting) return;
+  isStarting = true;
+  
   try {
     // Connect to databases
     await database.connectPostgreSQL();
@@ -76,11 +95,65 @@ async function startServer() {
       logger.info(`   Redis: ${redisClient.client ? '✅' : '❌'}`);
       logger.info(`   AI Scoring: ENABLED`);
       logger.info(`   Fallback: nearest-driver (auto on AI error)`);
+      retryCount = 0; // Reset retry count khi thành công
+      isStarting = false;
     });
   } catch (error) {
-    logger.error('Failed to start server:', error);
-    process.exit(1);
+    logger.error('Failed to start server:', error.message);
+    
+    if (retryCount < MAX_RETRIES) {
+      retryCount++;
+      logger.info(`Retrying in ${RETRY_DELAY / 1000}s... (attempt ${retryCount}/${MAX_RETRIES})`);
+      setTimeout(() => {
+        isStarting = false;
+        startServer();
+      }, RETRY_DELAY);
+    } else {
+      logger.error(`Max retries (${MAX_RETRIES}) reached. Service will keep trying every 30s...`);
+      setTimeout(() => {
+        retryCount = 0;
+        isStarting = false;
+        startServer();
+      }, 30000);
+    }
   }
+}
+
+// ========== MONITOR KẾT NỐI ==========
+async function monitorConnections() {
+  setInterval(async () => {
+    try {
+      // Kiểm tra PostgreSQL
+      if (database.pgPool) {
+        await database.pgPool.query('SELECT 1');
+      } else {
+        logger.warn('PostgreSQL pool is null, attempting to reconnect...');
+        await database.connectPostgreSQL();
+      }
+      
+      // Kiểm tra Redis
+      if (redisClient.client) {
+        await redisClient.client.ping();
+      } else {
+        logger.warn('Redis client is null, attempting to reconnect...');
+        await redisClient.connect();
+      }
+    } catch (err) {
+      logger.error('Connection monitor error:', err.message);
+      
+      // Thử reconnect
+      try {
+        if (!database.pgPool) {
+          await database.connectPostgreSQL();
+        }
+        if (!redisClient.client) {
+          await redisClient.connect();
+        }
+      } catch (reconnectErr) {
+        logger.error('Reconnect failed:', reconnectErr.message);
+      }
+    }
+  }, 30000); // Kiểm tra mỗi 30 giây
 }
 
 // Graceful shutdown
@@ -98,6 +171,8 @@ process.on('SIGINT', async () => {
   process.exit(0);
 });
 
+// Khởi động service
 startServer();
+monitorConnections();
 
 module.exports = app;

@@ -128,19 +128,25 @@ services:
 
   booking-service:
     build:
-      context: cab-system-backend/services/booking-service
-      target: development
-      args:
-        - PORT=${BOOKING_PORT}
+      context: ./cab-system-backend/services/booking-service
+      dockerfile: Dockerfile
     container_name: cab_booking
     ports:
-      - "${BOOKING_PORT}:${BOOKING_PORT}"
+    - "${BOOKING_PORT:-3002}:3002"
     environment:
-      - PORT=${BOOKING_PORT}
-      - DB_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/booking_db
-      - RABBITMQ_URL=amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@rabbitmq:5672
+      - PORT=3002
+      - NODE_ENV=development
+      - MONGODB_URI=mongodb://${MONGO_USER:-admin}:${MONGO_PASSWORD:-password123}@mongodb:27017
+      - MONGODB_DB_NAME=booking_db
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-admin}:${RABBITMQ_PASS:-password123}@rabbitmq:5672
+      - PRICING_SERVICE_URL=http://cab_pricing:${PRICING_PORT:-3006}
+      - JWT_SECRET=${JWT_SECRET:-supersecret}
     depends_on:
-      - postgres
+      mongodb:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+    
 
   driver-service:
     build:

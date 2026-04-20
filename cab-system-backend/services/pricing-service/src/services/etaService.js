@@ -1,11 +1,8 @@
-const axios = require('axios');
 const { redisClient } = require('../config/redisConfig');
 
-const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
-
-// Hàm tính khoảng cách Haversine (fallback)
+// Công thức Haversine tính khoảng cách giữa 2 tọa độ (km)
 function calculateDistance(lat1, lon1, lat2, lon2) {
-  const R = 6371;
+  const R = 6371; // Bán kính trái đất (km)
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
   const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
@@ -13,6 +10,21 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
             Math.sin(dLon/2) * Math.sin(dLon/2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
   return R * c;
+}
+
+// Tính ETA dựa trên khoảng cách và tốc độ trung bình
+function calculateETA(distanceKm, avgSpeedKmph = 30) {
+  const etaMinutes = (distanceKm / avgSpeedKmph) * 60;
+  // Traffic level: 0 = thông thoáng, 1 = tắc đường cực độ
+  const trafficLevel = Math.min(0.5 + (distanceKm / 20), 1.0);
+  
+  return {
+    distance_km: Math.round(distanceKm * 10) / 10,
+    eta_minutes: Math.round(etaMinutes),
+    eta_seconds: Math.round(etaMinutes * 60),
+    traffic_level: Math.round(trafficLevel * 10) / 10,
+    speed_kph: avgSpeedKmph
+  };
 }
 
 async function getETA(pickupLat, pickupLng, dropoffLat, dropoffLng) {
@@ -25,60 +37,33 @@ async function getETA(pickupLat, pickupLng, dropoffLat, dropoffLng) {
     return JSON.parse(cached);
   }
   
-  try {
-    // 2. Gọi Google Maps API
-    const response = await axios.get('https://maps.googleapis.com/maps/api/distancematrix/json', {
-      params: {
-        origins: `${pickupLat},${pickupLng}`,
-        destinations: `${dropoffLat},${dropoffLng}`,
-        key: GOOGLE_MAPS_API_KEY,
-        traffic_model: 'best_guess',
-        departure_time: 'now'
-      },
-      timeout: 5000
-    });
-    
-    const element = response.data.rows[0].elements[0];
-    
-    if (element.status !== 'OK') {
-      throw new Error('Google Maps API returned error');
-    }
-    
-    const result = {
-      distance: Math.round(element.distance.value / 1000 * 10) / 10,
-      duration: Math.round(element.duration.value / 60),
-      durationInTraffic: Math.round((element.duration_in_traffic?.value || element.duration.value) / 60),
-      trafficFactor: Math.round((element.duration_in_traffic?.value / element.duration.value) * 10) / 10 || 1
-    };
-    
-    // 3. Lưu cache Redis (5 phút)
-    await redisClient.setEx(cacheKey, 300, JSON.stringify(result));
-    console.log(`📍 ETA: ${result.distance}km, ${result.duration}min, traffic: ${result.trafficFactor}x`);
-    
-    return result;
-    
-  } catch (error) {
-    console.error('Google Maps API error:', error.message);
-    
-    // 4. Fallback: dùng cache cũ nếu có
-    const oldCache = await redisClient.get(cacheKey);
-    if (oldCache) {
-      console.log('⚠️ Using stale cache fallback');
-      return JSON.parse(oldCache);
-    }
-    
-    // 5. Fallback cuối cùng: tính theo đường chim bay
-    const distance = calculateDistance(pickupLat, pickupLng, dropoffLat, dropoffLng);
-    const result = {
-      distance: Math.round(distance * 10) / 10,
-      duration: Math.round(distance * 3 * 10) / 10,
-      durationInTraffic: Math.round(distance * 4 * 10) / 10,
-      trafficFactor: 1.3
-    };
-    
-    console.log('⚠️ Using fallback calculation');
-    return result;
-  }
+  // 2. Tính khoảng cách
+  const distance = calculateDistance(pickupLat, pickupLng, dropoffLat, dropoffLng);
+  
+  // 3. Tính ETA
+  const eta = calculateETA(distance);
+  
+  // 4. Lưu cache Redis (1 giờ)
+  await redisClient.setEx(cacheKey, 3600, JSON.stringify(eta));
+  
+  // 5. Lưu vào Feature Store cho AI Matching
+  const featureKey = `feature:eta:${Date.now()}`;
+  const featureData = {
+    feature_id: featureKey,
+    type: 'eta',
+    pickup: { lat: pickupLat, lng: pickupLng },
+    dropoff: { lat: dropoffLat, lng: dropoffLng },
+    distance_km: eta.distance_km,
+    eta_minutes: eta.eta_minutes,
+    eta_seconds: eta.eta_seconds,
+    traffic_level: eta.traffic_level,
+    timestamp: new Date().toISOString()
+  };
+  await redisClient.setEx(featureKey, 86400, JSON.stringify(featureData)); // Lưu 24h
+  
+  console.log(`📍 ETA calculated: ${eta.distance_km}km, ${eta.eta_minutes}min, traffic: ${eta.traffic_level}`);
+  
+  return eta;
 }
 
-module.exports = { getETA };
+module.exports = { getETA, calculateDistance, calculateETA };
