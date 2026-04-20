@@ -9,7 +9,7 @@ class RideService {
       const ride = await Ride.create(rideData);
       
       // Publish event to RabbitMQ
-      await publishEvent("ride_created", {
+      await publishEvent("ride.created", {
         rideId: ride.id,
         userId: ride.userId,
         pickupLocation: ride.pickupLocation,
@@ -65,13 +65,17 @@ class RideService {
 
       await ride.update(updateData);
 
-      // Publish status update event
-      await publishEvent("ride_status_updated", {
-        rideId: ride.id,
-        status,
-        driverId: ride.driverId,
-        userId: ride.userId,
-      });
+
+      // Nếu trạng thái là COMPLETED, ta publish thêm một event riêng
+      if (status === "COMPLETED") {
+        await publishEvent("ride.completed", {
+          rideId: ride.id,
+          driverId: ride.driverId,
+          userId: ride.userId,
+          fare: ride.fare,
+          endTime: updateData.endTime,
+        });
+      }
 
       return ride;
     } catch (error) {
@@ -96,7 +100,7 @@ class RideService {
       });
 
       // Publish event to RabbitMQ
-      await publishEvent("ride_cancelled", {
+      await publishEvent("ride.cancelled", {
         rideId: ride.id,
         userId: ride.userId,
         driverId: ride.driverId,
