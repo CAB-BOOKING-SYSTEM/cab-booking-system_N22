@@ -9,10 +9,10 @@ const locationSchema = new mongoose.Schema({
 }, { _id: false });
 
 const priceDetailSchema = new mongoose.Schema({
-  basePrice: { type: Number, required: true },
-  distancePrice: { type: Number, required: true },
-  timePrice: { type: Number, required: true },
-  surgeMultiplier: { type: Number, required: true, default: 1.0 },
+  basePrice: { type: Number, default: 0 },
+  distancePrice: { type: Number, default: 0 },
+  timePrice: { type: Number, default: 0 },
+  surgeMultiplier: { type: Number, default: 1.0 },
   total: { type: Number, required: true },
   currency: { type: String, default: 'VND' }
 }, { _id: false });

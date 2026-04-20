@@ -24,7 +24,7 @@ app.use(
 app.use(
   "/bookings",
   authMiddleware,
-  createProxy("http://booking-service:3002", "/api"),
+  createProxy("http://booking-service:3002", ""),
 );
 app.use(
   "/rides",

@@ -1,19 +1,4 @@
-<<<<<<< Updated upstream
-const bookingService = require("../services/booking.service");
 
-async function createBooking(req, res) {
-  try {
-    const booking = await bookingService.createBooking(req.body);
-    res.status(201).json(booking);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-}
-
-module.exports = {
-  createBooking
-};
-=======
 // src/controllers/booking.controller.js
 const { validate, createBookingSchema, cancelBookingSchema, paginationSchema } = require('../utils/validation');
 
@@ -127,4 +112,3 @@ class BookingController {
 }
 
 module.exports = BookingController;
->>>>>>> Stashed changes

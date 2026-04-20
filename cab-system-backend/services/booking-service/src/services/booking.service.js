@@ -1,25 +1,4 @@
-<<<<<<< Updated upstream
-const Booking = require("../models/booking.model");
-const { getChannel } = require("../config/rabbitmq");
 
-async function createBooking(data) {
-
-  const booking = await Booking.create(data);
-
-  const channel = getChannel();
-
-  channel.sendToQueue(
-    "booking_created",
-    Buffer.from(JSON.stringify(booking))
-  );
-
-  return booking;
-}
-
-module.exports = {
-  createBooking
-};
-=======
 // src/services/booking.service.js
 const { v4: uuidv4 } = require('uuid');
 const { BookingStatus } = require('../models/Booking');
@@ -218,4 +197,3 @@ class BookingService {
 }
 
 module.exports = BookingService;
->>>>>>> Stashed changes
