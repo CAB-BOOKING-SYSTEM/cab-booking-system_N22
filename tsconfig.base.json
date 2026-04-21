@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "ignoreDeprecations": "6.0",
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "Bundler",
@@ -15,6 +16,7 @@
     "skipLibCheck": true,
     "paths": {
       "@cab/shared-types": [
+<<<<<<< HEAD
         "cab-system-frontend/packages/shared-types/index.ts"
       ],
       "@cab/shared-utils": [
@@ -32,6 +34,17 @@
       "@cab/realtime": [
         "cab-system-frontend/packages/realtime/index.ts"
       ]
+=======
+        "cab-system-frontend/packages/shared-types/src/index.ts"
+      ],
+      "@cab/shared-utils": [
+        "cab-system-frontend/packages/shared-utils/src/index.ts"
+      ],
+      "@cab/api-client": ["cab-system-frontend/packages/api-client/index.ts"],
+      "@cab/mobile-ui": ["cab-system-frontend/packages/mobile-ui/src/index.ts"],
+      "@cab/map-core": ["cab-system-frontend/packages/map-core/src/index.ts"],
+      "@cab/realtime": ["cab-system-frontend/packages/realtime/src/index.ts"]
+>>>>>>> 82a456d0cda5052c934e06079269b396df628a1b
     }
   },
   "exclude": [
