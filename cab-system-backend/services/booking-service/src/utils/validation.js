@@ -1,6 +1,16 @@
 // src/utils/validation.js
 const Joi = require('joi');
 
+// Định nghĩa ValidationError class
+class ValidationError extends Error {
+  constructor(message, errors) {
+    super(message);
+    this.name = 'ValidationError';
+    this.errors = errors;
+    this.statusCode = 400;
+  }
+}
+
 // Location validation schema
 const locationSchema = Joi.object({
   lat: Joi.number().min(-90).max(90).required(),
