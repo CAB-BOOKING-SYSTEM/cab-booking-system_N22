@@ -1,0 +1,13 @@
+/* src/index.css */
+@import 'leaflet/dist/leaflet.css';
+
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+}
+
+/* Fix cho React Native Web */
+#root {
+  height: 100vh;
+  width: 100vw;
+}
