@@ -11,8 +11,12 @@ import {
 import { BlurView } from 'expo-blur';
 import { MotiView } from 'moti';
 import { LinearGradient } from 'expo-linear-gradient';
+import { bookingService } from '../services/api';
 
-const mockRideData = [
+const FILTER_OPTIONS = ['All', 'Completed', 'Cancelled'];
+
+// Fallback mock data for testing
+const FALLBACK_RIDES = [
   {
     id: 1,
     date: 'Today at 2:45 PM',
@@ -38,9 +42,6 @@ const mockRideData = [
     status: 'Cancelled',
   },
 ];
-
-const FILTER_OPTIONS = ['All', 'Completed', 'Cancelled'];
-const ROLE_OPTIONS = ['Customer', 'Driver'];
 
 const RideCard = ({ ride, isSelected, onPress, index, role = 'Customer' }) => {
   const getStatusColor = (status) => {
@@ -154,54 +155,50 @@ const RideCard = ({ ride, isSelected, onPress, index, role = 'Customer' }) => {
   );
 };
 
-const RoleSelector = ({ role, onRoleChange }) => {
-  return (
-    <View style={styles.roleSelectorContainer}>
-      {/* <Text style={styles.roleSelectorLabel}>Select Mode:</Text> */}
-      <View style={styles.rolesButtonGroup}>
-        {ROLE_OPTIONS.map((option) => (
-          <TouchableOpacity
-            key={option}
-            style={[
-              styles.roleButton,
-              role === option && styles.roleButtonActive,
-            ]}
-            onPress={() => onRoleChange(option)}
-          >
-            <MotiView
-              animate={{
-                scale: role === option ? 1 : 0.95,
-              }}
-              transition={{ type: 'timing', duration: 200 }}
-            >
-              <Text
-                style={[
-                  styles.roleButtonText,
-                  role === option && styles.roleButtonTextActive,
-                ]}
-              >
-                {option}
-              </Text>
-            </MotiView>
-          </TouchableOpacity>
-        ))}
-      </View>
-    </View>
-  );
-};
-
-export function RideHistoryScreen() {
+export function RideHistoryScreen({ role = 'Customer' }) {
   const [selectedFilter, setSelectedFilter] = useState('All');
-  const [role, setRole] = useState('Customer');
   const [rides, setRides] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedRideId, setSelectedRideId] = useState(null);
+  const [error, setError] = useState(null);
 
+  // Format booking data to ride card format
+  const formatBookingToRide = (booking) => {
+    return {
+      id: booking._id || booking.id,
+      date: new Date(booking.createdAt || Date.now()).toLocaleDateString(),
+      pickupLocation: booking.pickupLocation?.address || 'Unknown Location',
+      dropoffLocation: booking.dropoffLocation?.address || 'Unknown Destination',
+      amount: booking.estimatedFare || 0,
+      status: booking.status === 'completed' ? 'Completed' : booking.status === 'cancelled' ? 'Cancelled' : 'Pending',
+    };
+  };
+
+  // Fetch rides from booking service
   useEffect(() => {
-    setTimeout(() => {
-      setRides(mockRideData);
-      setLoading(false);
-    }, 500);
+    const fetchRides = async () => {
+      try {
+        setLoading(true);
+        const bookings = await bookingService.getMyBookings();
+        
+        // Convert bookings to rides format
+        const formattedRides = Array.isArray(bookings)
+          ? bookings.map(formatBookingToRide)
+          : [formatBookingToRide(bookings)];
+        
+        setRides(formattedRides);
+        setError(null);
+      } catch (err) {
+        console.error('Error fetching rides:', err);
+        setError(err.message);
+        // Fallback to mock data
+        setRides(FALLBACK_RIDES);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchRides();
   }, []);
 
   const filteredRides = rides.filter((ride) => {
@@ -225,9 +222,6 @@ export function RideHistoryScreen() {
           <Text style={styles.headerTitle}>Hoạt động</Text>
         </View>
       </MotiView>
-
-      {/* Role Selector */}
-      <RoleSelector role={role} onRoleChange={setRole} />
 
       {/* Filter Bar */}
       <MotiView
@@ -451,48 +445,6 @@ const styles = StyleSheet.create({
   emptyText: {
     color: '#9ca3af',
     textAlign: 'center',
-  },
-  // Role Selector Styles
-  roleSelectorContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
-    backgroundColor: '#f9fafb',
-  },
-  roleSelectorLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#6b7280',
-    marginBottom: 8,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  rolesButtonGroup: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  roleButton: {
-    flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    borderWidth: 1.5,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#ffffff',
-    alignItems: 'center',
-  },
-  roleButtonActive: {
-    backgroundColor: '#00B14F',
-    borderColor: '#00B14F',
-  },
-  roleButtonText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#6b7280',
-  },
-  roleButtonTextActive: {
-    color: '#ffffff',
   },
   // Earnings Styles
   earningsBox: {

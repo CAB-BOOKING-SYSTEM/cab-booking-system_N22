@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,11 +6,13 @@ import {
   TouchableOpacity,
   SafeAreaView,
   StyleSheet,
+  ActivityIndicator,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MotiView } from 'moti';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { userService } from '../services/api';
 
 const SavedLocationCard = ({ iconName, label, address, index }) => {
   return (
@@ -67,26 +69,91 @@ const MenuItem = ({ iconName, label, index }) => {
 };
 
 export function ProfileScreen() {
-  const [savedLocations] = useState([
-    {
-      id: 1,
-      iconName: 'home',
-      label: 'Home',
-      address: '123 Main Street, City',
-    },
-    {
-      id: 2,
-      iconName: 'briefcase',
-      label: 'Work',
-      address: '456 Business Ave, Office',
-    },
-    {
-      id: 3,
-      iconName: 'map-marker',
-      label: 'Recent',
-      address: '789 Shopping Center, Mall',
-    },
-  ]);
+  // Constants
+  const USER_ID = 1; // For testing - In production, get from auth context
+
+  // State
+  const [user, setUser] = useState(null);
+  const [savedLocations, setSavedLocations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Fetch user data and locations
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        setLoading(true);
+        const [userProfile, locations] = await Promise.all([
+          userService.getUserProfile(USER_ID),
+          userService.getSavedLocations(USER_ID),
+        ]);
+
+        setUser(userProfile);
+        
+        // Map API locations to UI format
+        const mappedLocations = locations.map((loc) => ({
+          id: loc.id,
+          label: loc.label,
+          address: loc.address,
+          iconName: getIconForLabel(loc.label),
+        }));
+        setSavedLocations(mappedLocations);
+        setError(null);
+      } catch (err) {
+        console.error('Error fetching user data:', err);
+        setError(err.message);
+        // Fallback to demo data if error
+        setUser({ full_name: 'Dong Cao', phone_number: '090**567' });
+        setSavedLocations([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUserData();
+  }, []);
+
+  // Get initials from name
+  const getInitials = (name) => {
+    if (!name) return 'U';
+    return name
+      .split(' ')
+      .slice(0, 2)
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase();
+  };
+
+  // Map label to icon
+  const getIconForLabel = (label) => {
+    const labelLower = label?.toLowerCase() || '';
+    if (labelLower.includes('home')) return 'home';
+    if (labelLower.includes('work')) return 'briefcase';
+    if (labelLower.includes('recent')) return 'map-marker';
+    return 'map-marker';
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+          <ActivityIndicator size="large" color="#00B14F" />
+          <Text style={{ marginTop: 12, color: '#9ca3af' }}>Loading profile...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!user) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+          <Text style={{ color: '#ef4444' }}>Error loading profile</Text>
+          {error && <Text style={{ color: '#6b7280', marginTop: 8, fontSize: 12 }}>{error}</Text>}
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -110,11 +177,11 @@ export function ProfileScreen() {
                 transition={{ type: 'timing', duration: 500, delay: 100 }}
                 style={styles.avatar}
               >
-                <Text style={styles.avatarText}>DC</Text>
+                <Text style={styles.avatarText}>{getInitials(user.full_name)}</Text>
               </MotiView>
               <View style={{ marginLeft: 16, flex: 1 }}>
-                <Text style={styles.userName}>Dong Cao</Text>
-                <Text style={styles.userPhone}>090**567</Text>
+                <Text style={styles.userName}>{user.full_name}</Text>
+                <Text style={styles.userPhone}>{user.phone_number}</Text>
                 <View style={styles.badge}>
                   <View style={styles.badgeDot} />
                   <Text style={styles.badgeText}>Verified Member</Text>
@@ -135,17 +202,21 @@ export function ProfileScreen() {
         >
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Saved Locations</Text>
-            <View style={styles.locationsList}>
-              {savedLocations.map((location, index) => (
-                <SavedLocationCard
-                  key={location.id}
-                  iconName={location.iconName}
-                  label={location.label}
-                  address={location.address}
-                  index={index}
-                />
-              ))}
-            </View>
+            {savedLocations.length > 0 ? (
+              <View style={styles.locationsList}>
+                {savedLocations.map((location, index) => (
+                  <SavedLocationCard
+                    key={location.id}
+                    iconName={location.iconName}
+                    label={location.label}
+                    address={location.address}
+                    index={index}
+                  />
+                ))}
+              </View>
+            ) : (
+              <Text style={styles.emptyText}>No saved locations yet</Text>
+            )}
           </View>
         </MotiView>
 
@@ -360,6 +431,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.8,
     shadowRadius: 20,
     elevation: 20,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#9ca3af',
+    textAlign: 'center',
+    marginTop: 16,
+    fontStyle: 'italic',
   },
 });
 

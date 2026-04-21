@@ -32,71 +32,92 @@ const pool = new Pool({
   connectionTimeoutMillis: 2000,
 });
 
-// ========== KIỂM TRA KẾT NỐI DATABASE ==========
-const testConnection = async () => {
-  try {
-    const client = await pool.connect();
-    console.log('✅ Database connected successfully');
-    client.release();
-  } catch (error) {
-    console.error('❌ Database connection error:', error.message);
+// ========== KIỂM TRA KẾT NỐI DATABASE (VỚI RETRY) ==========
+const testConnection = async (maxRetries = 5, delay = 3000) => {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const client = await pool.connect();
+      console.log('✅ Database connected successfully');
+      client.release();
+      return true;
+    } catch (error) {
+      if (attempt === maxRetries) {
+        console.error('❌ Database connection failed after', maxRetries, 'attempts');
+        return false;
+      }
+      console.warn(`⏳ Attempt ${attempt}/${maxRetries} failed, retrying in ${delay/1000}s...`);
+      console.warn(`   Error: ${error.message}`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
   }
 };
-testConnection();
 
-// ========== KHỞI TẠO DATABASE & BẢNG ==========
-const initDatabase = async () => {
-  const client = await pool.connect();
-  try {
-    // Tạo bảng users
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        full_name VARCHAR(100) NOT NULL,
-        phone_number VARCHAR(20) UNIQUE NOT NULL,
-        email VARCHAR(100) UNIQUE,
-        role VARCHAR(20) DEFAULT 'RIDER',
-        status VARCHAR(20) DEFAULT 'ACTIVE',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    console.log('✅ Table "users" created/verified');
+// ========== KHỞI TẠO DATABASE & BẢNG (VỚI RETRY) ==========
+const initDatabase = async (maxRetries = 5, delay = 3000) => {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    let client;
+    try {
+      client = await pool.connect();
+      
+      // Tạo bảng users
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS users (
+          id SERIAL PRIMARY KEY,
+          full_name VARCHAR(100) NOT NULL,
+          phone_number VARCHAR(20) UNIQUE NOT NULL,
+          email VARCHAR(100) UNIQUE,
+          role VARCHAR(20) DEFAULT 'RIDER',
+          status VARCHAR(20) DEFAULT 'ACTIVE',
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      console.log('✅ Table "users" created/verified');
 
-    // Tạo bảng saved_locations
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS saved_locations (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL,
-        label VARCHAR(50) NOT NULL,
-        address TEXT NOT NULL,
-        lat DECIMAL(10,8),
-        lng DECIMAL(11,8),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-      )
-    `);
-    console.log('✅ Table "saved_locations" created/verified');
+      // Tạo bảng saved_locations
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS saved_locations (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER NOT NULL,
+          label VARCHAR(50) NOT NULL,
+          address TEXT NOT NULL,
+          lat DECIMAL(10,8),
+          lng DECIMAL(11,8),
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+      `);
+      console.log('✅ Table "saved_locations" created/verified');
 
-    // Tạo indexes
-    await client.query(`
-      CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone_number);
-      CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-      CREATE INDEX IF NOT EXISTS idx_users_status ON users(status);
-      CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
-      CREATE INDEX IF NOT EXISTS idx_locations_user_id ON saved_locations(user_id);
-    `);
-    console.log('✅ Indexes created/verified');
-
-  } catch (error) {
-    console.error('❌ Init database error:', error.message);
-  } finally {
-    client.release();
+      // Tạo indexes
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone_number);
+        CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+        CREATE INDEX IF NOT EXISTS idx_users_status ON users(status);
+        CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
+        CREATE INDEX IF NOT EXISTS idx_locations_user_id ON saved_locations(user_id);
+      `);
+      console.log('✅ Indexes created/verified');
+      return true;
+    } catch (error) {
+      if (attempt === maxRetries) {
+        console.error('❌ Init database failed after', maxRetries, 'attempts');
+        return false;
+      }
+      console.warn(`⏳ DB Init attempt ${attempt}/${maxRetries} failed, retrying in ${delay/1000}s...`);
+      console.warn(`   Error: ${error.message}`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    } finally {
+      if (client) client.release();
+    }
   }
 };
 
 // Khởi tạo database
-initDatabase();
+(async () => {
+  await testConnection();
+  await initDatabase();
+})();
 
 // ========== HEALTH CHECK ==========
 app.get("/health", (req, res) => {
