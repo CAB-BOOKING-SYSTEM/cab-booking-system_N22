@@ -2,9 +2,10 @@ import { useState } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { Text } from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 import { ActivityScreen } from "../../screens/ActivityScreen";
-import { HomeScreen } from "../../screens/HomeScreen";
 import { LoginScreen } from "../../screens/LoginScreen";
 import { ProfileScreen } from "../../screens/ProfileScreen";
 import { RatingFeedbackScreen } from "../../screens/RatingFeedbackScreen";
@@ -20,7 +21,6 @@ type RootStackParamList = {
 };
 
 type MainTabsParamList = {
-  Home: undefined;
   Activity: undefined;
   Profile: undefined;
 };
@@ -36,24 +36,68 @@ function MainTabs({ onLogout }: MainTabsProps) {
   const ProfileTabScreen = () => <ProfileScreen onLogout={onLogout} />;
 
   return (
-    <Tabs.Navigator>
-      <Tabs.Screen name="Home" component={HomeScreen} options={{ title: "Home" }} />
+    <Tabs.Navigator
+      screenOptions={({ route }) => ({
+        tabBarLabel: ({ focused }) => {
+          let label = "";
+          if (route.name === "Activity") {
+            label = "History";
+          } else if (route.name === "Profile") {
+            label = "Profile";
+          }
+          return (
+            <Text
+              style={{
+                color: focused ? "#00B14F" : "#9ca3af",
+                fontSize: 12,
+                fontWeight: "600",
+              }}
+            >
+              {label}
+            </Text>
+          );
+        },
+        tabBarIcon: ({ focused }) => {
+          let iconName = "";
+          if (route.name === "Profile") {
+            iconName = "account";
+          } else if (route.name === "Activity") {
+            iconName = "history";
+          }
+          return (
+            <MaterialCommunityIcons 
+              name={iconName as any}
+              size={24}
+              color={focused ? "#00B14F" : "#9ca3af"}
+            />
+          );
+        },
+        headerShown: false,
+        tabBarActiveTintColor: "#00B14F",
+        tabBarInactiveTintColor: "#9ca3af",
+        tabBarStyle: {
+          backgroundColor: "#ffffff",
+          borderTopWidth: 1,
+          borderTopColor: "#f3f4f6",
+        },
+      })}
+    >
       <Tabs.Screen
         name="Activity"
         component={ActivityScreen}
-        options={{ title: "Hoạt động" }}
+        options={{ title: "History" }}
       />
       <Tabs.Screen
         name="Profile"
         component={ProfileTabScreen}
-        options={{ title: "Tài khoản" }}
+        options={{ title: "Profile" }}
       />
     </Tabs.Navigator>
   );
 }
 
 export function RootNavigator() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(true); // Set to true by default for testing
 
   return (
     <NavigationContainer>
