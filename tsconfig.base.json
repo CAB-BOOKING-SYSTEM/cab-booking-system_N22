@@ -14,13 +14,29 @@
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "paths": {
-      "@cab/shared-types": ["cab-system-frontend/packages/shared-types/src/index.ts"],
-      "@cab/shared-utils": ["cab-system-frontend/packages/shared-utils/src/index.ts"],
-      "@cab/api-client": ["cab-system-frontend/packages/api-client/index.ts"],
-      "@cab/mobile-ui": ["cab-system-frontend/packages/mobile-ui/src/index.ts"],
-      "@cab/map-core": ["cab-system-frontend/packages/map-core/src/index.ts"],
-      "@cab/realtime": ["cab-system-frontend/packages/realtime/src/index.ts"]
+      "@cab/shared-types": [
+        "cab-system-frontend/packages/shared-types/index.ts"
+      ],
+      "@cab/shared-utils": [
+        "cab-system-frontend/packages/shared-utils/index.ts"
+      ],
+      "@cab/api-client": [
+        "cab-system-frontend/packages/api-client/index.ts"
+      ],
+      "@cab/mobile-ui": [
+        "cab-system-frontend/packages/mobile-ui/index.ts"
+      ],
+      "@cab/map-core": [
+        "cab-system-frontend/packages/map-core/index.ts"
+      ],
+      "@cab/realtime": [
+        "cab-system-frontend/packages/realtime/index.ts"
+      ]
     }
   },
-  "exclude": ["node_modules", "dist", "build"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "build"
+  ]
 }

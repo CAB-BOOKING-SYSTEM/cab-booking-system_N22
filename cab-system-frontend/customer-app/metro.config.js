@@ -1,15 +1,17 @@
-const path = require("path");
-const { getDefaultConfig } = require("expo/metro-config");
+// metro.config.js
+const { getDefaultConfig } = require('expo/metro-config');
 
-const projectRoot = __dirname;
-const workspaceRoot = path.resolve(projectRoot, "../..");
+const config = getDefaultConfig(__dirname);
 
-const config = getDefaultConfig(projectRoot);
-
-config.watchFolders = [...(config.watchFolders ?? []), workspaceRoot];
-config.resolver.nodeModulesPaths = [
-  path.resolve(projectRoot, "node_modules"),
-  path.resolve(workspaceRoot, "node_modules"),
-];
+// Thêm alias cho react-native-maps trên web
+config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (platform === 'web' && moduleName === 'react-native-maps') {
+    return {
+      filePath: require.resolve('@teovilla/react-native-web-maps'),
+      type: 'sourceFile',
+    };
+  }
+  return context.resolveRequest(context, moduleName, platform);
+};
 
 module.exports = config;

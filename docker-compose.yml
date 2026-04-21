@@ -132,7 +132,7 @@ services:
       dockerfile: Dockerfile
     container_name: cab_booking
     ports:
-    - "${BOOKING_PORT:-3002}:3002"
+      - "${BOOKING_PORT:-3002}:3002"
     environment:
       - PORT=3002
       - NODE_ENV=development
@@ -146,7 +146,6 @@ services:
         condition: service_started
       rabbitmq:
         condition: service_healthy
-    
 
   driver-service:
     build:
@@ -171,16 +170,17 @@ services:
     build:
       context: cab-system-backend/services/notification-service
       target: development
-      args:
-        - PORT=${NOTIFICATION_PORT}
     container_name: cab_notification
     ports:
-      - "${NOTIFICATION_PORT}:${NOTIFICATION_PORT}"
+      - "3004:3004"
     environment:
-      - PORT=${NOTIFICATION_PORT}
-      - DB_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/notification_db
+      - PORT=3004
+      - DB_URL=mongodb+srv://hle26625_db_user:aEuxe83lA4lX9OEk@notification.jrxenun.mongodb.net/?appName=Notification
+      - RABBITMQ_URL=amqp://admin:password123@rabbitmq:5672
+      - REDIS_URL=redis://redis:6379
     depends_on:
-      - postgres
+      - rabbitmq
+      - redis
 
   payment-service:
     build:
@@ -196,7 +196,10 @@ services:
       - DB_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/payment_db
       - RABBITMQ_URL=amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@rabbitmq:5672
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
 
   pricing-service:
     build:
