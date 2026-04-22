@@ -9,7 +9,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
 import { DriverHomeScreen } from "../../screens/DriverHomeScreen";
 import { EarningsScreen } from "../../screens/EarningsScreen";
-import { LoginScreen } from "../../screens/LoginScreen";
+import LoginScreen from "../../auth/screens/login";
 import { ProfileScreen } from "../../screens/ProfileScreen";
 import { IncomingRequestScreen } from "../../screens/IncomingRequestScreen";
 import { RideDetailScreen } from "../../screens/RideDetailScreen";
@@ -53,7 +53,7 @@ function MainTabs({ onLogout }: { onLogout: () => void }) {
 }
 
 export function RootNavigator() {
-  const [isLoggedIn, setIsLoggedIn] = useState(true); // Set true để test
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   return (
     <NavigationContainer>
@@ -87,7 +87,7 @@ export function RootNavigator() {
           </>
         ) : (
           <Stack.Screen name="Auth">
-            {() => <LoginScreen onLogin={() => setIsLoggedIn(true)} />}
+            {() => <LoginScreen onSuccess={() => setIsLoggedIn(true)} />}
           </Stack.Screen>
         )}
       </Stack.Navigator>

@@ -262,17 +262,17 @@ class DriverService {
       if (!driver) throw new Error('Driver not found');
       if (driver.status !== 'online') throw new Error('Driver is not online');
       
-      const rideServiceUrl = process.env.RIDE_SERVICE_URL || 'http://cab_ride:3008';
+      const rideServiceUrl = process.env.RIDE_SERVICE_URL || "http://localhost:3008";
       
-      const response = await axios.post(`${rideServiceUrl}/api/rides/${rideId}/assign`, {
+      const response = await axios.patch(`${rideServiceUrl}/rides/${rideId}/status`, {
         driverId,
-        status: 'accepted'
+        status: "ASSIGNED"
       });
       
-      driver.status = 'busy';
+      driver.status = "busy";
       await driver.save();
       
-      await eventPublisher.publishEvent('driver.ride.accepted', {
+      await eventPublisher.publishEvent("driver.ride.accepted", {
         driverId,
         rideId,
         acceptedAt: new Date().toISOString()
@@ -280,28 +280,29 @@ class DriverService {
       
       return response.data;
     } catch (error) {
-      logger.error('Error accepting ride:', error);
+      logger.error("Error accepting ride:", error);
       throw error;
     }
   }
 
   async rejectRide(driverId, rideId) {
     try {
-      const rideServiceUrl = process.env.RIDE_SERVICE_URL || 'http://cab_ride:3008';
+      const rideServiceUrl = process.env.RIDE_SERVICE_URL || "http://localhost:3008";
       
-      const response = await axios.post(`${rideServiceUrl}/api/rides/${rideId}/reject`, {
-        driverId
-      });
+      // Giả sử reject thì quay về trạng thái MATCHING hoặc gì đó, 
+      // nhưng ở đây backend ride-service chưa hỗ trợ reject cụ thể, 
+      // ta cứ giữ nguyên hoặc update status nếu cần.
+      // Hiện tại ta chỉ publish event.
       
-      await eventPublisher.publishEvent('driver.ride.rejected', {
+      await eventPublisher.publishEvent("driver.ride.rejected", {
         driverId,
         rideId,
         rejectedAt: new Date().toISOString()
       });
       
-      return response.data;
+      return { success: true };
     } catch (error) {
-      logger.error('Error rejecting ride:', error);
+      logger.error("Error rejecting ride:", error);
       throw error;
     }
   }
@@ -309,20 +310,20 @@ class DriverService {
   async startRide(driverId, rideId) {
     try {
       const driver = await Driver.findOne({ driverId });
-      if (!driver) throw new Error('Driver not found');
-      if (driver.status !== 'busy') throw new Error('Driver is not in a ride');
+      if (!driver) throw new Error("Driver not found");
+      if (driver.status !== "busy") throw new Error("Driver is not in a ride");
       
-      const rideServiceUrl = process.env.RIDE_SERVICE_URL || 'http://cab_ride:3008';
+      const rideServiceUrl = process.env.RIDE_SERVICE_URL || "http://localhost:3008";
       
-      const response = await axios.post(`${rideServiceUrl}/api/rides/${rideId}/start`, {
+      const response = await axios.patch(`${rideServiceUrl}/rides/${rideId}/status`, {
         driverId,
-        startedAt: new Date().toISOString()
+        status: "IN_PROGRESS"
       });
       
       logger.info(`Driver ${driverId} started ride ${rideId}`);
       return response.data;
     } catch (error) {
-      logger.error('Error starting ride:', error);
+      logger.error("Error starting ride:", error);
       throw error;
     }
   }
@@ -330,22 +331,22 @@ class DriverService {
   async completeRide(driverId, rideId, distance, duration) {
     try {
       const driver = await Driver.findOne({ driverId });
-      if (!driver) throw new Error('Driver not found');
+      if (!driver) throw new Error("Driver not found");
       
-      const rideServiceUrl = process.env.RIDE_SERVICE_URL || 'http://cab_ride:3008';
+      const rideServiceUrl = process.env.RIDE_SERVICE_URL || "http://localhost:3008";
       
-      const response = await axios.post(`${rideServiceUrl}/api/rides/${rideId}/complete`, {
+      const response = await axios.patch(`${rideServiceUrl}/rides/${rideId}/status`, {
         driverId,
         distance,
         duration,
-        completedAt: new Date().toISOString()
+        status: "COMPLETED"
       });
       
-      driver.status = 'online';
+      driver.status = "online";
       driver.totalTrips += 1;
       await driver.save();
       
-      await eventPublisher.publishEvent('driver.ride.completed', {
+      await eventPublisher.publishEvent("driver.ride.completed", {
         driverId,
         rideId,
         distance,
@@ -355,7 +356,7 @@ class DriverService {
       
       return driver;
     } catch (error) {
-      logger.error('Error completing ride:', error);
+      logger.error("Error completing ride:", error);
       throw error;
     }
   }
@@ -365,9 +366,9 @@ class DriverService {
       const { page = 1, limit = 20, status } = options;
       const skip = (page - 1) * limit;
       
-      const rideServiceUrl = process.env.RIDE_SERVICE_URL || 'http://cab_ride:3008';
+      const rideServiceUrl = process.env.RIDE_SERVICE_URL || "http://localhost:3008";
       
-      const response = await axios.get(`${rideServiceUrl}/api/rides/history`, {
+      const response = await axios.get(`${rideServiceUrl}/rides`, {
         params: { driverId, status, skip, limit }
       });
       

@@ -4,14 +4,14 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { NotificationSocketClient } from "@cab-booking/realtime";
+import { NotificationSocketClient } from "@cab/realtime";
 import {
   getHistory,
   getUnreadCount,
   markAsRead,
   markAllAsRead,
-} from "@cab-booking/api-client";
-import type { Notification } from "@cab-booking/shared-types";
+} from "@cab/api-client";
+import type { Notification } from "@cab/shared-types";
 
 export interface UseMobileNotificationOptions {
   userId: string;

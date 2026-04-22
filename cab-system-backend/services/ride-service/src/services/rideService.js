@@ -7,7 +7,7 @@ class RideService {
     try {
       rideData.status = "CREATED";
       const ride = await Ride.create(rideData);
-      
+
       // Publish event to RabbitMQ
       await publishEvent("ride.created", {
         rideId: ride.id,

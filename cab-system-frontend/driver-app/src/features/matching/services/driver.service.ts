@@ -76,7 +76,7 @@ class DriverService {
   // Cập nhật trạng thái chuyến đi (ARRIVED, IN_PROGRESS, COMPLETED)
   async updateRideStatus(rideId: string, status: string): Promise<boolean> {
     try {
-      await apiClient.patch(`${process.env.EXPO_PUBLIC_RIDE_URL || "http://localhost:3002"}/api/rides/${rideId}/status`, { status });
+      await apiClient.patch(`${process.env.EXPO_PUBLIC_RIDE_URL || "http://localhost:3008"}/rides/${rideId}/status`, { status });
       return true;
     } catch (error) {
       console.error("Update ride status error:", error);

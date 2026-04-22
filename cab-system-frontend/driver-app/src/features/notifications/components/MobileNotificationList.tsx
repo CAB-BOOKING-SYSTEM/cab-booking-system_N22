@@ -5,7 +5,7 @@
 
 import React, { useCallback } from "react";
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, type ListRenderItem } from "react-native";
-import type { Notification } from "@cab-booking/shared-types";
+import type { Notification } from "@cab/shared-types";
 
 function formatRelativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();

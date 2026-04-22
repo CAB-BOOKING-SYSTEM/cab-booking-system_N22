@@ -435,7 +435,7 @@ export const login = async (req, res) => {
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    await User.updateLastLogin(user.id).catch(() => {});
+    await User.updateLastLogin(user.id).catch(() => { });
 
     await writeAuditLog({
       userId: user.id,

@@ -5,7 +5,7 @@
 
 import React, { useEffect, useRef } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Animated, Platform } from "react-native";
-import type { Notification } from "@cab-booking/shared-types";
+import type { Notification } from "@cab/shared-types";
 
 const TYPE_ICON: Record<string, string> = {
   ride_requested: "🚖", ride_assigned: "✅", ride_arriving: "📍",

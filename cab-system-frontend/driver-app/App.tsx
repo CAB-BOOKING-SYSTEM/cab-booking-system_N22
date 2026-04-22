@@ -1,19 +1,6 @@
 import React from 'react';
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, View } from 'react-native';
-import LoginScreen from './src/auth/screens/login';
+import App from './src/core/App';
 
-export default function App(): React.JSX.Element {
-  return (
-    <View style={styles.container}>
-      <StatusBar style="auto" />
-      <LoginScreen />
-    </View>
-  );
+export default function RootApp() {
+  return <App />;
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-});

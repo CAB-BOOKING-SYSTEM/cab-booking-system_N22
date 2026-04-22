@@ -5,12 +5,12 @@ const { Pool } = pg;
 const connectionOptions = process.env.DB_URL
   ? { connectionString: process.env.DB_URL }
   : {
-      user: process.env.DB_USER,
-      host: process.env.DB_HOST,
-      database: process.env.DB_NAME,
-      password: process.env.DB_PASSWORD,
-      port: Number(process.env.DB_PORT),
-    };
+    user: process.env.DB_USER,
+    host: process.env.DB_HOST,
+    database: process.env.DB_NAME,
+    password: process.env.DB_PASSWORD,
+    port: Number(process.env.DB_PORT),
+  };
 
 const pool = new Pool(connectionOptions);
 
@@ -78,6 +78,24 @@ try {
   }
   console.log(`🕐 Server time: ${result.rows[0].now}`);
   console.log("╔════════════════════════════════════════════════════════╝");
+} catch (error) {
+  console.error("╔════════════════════════════════════════════════════════╗");
+  console.error("║        ❌ DATABASE CONNECTION FAILED                  ║");
+  console.error("╚════════════════════════════════════════════════════════╝");
+  console.error("Error:", error.message);
+  process.exit(1);
+}
+
+export default pool;
+console.log(`📋 Connected via DB_URL: ${process.env.DB_URL}`);
+  } else {
+  console.log(
+    `📋 Connected to: ${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_NAME}`,
+  );
+  console.log(`👤 User: ${process.env.DB_USER}`);
+}
+console.log(`🕐 Server time: ${result.rows[0].now}`);
+console.log("╔════════════════════════════════════════════════════════╝");
 } catch (error) {
   console.error("╔════════════════════════════════════════════════════════╗");
   console.error("║        ❌ DATABASE CONNECTION FAILED                  ║");
