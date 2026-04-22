@@ -23,7 +23,7 @@ export const protect = async (req, res, next) => {
     const decoded = jwt.verify(token, JWT_SECRET);
     const user = await User.findById(decoded.sub);
 
-    if (!user || !user.is_active) {
+    if (!user || user.status !== 'ACTIVE') {
       return res.status(401).json({ message: 'User not found or inactive' });
     }
 

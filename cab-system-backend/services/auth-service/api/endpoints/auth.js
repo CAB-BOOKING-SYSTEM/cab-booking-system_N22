@@ -20,5 +20,10 @@ router.get('/profile', protect, (req, res) => {
     user: req.user
   });
 });
-
+router.get('/health', (req, res) => {
+  res.json({
+    message: 'Protected route accessed successfully',
+    
+  });
+});
 export default router;

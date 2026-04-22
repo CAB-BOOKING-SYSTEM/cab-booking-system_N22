@@ -1,47 +1,54 @@
-// models/userModel.js
 import pool from '../core/db.js';
 
 class UserModel {
 
-  static async create({ email, username, password, role = 'customer', image = null }) {
+  static async create({ email, password_hash, role = 'RIDER', first_name = null, last_name = null }) {
     const query = `
-      INSERT INTO users (email, username, password, role, image)
-      VALUES ($1, $2, $3, $4, $5)
-      RETURNING id, email, username, role, image, verified_at, is_active, created_at;
+      INSERT INTO auth_users (email, password_hash, role, status, provider)
+      VALUES ($1, $2, $3, 'ACTIVE', 'email')
+      RETURNING id, email, role, status, email_verified, created_at;
     `;
-
     const result = await pool.query(query, [
       email.toLowerCase().trim(),
-      username.trim(),
-      password,
-      role,
-      image
+      password_hash,
+      role.toUpperCase(),
     ]);
     return result.rows[0];
   }
 
   static async findByEmail(email) {
-    const query = `SELECT * FROM users WHERE email = $1`;
+    const query = `
+      SELECT id, email, password_hash, role, status, email_verified, last_login
+      FROM auth_users
+      WHERE email = $1 AND deleted_at IS NULL
+    `;
     const result = await pool.query(query, [email.toLowerCase().trim()]);
     return result.rows[0];
   }
 
   static async findById(id) {
-    const query = `SELECT id, email, username, role, image, verified_at, is_active, last_login FROM users WHERE id = $1`;
+    const query = `
+      SELECT id, email, role, status, email_verified, last_login
+      FROM auth_users
+      WHERE id = $1 AND deleted_at IS NULL
+    `;
     const result = await pool.query(query, [id]);
     return result.rows[0];
   }
 
   static async updateLastLogin(userId) {
-    await pool.query(`UPDATE users SET last_login = NOW() WHERE id = $1`, [userId]);
+    await pool.query(
+      `UPDATE auth_users SET last_login = NOW(), login_count = login_count + 1 WHERE id = $1`,
+      [userId]
+    );
   }
 
   static async hasRole(userId, requiredRole) {
-    const result = await pool.query(`SELECT role FROM users WHERE id = $1`, [userId]);
+    const result = await pool.query(`SELECT role FROM auth_users WHERE id = $1`, [userId]);
     if (result.rows.length === 0) return false;
     const role = result.rows[0].role;
-    if (requiredRole === 'admin') return role === 'admin';
-    if (requiredRole === 'driver') return role === 'driver' || role === 'admin';
+    if (requiredRole === 'ADMIN') return role === 'ADMIN' || role === 'SUPER_ADMIN';
+    if (requiredRole === 'DRIVER') return role === 'DRIVER' || role === 'ADMIN' || role === 'SUPER_ADMIN';
     return true;
   }
 }

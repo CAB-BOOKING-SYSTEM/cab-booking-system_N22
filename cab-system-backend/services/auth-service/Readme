@@ -1,0 +1,205 @@
+# 🚀 Cab System - Auth Service
+
+## 📋 Yêu cầu
+
+- Docker Desktop (hoặc Docker + Docker Compose)
+- Node.js 20+ (nếu chạy local)
+
+## 🐳 Chạy với Docker
+
+### 1️⃣ Khởi động tất cả services
+
+```bash
+# Build và start
+docker-compose up -d
+
+# Xem logs
+docker-compose logs -f auth-service
+
+# Xem logs tất cả services
+docker-compose logs -f
+```
+
+### 2️⃣ Kiểm tra trạng thái
+
+```bash
+# Kiểm tra containers đang chạy
+docker-compose ps
+
+# Kiểm tra health
+curl http://localhost:3002/health
+```
+
+### 3️⃣ Development với Hot Reload
+
+File `docker-compose.yml` đã cấu hình volume mapping để code thay đổi tự động reload:
+
+```yaml
+volumes:
+  - ./:/app  # Code changes auto-reload
+```
+
+### 4️⃣ Rebuild sau khi thay đổi dependencies
+
+```bash
+# Rebuild và restart
+docker-compose up -d --build
+
+# Hoặc rebuild một service cụ thể
+docker-compose build auth-service
+docker-compose up -d auth-service
+```
+
+### 5️⃣ Dừng và xóa
+
+```bash
+# Dừng containers
+docker-compose stop
+
+# Dừng và xóa containers
+docker-compose down
+
+# Dừng và xóa cả volumes (⚠️ MẤT DATA)
+docker-compose down -v
+```
+
+## 🔧 Chạy Local (không dùng Docker)
+
+```bash
+# 1. Start PostgreSQL và Redis locally
+# 2. Cài dependencies
+npm install
+
+# 3. Chạy migrations (nếu có)
+npm run migrate
+
+# 4. Start server
+npm run dev
+# hoặc
+node app.js
+```
+
+## 🗄️ Database
+
+### Import schema tự động
+
+File `db.sql` sẽ tự động import khi container PostgreSQL khởi động lần đầu.
+
+### Chạy migrations thủ công
+
+```bash
+# Exec vào container
+docker-compose exec auth-service sh
+
+# Chạy migration script
+npm run migrate
+```
+
+### Truy cập database
+
+```bash
+# Từ host machine
+psql -h localhost -U postgres -d auth_db
+# Password: 123
+
+# Hoặc exec vào container postgres
+docker-compose exec postgres psql -U postgres -d auth_db
+```
+
+## 🔍 Debugging
+
+### Xem logs chi tiết
+
+```bash
+# Logs của một service cụ thể
+docker-compose logs -f auth-service
+
+# Logs 100 dòng cuối
+docker-compose logs --tail=100 auth-service
+```
+
+### Shell vào container
+
+```bash
+# Vào auth-service container
+docker-compose exec auth-service sh
+
+# Vào postgres container
+docker-compose exec postgres bash
+```
+
+### Kiểm tra kết nối
+
+```bash
+# Kiểm tra auth-service có kết nối được PostgreSQL không
+docker-compose exec auth-service nc -zv postgres 5432
+
+# Kiểm tra kết nối Redis
+docker-compose exec auth-service nc -zv redis 6379
+```
+
+## ⚠️ VẤN ĐỀ THƯỜNG GẶP
+
+### 1. Database connection refused
+
+**Nguyên nhân:** File `.env` vẫn dùng `DB_HOST=localhost`
+
+**Giải pháp:** Trong Docker, phải dùng tên service:
+```env
+DB_HOST=postgres  # ✅ Đúng trong Docker
+# DB_HOST=localhost  # ❌ Sai trong Docker
+```
+
+### 2. Port already in use
+
+```bash
+# Tìm process đang dùng port
+lsof -i :3002
+lsof -i :5432
+
+# Kill process
+kill -9 <PID>
+```
+
+### 3. Clean rebuild
+
+```bash
+# Xóa tất cả và rebuild từ đầu
+docker-compose down -v
+docker-compose build --no-cache
+docker-compose up -d
+```
+
+## 🌐 API Endpoints
+
+- Health Check: `GET http://localhost:3002/health`
+- Auth endpoints: Xem file controllers/...
+
+## 📝 Environment Variables
+
+Xem file `.env` để biết tất cả biến môi trường cần thiết.
+
+**⚠️ QUAN TRỌNG:** Không commit file `.env` lên Git!
+
+```bash
+# Thêm vào .gitignore
+echo ".env" >> .gitignore
+```
+
+## 🔐 Security Notes
+
+1. Đổi JWT secrets trong production
+2. Đổi database password mạnh hơn
+3. Không expose ports không cần thiết
+4. Dùng Docker secrets cho production
+5. Cập nhật GOOGLE_CLIENT_SECRET an toàn
+
+## 📦 Production Deployment
+
+```bash
+# Build production image
+docker-compose -f docker-compose.prod.yml build
+
+# Deploy
+docker-compose -f docker-compose.prod.yml up -d
+```
