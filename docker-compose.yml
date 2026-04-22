@@ -171,16 +171,18 @@ services:
     build:
       context: cab-system-backend/services/notification-service
       target: development
-      args:
-        - PORT=${NOTIFICATION_PORT}
     container_name: cab_notification
     ports:
-      - "${NOTIFICATION_PORT}:${NOTIFICATION_PORT}"
+      - "3004:3004"
     environment:
-      - PORT=${NOTIFICATION_PORT}
-      - DB_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/notification_db
+      - PORT=3004
+      - DB_URL=mongodb+srv://hle26625_db_user:aEuxe83lA4lX9OEk@notification.jrxenun.mongodb.net/?appName=Notification
+      - RABBITMQ_URL=amqp://admin:password123@rabbitmq:5672
+      - REDIS_URL=redis://redis:6379
     depends_on:
-      - postgres
+      - rabbitmq
+      - redis
+
 
   payment-service:
     build:
@@ -283,7 +285,7 @@ services:
       target: development
     container_name: cab_matching
     ports:
-      - "${MATCHING_PORT:-3001}:${MATCHING_PORT:-3001}"
+      - "${MATCHING_PORT:-3010}:${MATCHING_PORT:-3010}"
     environment:
       - PORT=${MATCHING_PORT}
       - NODE_ENV=development
