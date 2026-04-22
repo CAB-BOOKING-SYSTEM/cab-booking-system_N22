@@ -16,39 +16,19 @@ export function DriverHomeScreen() {
   const [isOnline, setIsOnline] = useState(true);
   const [driverId] = useState("DRIVER_001"); // TODO: Lấy từ auth context
 
-  // Giả lập nhận request mới sau 3 giây
   useEffect(() => {
-    if (!isOnline) return;
+    if (isOnline) {
+      driverService.connectWebSocket(driverId, (request) => {
+        navigation.navigate("IncomingRequest", { requestData: request });
+      });
+    } else {
+      driverService.disconnectWebSocket();
+    }
 
-    const timer = setTimeout(() => {
-      const mockRequest = {
-        requestId: `REQ_${Date.now()}`,
-        rideId: `RIDE_${Date.now()}`,
-        pickupLocation: {
-          address: "123 Nguyễn Huệ, Quận 1, TP.HCM",
-          lat: 10.7769,
-          lng: 106.7009,
-        },
-        dropoffLocation: {
-          address: "456 Lê Lợi, Quận 1, TP.HCM",
-          lat: 10.7761,
-          lng: 106.7035,
-        },
-        distance: 2.5,
-        estimatedPrice: 45000,
-        estimatedDuration: 10,
-        customerInfo: {
-          customerId: "CUST001",
-          customerName: "Trần Thị B",
-          customerRating: 4.8,
-        },
-      };
-
-      navigation.navigate("IncomingRequest", { requestData: mockRequest });
-    }, 3000);
-
-    return () => clearTimeout(timer);
-  }, [isOnline, navigation]);
+    return () => {
+      driverService.disconnectWebSocket();
+    };
+  }, [isOnline, navigation, driverId]);
 
   const toggleOnlineStatus = async () => {
     const newStatus = !isOnline;

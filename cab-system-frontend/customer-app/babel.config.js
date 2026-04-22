@@ -5,6 +5,7 @@ module.exports = function (api) {
     presets: ["babel-preset-expo", "nativewind/babel"],
     plugins: [
       "react-native-reanimated/plugin",
+      "react-native-worklets-core/plugin",
     ],
   };
 };

@@ -1,11 +1,9 @@
-// middleware/auth.js
-import jwt from "jsonwebtoken";
-import redisClient from "../../../cab-system-backend/services/auth-service/core/redis.js";
-import UserModel from "../models/userModel.js";
+const jwt = require("jsonwebtoken");
 
-const JWT_SECRET = process.env.JWT_SECRET;
+const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
 
-export const protect = async (req, res, next) => {
+const protect = async (req, res, next) => {
+  if (req.method === "OPTIONS") return next();
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith("Bearer ")) {
@@ -13,13 +11,8 @@ export const protect = async (req, res, next) => {
     }
 
     const token = authHeader.split(" ")[1];
-
-    if ((await await redisClient.exists(`blacklist:${token}`)) === 1) {
-      return res.status(401).json({ message: "Token has been revoked" });
-    }
-
     const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = decoded; // { sub, email, role, ... }
+    req.user = decoded;
 
     next();
   } catch (err) {
@@ -27,13 +20,15 @@ export const protect = async (req, res, next) => {
   }
 };
 
-export const authorize = (...allowedRoles) => {
+const authorize = (...allowedRoles) => {
   return (req, res, next) => {
     if (!req.user || !allowedRoles.includes(req.user.role)) {
-      return res
-        .status(403)
-        .json({ message: "Access denied: insufficient permissions" });
+      return res.status(403).json({ message: "Access denied" });
     }
     next();
   };
 };
+
+// Export protect as the main middleware function
+protect.authorize = authorize;
+module.exports = protect;

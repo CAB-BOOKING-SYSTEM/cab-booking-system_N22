@@ -40,7 +40,22 @@ function MobileNotificationToastAdapter() {
   );
 }
 
+import { Platform } from "react-native";
+
 export default function App(): React.JSX.Element {
+  React.useEffect(() => {
+    if (Platform.OS === "web") {
+      // Đảm bảo Leaflet CSS được tải
+      if (!document.getElementById('leaflet-css')) {
+        const link = document.createElement("link");
+        link.id = 'leaflet-css';
+        link.rel = "stylesheet";
+        link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+        document.head.appendChild(link);
+      }
+    }
+  }, []);
+
   return (
     <SafeAreaProvider>
       <StatusBar style="auto" />

@@ -3,7 +3,7 @@ import React, { forwardRef, useImperativeHandle, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { MapContainer, TileLayer, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
+// import 'leaflet/dist/leaflet.css';
 
 // Fix Leaflet default marker icon
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -92,5 +92,7 @@ const styles = StyleSheet.create({
   container: {
     width: '100%',
     height: '100%',
+    minHeight: 300, // Đảm bảo không bị xẹp xuống 0
+    backgroundColor: '#e5e5e5', // Màu nền tạm khi đang load
   },
 });

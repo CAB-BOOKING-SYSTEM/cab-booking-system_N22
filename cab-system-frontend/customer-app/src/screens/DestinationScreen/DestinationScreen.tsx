@@ -140,24 +140,19 @@ const DestinationScreen: React.FC = () => {
       });
       console.log('===================================');
       
-      // TODO: Chuyển sang màn hình chọn xe (VehicleSelection)
-      // navigation.navigate('VehicleSelection', {
-      //   pickupLocation,
-      //   dropoffLocation: {
-      //     lat: details.geometry.location.lat,
-      //     lng: details.geometry.location.lng,
-      //     address: details.formatted_address,
-      //     name: details.name,
-      //     placeId: details.place_id,
-      //   },
-      // });
-      
-      // Hiển thị thông báo thành công (tạm thời)
-      Alert.alert(
-        '✅ Thành công',
-        `Đã chọn điểm đến:\n${details.name}\n${details.formatted_address}`,
-        [{ text: 'OK' }]
-      );
+      // Chuyển sang màn hình chọn xe (RideOptions)
+      navigation.navigate('RideOptions', {
+        pickupLocation,
+        dropoffLocation: {
+          lat: details.geometry.location.lat,
+          lng: details.geometry.location.lng,
+          address: details.formatted_address,
+          name: details.name,
+          placeId: details.place_id,
+        },
+        distance: 5.0, // Tạm thời để 5km để test tính giá
+        duration: 15,  // Tạm thời 15p
+      });
       
     } catch (error) {
       console.error('❌ Lỗi khi chọn địa điểm:', error);

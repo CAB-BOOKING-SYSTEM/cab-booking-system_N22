@@ -46,10 +46,14 @@ class MatchingService {
       // Step 3: Get driver details from Driver Service
       const driverDetailsMap = await this.getDriverDetails(nearbyDrivers.map(d => d.driverId));
       
-      // Filter online drivers only
-      const onlineDrivers = nearbyDrivers.filter(d => 
-        driverDetailsMap[d.driverId] && driverDetailsMap[d.driverId].data?.status === 'online'
-      );
+      // Filter online drivers only (if details unavailable, assume online for resilience)
+      const onlineDrivers = nearbyDrivers.filter(d => {
+        const details = driverDetailsMap[d.driverId];
+        // If we can't fetch details, assume driver is available
+        if (!details) return true;
+        const status = details.data?.status || details.status;
+        return status === 'online' || status === 'available' || !status;
+      });
 
       if (onlineDrivers.length === 0) {
         await MatchingRequest.updateStatus(pool, rideId, 'failed');

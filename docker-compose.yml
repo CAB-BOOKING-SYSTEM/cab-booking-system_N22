@@ -17,6 +17,9 @@ services:
       - review-service
     environment:
       - JWT_SECRET=${JWT_SECRET:-supersecret}
+    volumes:
+      - ./gateway:/app
+      - /app/node_modules
 
   # --- 1. INFRASTRUCTURE ---
   postgres:

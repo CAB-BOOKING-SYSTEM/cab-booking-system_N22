@@ -25,11 +25,11 @@ export interface MatchResult {
 
 class MatchingService {
     // @ts-ignore
-  private baseUrl = process.env.EXPO_PUBLIC_MATCHING_URL || "http://localhost:3010";
+  private baseUrl = "http://localhost:3000/matching";
 
   async findDriver(request: FindDriverRequest): Promise<any> {
     try {
-      const response = await apiClient.post(`${this.baseUrl}/api/matching/find-driver`, request);
+      const response = await apiClient.post(`${this.baseUrl}/find-driver`, request);
       return response.data;
     } catch (error: any) {
       return { success: false, error: error.response?.data?.message || "Lỗi kết nối" };

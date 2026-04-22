@@ -14,7 +14,7 @@ import {
   Animated,
   Platform,
 } from "react-native";
-import type { Notification } from "@cab-booking/shared-types";
+import type { Notification } from "@cab/shared-types";
 
 // ─── Icon map ────────────────────────────────────────────────────────────────
 

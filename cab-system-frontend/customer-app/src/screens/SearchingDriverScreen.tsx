@@ -6,6 +6,7 @@ import {
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { matchingService } from "../features/matching/services/matching.service";
+import { CustomMapView } from "../features/booking/components/MapView";
 
 const { width } = Dimensions.get("window");
 
@@ -13,6 +14,7 @@ export function SearchingDriverScreen() {
   const navigation = useNavigation();
   const route = useRoute();
   const params = route.params as any;
+  const mapRef = useRef(null);
   
   const [searchTime, setSearchTime] = useState(0);
   const [status, setStatus] = useState<"searching" | "found" | "error">("searching");
@@ -20,6 +22,14 @@ export function SearchingDriverScreen() {
   
   const rippleAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  // Region cho bản đồ
+  const region = {
+    latitude: params?.pickupLocation?.lat || 10.7769,
+    longitude: params?.pickupLocation?.lng || 106.7009,
+    latitudeDelta: 0.01,
+    longitudeDelta: 0.01,
+  };
   
   useEffect(() => {
     startMatching();
@@ -42,7 +52,7 @@ export function SearchingDriverScreen() {
   const startMatching = async () => {
     try {
       const response = await matchingService.findDriver({
-        rideId: params?.rideId || "RIDE_001",
+        rideId: params?.rideId || `RIDE_${Date.now()}`,
         userId: params?.userId || "USER_001",
         pickupLat: params?.pickupLocation?.lat || 10.7769,
         pickupLng: params?.pickupLocation?.lng || 106.7009,
@@ -51,7 +61,10 @@ export function SearchingDriverScreen() {
       if (response.success && response.data) {
         setStatus("found");
         setTimeout(() => {
-          navigation.replace("RideTracking", { driverInfo: response.data });
+          navigation.replace("RideTracking", { 
+            driverInfo: response.data,
+            rideId: response.data.rideId || params?.rideId
+          });
         }, 1000);
       } else {
         setStatus("error");
@@ -76,7 +89,9 @@ export function SearchingDriverScreen() {
   if (status === "error") {
     return (
       <View style={styles.container}>
-        <View style={styles.mapPlaceholder}><Text style={styles.mapText}>🗺️ Bản đồ</Text></View>
+        <View style={styles.mapContainer}>
+          <CustomMapView ref={mapRef} region={region} />
+        </View>
         <View style={styles.bottomPanel}>
           <View style={styles.errorContainer}>
             <Text style={styles.errorIcon}>❌</Text>
@@ -97,7 +112,7 @@ export function SearchingDriverScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.mapContainer}>
-        <View style={styles.mapPlaceholder}><Text style={styles.mapText}>🗺️ Bản đồ</Text></View>
+        <CustomMapView ref={mapRef} region={region} />
         <View style={styles.rippleContainer}>
           <Animated.View style={[styles.ripple, { transform: [{ scale: rippleScale }], opacity: rippleOpacity }]} />
           <Animated.View style={[styles.centerDot, { transform: [{ scale: pulseAnim }] }]} />
@@ -133,9 +148,7 @@ export function SearchingDriverScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff" },
   mapContainer: { flex: 1, position: "relative" },
-  mapPlaceholder: { flex: 1, backgroundColor: "#e0e0e0", justifyContent: "center", alignItems: "center" },
-  mapText: { color: "#666", fontSize: 16 },
-  rippleContainer: { position: "absolute", top: "50%", left: "50%", marginLeft: -40, marginTop: -40, width: 80, height: 80, alignItems: "center", justifyContent: "center" },
+  rippleContainer: { position: "absolute", top: "50%", left: "50%", marginLeft: -40, marginTop: -40, width: 80, height: 80, alignItems: "center", justifyContent: "center", zIndex: 10 },
   ripple: { position: "absolute", width: 80, height: 80, borderRadius: 40, backgroundColor: "#4CAF50" },
   centerDot: { width: 16, height: 16, borderRadius: 8, backgroundColor: "#4CAF50" },
   bottomPanel: { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, shadowColor: "#000", shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 5 },

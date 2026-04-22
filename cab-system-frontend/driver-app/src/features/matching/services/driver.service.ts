@@ -73,6 +73,17 @@ class DriverService {
     }
   }
 
+  // Cập nhật trạng thái chuyến đi (ARRIVED, IN_PROGRESS, COMPLETED)
+  async updateRideStatus(rideId: string, status: string): Promise<boolean> {
+    try {
+      await apiClient.patch(`${process.env.EXPO_PUBLIC_RIDE_URL || "http://localhost:3002"}/api/rides/${rideId}/status`, { status });
+      return true;
+    } catch (error) {
+      console.error("Update ride status error:", error);
+      return false;
+    }
+  }
+
   // Lấy thông tin tài xế
   async getDriverInfo(driverId: string): Promise<any> {
     try {
@@ -126,6 +137,16 @@ class DriverService {
     if (this.socket) {
       this.socket.disconnect();
       this.socket = null;
+    }
+  }
+
+  updateLocation(driverId: string, location: { lat: number; lng: number }) {
+    if (this.socket && this.socket.connected) {
+      this.socket.emit("driver:location-update", {
+        driverId,
+        location,
+        timestamp: new Date().toISOString(),
+      });
     }
   }
 
