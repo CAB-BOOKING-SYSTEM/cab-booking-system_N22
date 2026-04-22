@@ -50,3 +50,26 @@ export interface ApiResponse<T> {
   message?: string;
   success: boolean;
 }
+
+export enum NotificationType {
+  RideRequested = "ride_requested",
+  RideAssigned = "ride_assigned",
+  RideArriving = "ride_arriving",
+  RideStarted = "ride_started",
+  RideCompleted = "ride_completed",
+  RideCancelled = "ride_cancelled",
+  PaymentReceived = "payment_received",
+  PaymentFailed = "payment_failed",
+  SystemAlert = "system_alert",
+  Promotion = "promotion",
+}
+
+export interface Notification {
+  id: string;
+  title: string;
+  body: string;
+  type: NotificationType;
+  routingKey: string;
+  isRead: boolean;
+  createdAt: string; // ISO 8601
+}

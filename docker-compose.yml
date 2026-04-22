@@ -132,7 +132,7 @@ services:
       dockerfile: Dockerfile
     container_name: cab_booking
     ports:
-    - "${BOOKING_PORT:-3002}:3002"
+      - "${BOOKING_PORT:-3002}:3002"
     environment:
       - PORT=3002
       - NODE_ENV=development
@@ -146,7 +146,6 @@ services:
         condition: service_started
       rabbitmq:
         condition: service_healthy
-    
 
   driver-service:
     build:
@@ -183,7 +182,6 @@ services:
       - rabbitmq
       - redis
 
-
   payment-service:
     build:
       context: cab-system-backend/services/payment-service
@@ -198,7 +196,10 @@ services:
       - DB_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/payment_db
       - RABBITMQ_URL=amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@rabbitmq:5672
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
 
   pricing-service:
     build:

@@ -14,3 +14,13 @@ export function createRealtimeClient(
     auth: options.token ? { token: options.token } : undefined,
   });
 }
+
+// ─── Notifications ────────────────────────────────────────────────────────────
+export {
+  NotificationSocketClient,
+  NOTIFICATION_EVENT,
+} from "./notifications/NotificationSocketClient";
+export type {
+  NotificationCallback,
+  NotificationSocketClientOptions,
+} from "./notifications/NotificationSocketClient";

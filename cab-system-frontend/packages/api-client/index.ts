@@ -10,3 +10,18 @@ export type {
   ApiClientConfig,
   UnauthorizedErrorHandler,
 } from "./types";
+
+// ─── Notification Service ─────────────────────────────────────────────────────
+export {
+  notificationAxios,
+  setNotificationAuthToken,
+  getHistory,
+  getUnreadCount,
+  markAsRead,
+  markAllAsRead,
+} from "./services/notificationService";
+export type {
+  GetHistoryParams,
+  GetHistoryResult,
+  UnreadCountResult,
+} from "./services/notificationService";
