@@ -1,6 +1,13 @@
 // api/endpoints/auth.js
 import express from 'express';
-import { register, login, refresh, logout } from '../../controllers/auth.js';
+import {
+  register,
+  login,
+  refresh,
+  logout,
+  requestPasswordReset,
+  resetPassword,
+} from '../../controllers/auth.js';
 import { loginLimiter, refreshLimiter } from '../../middleware/rateLimiter.js';
 import { protect } from '../../middleware/auth.js';
 
@@ -10,8 +17,9 @@ const router = express.Router();
 router.post('/register', register);
 router.post('/login', loginLimiter, login);
 router.post('/refresh', refreshLimiter, refresh);
-// Protected routes
-router.post('/logout', protect, logout);
+router.post('/logout', logout);
+router.post('/forgot-password', loginLimiter, requestPasswordReset);
+router.post('/reset-password', loginLimiter, resetPassword);
 
 // Test protected route
 router.get('/profile', protect, (req, res) => {
@@ -20,5 +28,4 @@ router.get('/profile', protect, (req, res) => {
     user: req.user
   });
 });
-
 export default router;

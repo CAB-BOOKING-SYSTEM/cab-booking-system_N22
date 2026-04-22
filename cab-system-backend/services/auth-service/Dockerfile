@@ -1,27 +1,41 @@
-# Stage 1: Base
-FROM node:24.14.0-bookworm-slim AS base
+# Stage 1: Build
+FROM node:20-alpine AS builder
+
 WORKDIR /app
+
+# Copy package files
 COPY package*.json ./
 
-# Stage 2: Development
-FROM base AS development
-# Cài đặt toàn bộ package kể cả devDependencies
-RUN npm install
-COPY . .
-# Biến môi trường nhận giá trị port từ docker-compose (lấy từ thư mục gốc)
-ARG PORT
-ENV PORT=${PORT}
-EXPOSE ${PORT}
-# Lệnh chạy server trong lúc code
-CMD ["npm", "run", "dev"]
-
-# Stage 3: Production
-FROM base AS production
-# Chỉ cài đặt package cần thiết cho production
+# Install dependencies
 RUN npm install --omit=dev
-COPY . .
-ARG PORT
-ENV PORT=${PORT}
-EXPOSE ${PORT}
-# Lệnh deploy
-CMD ["npm", "start"]
+
+# Stage 2: Production
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install dumb-init for proper signal handling
+RUN apk add --no-cache dumb-init
+
+# Create non-root user
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nodejs -u 1001
+
+# Copy dependencies from builder
+COPY --from=builder /app/node_modules ./node_modules
+
+# Copy application code
+COPY --chown=nodejs:nodejs . .
+
+# Switch to non-root user
+USER nodejs
+
+# Expose port
+EXPOSE 3002
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=40s \
+  CMD node -e "require('http').get('http://localhost:3002/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+
+# Start application
+CMD ["dumb-init", "node", "app.js"]

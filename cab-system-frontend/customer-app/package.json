@@ -43,7 +43,9 @@
   },
   "private": true,
   "devDependencies": {
+    "@types/react": "~19.1.10",
     "@types/leaflet": "^1.9.21",
-    "@types/react-native-vector-icons": "^6.4.18"
+    "@types/react-native-vector-icons": "^6.4.18",
+    "typescript": "~5.9.2"
   }
 }

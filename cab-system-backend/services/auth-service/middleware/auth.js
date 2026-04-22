@@ -15,15 +15,22 @@ export const protect = async (req, res, next) => {
     const token = authHeader.split(' ')[1];
 
     // Kiểm tra blacklist
-    const exists = await redisClient.exists(`blacklist:${token}`);
-    if (exists === 1) {
+    let isBlacklisted = false;
+    try {
+      const exists = await redisClient.exists(`blacklist:${token}`);
+      isBlacklisted = exists === 1;
+    } catch {
+      isBlacklisted = false;
+    }
+
+    if (isBlacklisted) {
       return res.status(401).json({ message: 'Token has been revoked' });
     }
 
     const decoded = jwt.verify(token, JWT_SECRET);
     const user = await User.findById(decoded.sub);
 
-    if (!user || !user.is_active) {
+    if (!user || user.status !== 'ACTIVE') {
       return res.status(401).json({ message: 'User not found or inactive' });
     }
 

@@ -1,4 +1,4 @@
-require('dotenv').config();
+require("dotenv").config();
 
 const express = require("express");
 const { Pool } = require("pg");
@@ -13,20 +13,24 @@ app.use(cors());
 app.use(express.json());
 
 // ========== BẮT LỖI TOÀN CỤC ==========
-process.on('uncaughtException', (err) => {
-  console.error('❌ Uncaught Exception:', err.message);
+process.on("uncaughtException", (err) => {
+  console.error("❌ Uncaught Exception:", err.message);
 });
 
-process.on('unhandledRejection', (reason) => {
-  console.error('❌ Unhandled Rejection:', reason);
+process.on("unhandledRejection", (reason) => {
+  console.error("❌ Unhandled Rejection:", reason);
 });
 
 // ========== CẤU HÌNH DATABASE ==========
 const dbUrl = process.env.DB_URL;
-console.log('🔍 DB_URL from env:', dbUrl ? '✅ Loaded' : '❌ NOT FOUND, using default');
+console.log(
+  "🔍 DB_URL from env:",
+  dbUrl ? "✅ Loaded" : "❌ NOT FOUND, using default",
+);
 
 const pool = new Pool({
-  connectionString: dbUrl || "postgresql://admin:password123@postgres:5432/user_db",
+  connectionString:
+    dbUrl || "postgresql://admin:password123@postgres:5432/user_db",
   max: 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 2000,
@@ -37,17 +41,23 @@ const testConnection = async (maxRetries = 5, delay = 3000) => {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const client = await pool.connect();
-      console.log('✅ Database connected successfully');
+      console.log("✅ Database connected successfully");
       client.release();
       return true;
     } catch (error) {
       if (attempt === maxRetries) {
-        console.error('❌ Database connection failed after', maxRetries, 'attempts');
+        console.error(
+          "❌ Database connection failed after",
+          maxRetries,
+          "attempts",
+        );
         return false;
       }
-      console.warn(`⏳ Attempt ${attempt}/${maxRetries} failed, retrying in ${delay/1000}s...`);
+      console.warn(
+        `⏳ Attempt ${attempt}/${maxRetries} failed, retrying in ${delay / 1000}s...`,
+      );
       console.warn(`   Error: ${error.message}`);
-      await new Promise(resolve => setTimeout(resolve, delay));
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
 };
@@ -58,7 +68,7 @@ const initDatabase = async (maxRetries = 5, delay = 3000) => {
     let client;
     try {
       client = await pool.connect();
-      
+
       // Tạo bảng users
       await client.query(`
         CREATE TABLE IF NOT EXISTS users (
@@ -97,16 +107,18 @@ const initDatabase = async (maxRetries = 5, delay = 3000) => {
         CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
         CREATE INDEX IF NOT EXISTS idx_locations_user_id ON saved_locations(user_id);
       `);
-      console.log('✅ Indexes created/verified');
+      console.log("✅ Indexes created/verified");
       return true;
     } catch (error) {
       if (attempt === maxRetries) {
-        console.error('❌ Init database failed after', maxRetries, 'attempts');
+        console.error("❌ Init database failed after", maxRetries, "attempts");
         return false;
       }
-      console.warn(`⏳ DB Init attempt ${attempt}/${maxRetries} failed, retrying in ${delay/1000}s...`);
+      console.warn(
+        `⏳ DB Init attempt ${attempt}/${maxRetries} failed, retrying in ${delay / 1000}s...`,
+      );
       console.warn(`   Error: ${error.message}`);
-      await new Promise(resolve => setTimeout(resolve, delay));
+      await new Promise((resolve) => setTimeout(resolve, delay));
     } finally {
       if (client) client.release();
     }
@@ -121,10 +133,10 @@ const initDatabase = async (maxRetries = 5, delay = 3000) => {
 
 // ========== HEALTH CHECK ==========
 app.get("/health", (req, res) => {
-  res.json({ 
-    service: 'user-service', 
-    status: 'UP',
-    timestamp: new Date().toISOString()
+  res.json({
+    service: "user-service",
+    status: "UP",
+    timestamp: new Date().toISOString(),
   });
 });
 
@@ -140,17 +152,16 @@ const maskEmail = (email) => {
   return name[0] + "***@" + domain;
 };
 
-// ========== API 1: TẠO MỚI USER ==========
+// --- API 1: TẠO MỚI USER (Đăng ký cơ bản) ---
 app.post("/api/v1/users", async (req, res) => {
   try {
     const { full_name, phone_number, email, role } = req.body;
     const result = await pool.query(
       "INSERT INTO users (full_name, phone_number, email, role) VALUES ($1, $2, $3, $4) RETURNING id, full_name, status",
-      [full_name, phone_number, email, role || "RIDER"],
+      [full_name, phone_number, email, role || "CUSTOMER"],
     );
     res.status(201).json({ success: true, data: result.rows[0] });
   } catch (error) {
-    console.error('Create user error:', error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -162,7 +173,9 @@ app.get("/api/v1/users/:id", async (req, res) => {
     const result = await pool.query("SELECT * FROM users WHERE id = $1", [id]);
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, message: "User not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
     }
 
     let user = result.rows[0];
@@ -171,7 +184,7 @@ app.get("/api/v1/users/:id", async (req, res) => {
 
     res.json({ success: true, data: user });
   } catch (error) {
-    console.error('Get user error:', error.message);
+    console.error("Get user error:", error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -182,9 +195,13 @@ app.patch("/api/v1/users/:id", async (req, res) => {
     const { id } = req.params;
     const { full_name, email } = req.body;
 
-    const oldResult = await pool.query("SELECT * FROM users WHERE id = $1", [id]);
+    const oldResult = await pool.query("SELECT * FROM users WHERE id = $1", [
+      id,
+    ]);
     if (oldResult.rows.length === 0) {
-      return res.status(404).json({ success: false, message: "User not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
     }
 
     const oldUser = oldResult.rows[0];
@@ -205,7 +222,9 @@ app.patch("/api/v1/users/:id", async (req, res) => {
     }
 
     if (updateFields.length === 0) {
-      return res.status(400).json({ success: false, message: "No fields to update" });
+      return res
+        .status(400)
+        .json({ success: false, message: "No fields to update" });
     }
 
     updateValues.push(id);
@@ -222,7 +241,7 @@ app.patch("/api/v1/users/:id", async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Update user error:', error.message);
+    console.error("Update user error:", error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -238,7 +257,7 @@ app.post("/api/v1/users/:id/locations", async (req, res) => {
     );
     res.status(201).json({ success: true, data: result.rows[0] });
   } catch (error) {
-    console.error('Create location error:', error.message);
+    console.error("Create location error:", error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -253,7 +272,7 @@ app.get("/api/v1/users/:id/locations", async (req, res) => {
     );
     res.json({ success: true, data: result.rows, count: result.rows.length });
   } catch (error) {
-    console.error('Get locations error:', error.message);
+    console.error("Get locations error:", error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -268,12 +287,18 @@ app.delete("/api/v1/users/:id/locations/:locationId", async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, message: "Location not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Location not found" });
     }
 
-    res.json({ success: true, message: "Location deleted", data: result.rows[0] });
+    res.json({
+      success: true,
+      message: "Location deleted",
+      data: result.rows[0],
+    });
   } catch (error) {
-    console.error('Delete location error:', error.message);
+    console.error("Delete location error:", error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -291,13 +316,20 @@ app.patch("/api/v1/users/:id/ban", async (req, res) => {
       });
     }
 
-    const oldResult = await pool.query("SELECT * FROM users WHERE id = $1", [id]);
+    const oldResult = await pool.query("SELECT * FROM users WHERE id = $1", [
+      id,
+    ]);
     if (oldResult.rows.length === 0) {
-      return res.status(404).json({ success: false, message: "User not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
     }
 
     const oldUser = oldResult.rows[0];
-    const result = await pool.query("UPDATE users SET status = $1 WHERE id = $2 RETURNING *", [status, id]);
+    const result = await pool.query(
+      "UPDATE users SET status = $1 WHERE id = $2 RETURNING *",
+      [status, id],
+    );
     const newUser = result.rows[0];
 
     if (status === "BANNED") {
@@ -314,7 +346,8 @@ app.patch("/api/v1/users/:id/ban", async (req, res) => {
           email: newUser.email,
           role: newUser.role,
           banReason: reason || "ADMIN_ACTION",
-          banReasonDescription: reasonDescription || "Tài khoản đã bị khóa bởi quản trị viên",
+          banReasonDescription:
+            reasonDescription || "Tài khoản đã bị khóa bởi quản trị viên",
           bannedAt: new Date().toISOString(),
           previousStatus: oldUser.status,
           newStatus: status,
@@ -326,10 +359,11 @@ app.patch("/api/v1/users/:id/ban", async (req, res) => {
     res.json({
       success: true,
       data: newUser,
-      message: status === "BANNED" ? "User account banned" : "User account restored",
+      message:
+        status === "BANNED" ? "User account banned" : "User account restored",
     });
   } catch (error) {
-    console.error('Ban user error:', error.message);
+    console.error("Ban user error:", error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -343,7 +377,8 @@ app.get("/api/v1/users", async (req, res) => {
     const role = req.query.role;
 
     const offset = (page - 1) * limit;
-    let query = "SELECT id, full_name, phone_number, email, role, status, created_at FROM users WHERE 1=1";
+    let query =
+      "SELECT id, full_name, phone_number, email, role, status, created_at FROM users WHERE 1=1";
     let countQuery = "SELECT COUNT(*) FROM users WHERE 1=1";
     const queryParams = [];
     let paramIndex = 1;
@@ -384,7 +419,7 @@ app.get("/api/v1/users", async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Get users error:', error.message);
+    console.error("Get users error:", error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });
