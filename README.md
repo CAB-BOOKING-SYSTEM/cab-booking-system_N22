@@ -1,25 +1,63 @@
-# 🚖 CAB Booking System - IUH Project
+#### LINK KỊCH BẢN TEST VNPAY
+****
+https://sandbox.vnpayment.vn/apis/vnpay-demo/
+****
 
-## 📋 Project Overview
-**Complete taxi booking platform with microservices architecture**
-- **Real-time** driver tracking & matching
-- **AI-powered** pricing & matching algorithms  
-- **Zero Trust** security architecture
-- **Cloud-native** deployment ready
+#### LINK BẢNG LỖI THANH TOÁN
+****
+https://sandbox.vnpayment.vn/apis/docs/thanh-toan-pay/pay.html
+****
 
-## 👥 Team Information
-**University:** Industrial University of Ho Chi Minh City (IUH)  
-**Course:** Big Data 
-**Team:** N22
-**Members:** 10  
 
-22632631	Nguyễn Minh Anh	Product Owner (PO) plays the role of Business Analyst (BA)
-22636941	Nguyễn Võ Ngọc My 	Scrum Master (SM)
-22718451	Nguyễn Hoàng Khang	Software System Architecture Designer (SSAD)
-21123091	Ân Hiền Bảo Phúc	AI Engineer
-22001645	Hồ Quốc Huy	DevOps Engineer
-22723701	Trương Vỹ Hào	Cloud Engineer
-22633661	Lê Thị Thanh Thảo 	UI/UX Designer
-22716341	Cao Thành Đông	Software Quality Assurance, Quality Control (SQA/QC) and Tester
-22663151	Nguyễn Mai Đình	Cyber Security Engineer
-22665381	Lê Thị Hiền 	Software Engineer
+1. THANH TOÁN THÀNH CÔNG
+
+#### 🔗 Link VNPAY
+![LINKVNPAY](./cab-system-backend/publics/linkvnpay.png)
+
+#### 💳 Chọn ngân hàng
+![vnpay1](./cab-system-backend/publics/chonnganhang.png)
+
+#### 💰 Thanh toán
+![vnpay2](./cab-system-backend/publics/hinhthuctt.png)
+![vnpay3](./cab-system-backend/publics/tttt.png)
+![vnpay4](./cab-system-backend/publics/otp.png)
+
+
+#### ✅ Success
+![Payment Success](./cab-system-backend/publics/success.png)
+
+
+#### 🐰 RabbitMQ
+![RabbitMQ](./cab-system-backend/publics/rabbitmq.png)
+
+#### 🐰 update status
+![container postgres](./cab-system-backend/publics/updatestatus.png)
+
+2. THANH TOÁN THÂT BẠI
+. Số dư không đủ(có thể test thẻ bị khóa)
+#### 🔗 Link VNPAY
+![LINKVNPAYfailed](./cab-system-backend/publics/linkvnpay1.png)
+
+#### 💳 Chọn ngân hàng
+![vnpay1](./cab-system-backend/publics/chonnganhang.png)
+
+#### 💰 Thanh toán
+![vnpay2](./cab-system-backend/publics/hinhthuctt.png)
+![vnpay3](./cab-system-backend/publics/sodukdu.png)
+
+#### ✅ Failed
+![Payment Failed](./cab-system-backend/publics/failed.png)
+
+
+#### 🐰 RabbitMQ
+![RabbitMQ](./cab-system-backend/publics/publishfailed.png)
+
+#### 🐰 update status
+![container postgres](./cab-system-backend/publics/updatefail.png)
+
+
+3. RETRY
+### RETRY THÀNH CÔNG
+![retry success](./cab-system-backend/publics/retrysuccess.png)
+### RETRY THẤT BẠI
+![retry success](./cab-system-backend/publics/retryfailed.png)

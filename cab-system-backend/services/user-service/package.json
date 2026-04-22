@@ -1,11 +1,11 @@
 {
-  "name": "auth-service",
+  "name": "user-service",
   "version": "1.0.0",
-  "description": "Authentication microservice - CAB Booking System",
-  "main": "src/server.js",
+  "description": "User microservice - CAB Booking System",
+  "main": "index.js",
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "nodemon src/server.js"
+    "start": "node index.js",
+    "dev": "nodemon index.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

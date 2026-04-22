@@ -1,27 +1,12 @@
-require("dotenv").config();
+require('dotenv').config();
 
-const express = require("express");
-const cors = require("cors");
-const app = express();
+// Import app từ src/app.js
+const app = require('./src/app');
 
-const PORT = process.env.PORT || 3000;
-const DB_URL = process.env.DB_URL || "Chua_cau_hinh_DB";
+const PORT = process.env.PORT || 3003;
 
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// App đã được start trong app.js, không cần start lại
+console.log(`🚗 Driver Service configuration loaded`);
+console.log(`   Service will run on port ${PORT}`);
 
-console.log(`APP đang chạy ở chế độ: ${process.env.NODE_ENV}`);
-console.log(`Database URL: ${DB_URL}`);
-
-app.get("/", (req, res) => {
-  res.status(200).json({
-    message: "Service is running smoothly!",
-    timestamp: new Date().toISOString(),
-    service: "Driver Service",
-  });
-});
-
-app.listen(PORT, () => {
-  console.log(`🚀 Service is running on port ${PORT}`);
-});
+module.exports = app;

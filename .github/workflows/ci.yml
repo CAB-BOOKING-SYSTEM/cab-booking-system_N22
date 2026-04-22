@@ -31,7 +31,7 @@ jobs:
             frontend: 'cab-system-frontend/**'
             auth: 'cab-system-backend/services/auth-service/**'
             infra:
-              - 'cab-system-backend/docker-compose.yml'
+              - 'docker-compose.yml'
               - 'cab-system-backend/init.sql'
 
   lint-backend:
@@ -84,8 +84,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: "npm"
-          cache-dependency-path: "cab-system-frontend/${{ matrix.app }}/package-lock.json"
 
       - name: Install Dependencies
         working-directory: cab-system-frontend/${{ matrix.app }}
@@ -104,17 +102,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        service: [
-            auth, 
-            booking, 
-            driver, 
-            notification, 
-            payment, 
-            pricing, 
-            review, 
-            ride, 
-            user
-        ]
+        service:
+          [
+            auth,
+            booking,
+            driver,
+            notification,
+            payment,
+            pricing,
+            review,
+            ride,
+            user,
+          ]
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -140,9 +139,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Create .env file
-        working-directory: cab-system-backend
+        working-directory: .
         run: echo "${{ secrets.ENV_FILE }}" > .env
 
       - name: Check docker-compose.yml config
-        working-directory: cab-system-backend
+        working-directory: .
         run: docker compose config -q

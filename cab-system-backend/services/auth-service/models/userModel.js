@@ -1,11 +1,10 @@
-import pool from '../core/db.js';
+import pool from "../core/db.js";
 
 class UserModel {
-
   static async create({
     email,
     password_hash,
-    role = 'CUSTOMER',
+    role = "CUSTOMER",
     first_name = null,
     last_name = null,
     phone_number = null,
@@ -49,16 +48,21 @@ class UserModel {
   static async updateLastLogin(userId) {
     await pool.query(
       `UPDATE auth_users SET last_login = NOW(), login_count = login_count + 1 WHERE id = $1`,
-      [userId]
+      [userId],
     );
   }
 
   static async hasRole(userId, requiredRole) {
-    const result = await pool.query(`SELECT role FROM auth_users WHERE id = $1`, [userId]);
+    const result = await pool.query(
+      `SELECT role FROM auth_users WHERE id = $1`,
+      [userId],
+    );
     if (result.rows.length === 0) return false;
     const role = result.rows[0].role;
-    if (requiredRole === 'ADMIN') return role === 'ADMIN' || role === 'SUPER_ADMIN';
-    if (requiredRole === 'DRIVER') return role === 'DRIVER' || role === 'ADMIN' || role === 'SUPER_ADMIN';
+    if (requiredRole === "ADMIN")
+      return role === "ADMIN" || role === "SUPER_ADMIN";
+    if (requiredRole === "DRIVER")
+      return role === "DRIVER" || role === "ADMIN" || role === "SUPER_ADMIN";
     return true;
   }
 }

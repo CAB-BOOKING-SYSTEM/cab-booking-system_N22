@@ -1,0 +1,56 @@
+# docker-compose.yml
+version: '3.8'
+
+networks:
+  cab-network:
+    driver: bridge
+    name: cab-network
+
+volumes:
+  mongodb_data:
+    name: cab-mongodb-data
+  rabbitmq_data:
+    name: cab-rabbitmq-data
+
+services:
+  mongodb:
+    image: mongo:7-jammy
+    container_name: cab-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password123
+      MONGO_INITDB_DATABASE: admin
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - cab-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')", "--quiet"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: ["mongod", "--auth"]
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: cab-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: password123
+      RABBITMQ_DEFAULT_VHOST: /
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - cab-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5

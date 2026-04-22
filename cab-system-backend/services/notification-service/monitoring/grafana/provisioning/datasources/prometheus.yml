@@ -1,0 +1,17 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Grafana Datasource Provisioning
+# File này được Grafana đọc tự động khi khởi động → không cần cấu hình tay qua UI
+# ──────────────────────────────────────────────────────────────────────────────
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy              # Grafana server tự gọi Prometheus (không phải browser)
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false            # Khoá lại, tránh team vô tình sửa qua UI
+    jsonData:
+      timeInterval: "15s"      # Khớp với scrape_interval của Prometheus
+      httpMethod: POST
