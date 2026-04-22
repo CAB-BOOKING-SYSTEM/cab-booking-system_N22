@@ -8,7 +8,7 @@ export interface DriverAuthResponse {
   user?: {
     id: number;
     email: string;
-    role: 'RIDER' | 'DRIVER' | 'ADMIN' | 'SUPER_ADMIN';
+    role: 'CUSTOMER' | 'DRIVER' | 'ADMIN' | 'SUPER_ADMIN';
   };
 }
 

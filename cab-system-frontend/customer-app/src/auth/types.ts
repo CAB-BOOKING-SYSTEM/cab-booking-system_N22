@@ -1,4 +1,4 @@
-export type UserRole = 'RIDER' | 'DRIVER' | 'ADMIN' | 'SUPER_ADMIN';
+export type UserRole = 'CUSTOMER' | 'DRIVER' | 'ADMIN' | 'SUPER_ADMIN';
 
 export interface AuthUser {
   id: number;

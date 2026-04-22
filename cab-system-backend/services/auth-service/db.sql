@@ -25,8 +25,8 @@ CREATE TABLE auth_users (
   avatar_url            TEXT,
 
   -- Status & Role
-  role                  VARCHAR(50)  NOT NULL DEFAULT 'RIDER'
-    CHECK (role IN ('RIDER', 'DRIVER', 'ADMIN', 'SUPER_ADMIN')),
+  role                  VARCHAR(50)  NOT NULL DEFAULT 'CUSTOMER'
+    CHECK (role IN ('CUSTOMER', 'DRIVER', 'ADMIN', 'SUPER_ADMIN')),
   status                VARCHAR(50)  NOT NULL DEFAULT 'ACTIVE'
     CHECK (status IN ('ACTIVE', 'INACTIVE', 'BANNED', 'SUSPENDED', 'PENDING_VERIFICATION')),
 
@@ -242,7 +242,7 @@ CREATE INDEX idx_auth_audit_logs_user_failed ON auth_audit_logs(user_id, created
 CREATE TABLE role_permissions (
   id            SERIAL PRIMARY KEY,
   role          VARCHAR(50)  NOT NULL
-    CHECK (role IN ('RIDER', 'DRIVER', 'ADMIN', 'SUPER_ADMIN')),
+    CHECK (role IN ('CUSTOMER', 'DRIVER', 'ADMIN', 'SUPER_ADMIN')),
   permission    VARCHAR(100) NOT NULL,
 
   created_at    TIMESTAMP    DEFAULT NOW(),
@@ -250,13 +250,13 @@ CREATE TABLE role_permissions (
 );
 
 INSERT INTO role_permissions (role, permission) VALUES
--- RIDER permissions
-('RIDER', 'profile:view:own'),
-('RIDER', 'profile:edit:own'),
-('RIDER', 'ride:create'),
-('RIDER', 'ride:view:own'),
-('RIDER', 'ride:cancel:own'),
-('RIDER', 'payment:view:own'),
+-- CUSTOMER permissions
+('CUSTOMER', 'profile:view:own'),
+('CUSTOMER', 'profile:edit:own'),
+('CUSTOMER', 'ride:create'),
+('CUSTOMER', 'ride:view:own'),
+('CUSTOMER', 'ride:cancel:own'),
+('CUSTOMER', 'payment:view:own'),
 
 -- DRIVER permissions
 ('DRIVER', 'profile:view:own'),
@@ -456,7 +456,7 @@ CREATE TABLE security_policies (
 
   is_active           BOOLEAN      DEFAULT TRUE,
   applies_to_role     VARCHAR(50)
-    CHECK (applies_to_role IN ('RIDER', 'DRIVER', 'ADMIN', 'SUPER_ADMIN')),
+    CHECK (applies_to_role IN ('CUSTOMER', 'DRIVER', 'ADMIN', 'SUPER_ADMIN')),
 
   -- policy_rules examples:
   -- login_security:   {"max_failed_attempts": 5, "lockout_duration_minutes": 30}

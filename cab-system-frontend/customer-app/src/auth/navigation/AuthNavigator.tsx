@@ -2,8 +2,8 @@ import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import COLORS from '../constants/colors';
 import ForgotPasswordScreen from '../screens/forgot-password';
-import SignInScreen from '../screens/sign-in';
-import SignUpScreen from '../screens/sign-up';
+import SignInScreen from '../screens/login';
+import SignUpScreen from '../screens/register';
 import SplashScreen from '../screens/splash';
 import { RootStackParamList } from '../types/navigation';
 

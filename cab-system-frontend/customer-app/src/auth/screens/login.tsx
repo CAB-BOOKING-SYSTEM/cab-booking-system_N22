@@ -53,7 +53,6 @@ const SignInScreen: React.FC<Props> = ({ navigation }) => {
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
-          <Text style={styles.logo}>Express</Text>
           <Text style={styles.subtitle}>Đặt xe nhanh, an toàn, và linh hoạt.</Text>
         </View>
 

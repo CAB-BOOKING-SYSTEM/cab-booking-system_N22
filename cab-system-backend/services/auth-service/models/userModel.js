@@ -5,7 +5,7 @@ class UserModel {
   static async create({
     email,
     password_hash,
-    role = 'RIDER',
+    role = 'CUSTOMER',
     first_name = null,
     last_name = null,
     phone_number = null,

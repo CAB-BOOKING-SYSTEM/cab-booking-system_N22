@@ -14,7 +14,7 @@ const RESET_TOKEN_TTL_MINUTES = Number(process.env.PASSWORD_RESET_TTL_MINUTES ||
 const VALID_ROLES = ['CUSTOMER', 'DRIVER', 'ADMIN', 'SUPER_ADMIN'];
 const ROLE_ALIAS = {
   CUSTOMER: 'CUSTOMER',
-  USER: 'RIDER',
+  USER: 'DRIDER',
 };
 
 const generateAccessToken = (user) => jwt.sign(
@@ -88,10 +88,10 @@ const splitFullName = (fullName = '') => {
   return { firstName: parts.join(' '), lastName };
 };
 
-const normalizeRole = (role = 'RIDER') => {
+const normalizeRole = (role = 'CUSTOMER') => {
   const upperRole = String(role).toUpperCase();
   const mapped = ROLE_ALIAS[upperRole] || upperRole;
-  return VALID_ROLES.includes(mapped) ? mapped : 'RIDER';
+  return VALID_ROLES.includes(mapped) ? mapped : 'CUSTOMER';
 };
 
 const normalizeAppType = (appType = '') => String(appType || '').toUpperCase().trim();
@@ -202,7 +202,7 @@ export const register = async (req, res) => {
   const ua = req.headers['user-agent'];
 
   try {
-    const { email, password, role = 'RIDER', fullName, phone } = req.body;
+    const { email, password, role = 'CUSTOMER', fullName, phone } = req.body;
 
     if (!email || !password) {
       await writeAuditLog({

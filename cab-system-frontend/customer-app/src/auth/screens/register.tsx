@@ -63,7 +63,6 @@ const SignUpScreen: React.FC<Props> = ({ navigation }) => {
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
-          <Text style={styles.logo}>Express</Text>
           <Text style={styles.subtitle}>Tạo tài khoản để bắt đầu đặt xe.</Text>
         </View>
 

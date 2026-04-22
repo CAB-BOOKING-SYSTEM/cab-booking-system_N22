@@ -30,7 +30,7 @@ app.post('/api/v1/users', async (req, res) => {
         const { full_name, phone_number, email, role } = req.body;
         const result = await pool.query(
             'INSERT INTO users (full_name, phone_number, email, role) VALUES ($1, $2, $3, $4) RETURNING id, full_name, status',
-            [full_name, phone_number, email, role || 'RIDER']
+            [full_name, phone_number, email, role || 'CUSTOMER']
         );
         res.status(201).json({ success: true, data: result.rows[0] });
     } catch (error) {

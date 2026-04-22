@@ -5,8 +5,8 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import COLORS from './src/auth/constants/colors';
 import SplashScreen from './src/auth/screens/splash';
-import SignInScreen from './src/auth/screens/sign-in';
-import SignUpScreen from './src/auth/screens/sign-up';
+import SignInScreen from './src/auth/screens/login';
+import SignUpScreen from './src/auth/screens/register';
 import ForgotPasswordScreen from './src/auth/screens/forgot-password';
 
 const Stack = createNativeStackNavigator();
