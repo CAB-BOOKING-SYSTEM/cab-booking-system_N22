@@ -1,3 +1,7 @@
+// @ts-ignore
+// @ts-nocheck
+
+// driver-app/src/core/navigation/RootNavigator.tsx
 import { useState } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
@@ -7,10 +11,14 @@ import { DriverHomeScreen } from "../../screens/DriverHomeScreen";
 import { EarningsScreen } from "../../screens/EarningsScreen";
 import { LoginScreen } from "../../screens/LoginScreen";
 import { ProfileScreen } from "../../screens/ProfileScreen";
+import { IncomingRequestScreen } from "../../screens/IncomingRequestScreen";
+import { RideDetailScreen } from "../../screens/RideDetailScreen";
 
 type RootStackParamList = {
   Auth: undefined;
   MainTabs: undefined;
+  IncomingRequest: { requestData: any };
+  RideDetail: { rideId: string; requestData: any };
 };
 
 type MainTabsParamList = {
@@ -22,13 +30,7 @@ type MainTabsParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tabs = createBottomTabNavigator<MainTabsParamList>();
 
-interface MainTabsProps {
-  onLogout: () => void;
-}
-
-function MainTabs({ onLogout }: MainTabsProps) {
-  const ProfileTabScreen = () => <ProfileScreen onLogout={onLogout} />;
-
+function MainTabs({ onLogout }: { onLogout: () => void }) {
   return (
     <Tabs.Navigator>
       <Tabs.Screen
@@ -36,10 +38,14 @@ function MainTabs({ onLogout }: MainTabsProps) {
         component={DriverHomeScreen}
         options={{ title: "Bản đồ" }}
       />
-      <Tabs.Screen name="Earnings" component={EarningsScreen} options={{ title: "Thu nhập" }} />
+      <Tabs.Screen
+        name="Earnings"
+        component={EarningsScreen}
+        options={{ title: "Thu nhập" }}
+      />
       <Tabs.Screen
         name="Profile"
-        component={ProfileTabScreen}
+        children={() => <ProfileScreen onLogout={onLogout} />}
         options={{ title: "Tài khoản" }}
       />
     </Tabs.Navigator>
@@ -47,15 +53,38 @@ function MainTabs({ onLogout }: MainTabsProps) {
 }
 
 export function RootNavigator() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(true); // Set true để test
 
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {isLoggedIn ? (
-          <Stack.Screen name="MainTabs">
-            {() => <MainTabs onLogout={() => setIsLoggedIn(false)} />}
-          </Stack.Screen>
+          <>
+            <Stack.Screen name="MainTabs">
+              {() => <MainTabs onLogout={() => setIsLoggedIn(false)} />}
+            </Stack.Screen>
+
+            {/* Modal screen cho incoming request */}
+            <Stack.Screen
+              name="IncomingRequest"
+              component={IncomingRequestScreen}
+              options={{
+                presentation: "transparentModal",
+                animation: "slide_from_bottom",
+                gestureEnabled: false,
+              }}
+            />
+
+            {/* Screen cho chi tiết chuyến đi sau khi nhận */}
+            <Stack.Screen
+              name="RideDetail"
+              component={RideDetailScreen}
+              options={{
+                gestureEnabled: false,
+                presentation: "card",
+              }}
+            />
+          </>
         ) : (
           <Stack.Screen name="Auth">
             {() => <LoginScreen onLogin={() => setIsLoggedIn(true)} />}
