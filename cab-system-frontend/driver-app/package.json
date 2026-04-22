@@ -1,5 +1,5 @@
 {
-  "name": "driver-app",
+  "name": "@cab/driver-app",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
@@ -9,10 +9,30 @@
     "web": "expo start --web"
   },
   "dependencies": {
+    "@cab/api-client": "file:../packages/api-client",
+    "@expo/vector-icons": "^15.1.1",
+    "@react-navigation/bottom-tabs": "^7.15.9",
+    "@react-navigation/native": "^7.2.2",
+    "@react-navigation/native-stack": "^7.14.11",
+    "@reduxjs/toolkit": "^2.6.1",
+    "@tanstack/react-query": "^5.59.16",
+    "axios": "^1.15.1",
+    "babel-preset-expo": "~54.0.10",
     "expo": "~54.0.31",
     "expo-status-bar": "~3.0.9",
     "react": "19.1.0",
-    "react-native": "0.81.5"
+    "react-dom": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-gesture-handler": "~2.28.0",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-screens": "^4.16.0",
+    "react-native-web": "^0.21.0",
+    "react-redux": "^9.2.0",
+    "socket.io-client": "^4.8.3"
   },
-  "private": true
+  "private": true,
+  "devDependencies": {
+    "@types/react": "~19.1.10",
+    "typescript": "~5.9.2"
+  }
 }

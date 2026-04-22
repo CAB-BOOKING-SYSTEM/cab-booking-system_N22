@@ -128,6 +128,7 @@ CREATE INDEX idx_password_reset_tokens_hash    ON password_reset_tokens(token_ha
 -- Not required by current spec (spec uses JWT/Refresh/Redis/Rate Limit).
 -- Kept for future TOTP/WebAuthn expansion.
 -- ============================================
+/*
 CREATE TABLE mfa_settings (
   id                            SERIAL PRIMARY KEY,
   user_id                       INT          NOT NULL UNIQUE REFERENCES auth_users(id) ON DELETE CASCADE,
@@ -156,6 +157,7 @@ CREATE TABLE mfa_settings (
 
 CREATE INDEX idx_mfa_settings_user_id ON mfa_settings(user_id);
 CREATE INDEX idx_mfa_settings_enabled ON mfa_settings(is_enabled);
+*/
 
 ---
 
@@ -163,6 +165,7 @@ CREATE INDEX idx_mfa_settings_enabled ON mfa_settings(is_enabled);
 -- 5. LOGIN ANOMALIES TABLE
 -- Populated by anomaly detection logic when risk score > threshold.
 -- ============================================
+/*
 CREATE TABLE login_anomalies (
   id                    SERIAL PRIMARY KEY,
   user_id               INT          NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
@@ -189,6 +192,7 @@ CREATE INDEX idx_login_anomalies_risk_score ON login_anomalies(risk_score);
 CREATE INDEX idx_login_anomalies_detected   ON login_anomalies(detected_at);
 CREATE INDEX idx_login_anomalies_unresolved ON login_anomalies(user_id)
   WHERE resolved = FALSE;
+*/
 
 ---
 
@@ -234,6 +238,7 @@ CREATE INDEX idx_auth_audit_logs_user_failed ON auth_audit_logs(user_id, created
 -- ============================================
 -- 7. PERMISSION MANAGEMENT TABLE (RBAC)
 -- ============================================
+/*
 CREATE TABLE role_permissions (
   id            SERIAL PRIMARY KEY,
   role          VARCHAR(50)  NOT NULL
@@ -278,6 +283,7 @@ INSERT INTO role_permissions (role, permission) VALUES
 ('SUPER_ADMIN', 'admin:manage');
 
 CREATE INDEX idx_role_permissions_role ON role_permissions(role);
+*/
 
 ---
 
@@ -289,6 +295,7 @@ CREATE INDEX idx_role_permissions_role ON role_permissions(role);
 -- SECURITY: api_key_hash stores SHA-256(api_key). Never store plaintext.
 -- api_key_prefix stores first 8 chars for display only.
 -- ============================================
+/*
 CREATE TABLE service_credentials (
   id              SERIAL PRIMARY KEY,
 
@@ -314,6 +321,7 @@ CREATE TABLE service_credentials (
 
 CREATE INDEX idx_service_credentials_name     ON service_credentials(service_name);
 CREATE INDEX idx_service_credentials_key_hash ON service_credentials(api_key_hash);
+*/
 
 ---
 
@@ -322,6 +330,7 @@ CREATE INDEX idx_service_credentials_key_hash ON service_credentials(api_key_has
 -- Tracks active sessions per device.
 -- Linked to refresh_tokens via session_id.
 -- ============================================
+/*
 CREATE TABLE user_sessions (
   id                    SERIAL PRIMARY KEY,
   user_id               INT          NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
@@ -347,6 +356,7 @@ CREATE INDEX idx_user_sessions_session_id ON user_sessions(session_id);
 CREATE INDEX idx_user_sessions_active     ON user_sessions(is_active);
 CREATE INDEX idx_user_sessions_user_active ON user_sessions(user_id, is_active)
   WHERE is_active = TRUE;
+*/
 
 ---
 
@@ -355,6 +365,7 @@ CREATE INDEX idx_user_sessions_user_active ON user_sessions(user_id, is_active)
 -- Redis rate limiter handles request-level throttling.
 -- This table handles longer-term / admin-enforced blocks.
 -- ============================================
+/*
 CREATE TABLE blocked_identities (
   id            SERIAL PRIMARY KEY,
 
@@ -375,6 +386,7 @@ CREATE TABLE blocked_identities (
 CREATE INDEX idx_blocked_identities_value  ON blocked_identities(block_value);
 CREATE INDEX idx_blocked_identities_active ON blocked_identities(block_type, block_value)
   WHERE is_active = TRUE;
+*/
 
 ---
 
@@ -408,6 +420,7 @@ CREATE INDEX idx_login_history_status  ON login_history(login_status);
 -- 12. ACTIVITY LOGS TABLE
 -- Generic user action tracking (non-auth events).
 -- ============================================
+/*
 CREATE TABLE activity_logs (
   id              BIGSERIAL PRIMARY KEY,
   user_id         INT          REFERENCES auth_users(id) ON DELETE SET NULL,
@@ -427,12 +440,14 @@ CREATE TABLE activity_logs (
 CREATE INDEX idx_activity_logs_user_id ON activity_logs(user_id);
 CREATE INDEX idx_activity_logs_type    ON activity_logs(activity_type);
 CREATE INDEX idx_activity_logs_created ON activity_logs(created_at);
+*/
 
 ---
 
 -- ============================================
 -- 13. SECURITY POLICIES TABLE
 -- ============================================
+/*
 CREATE TABLE security_policies (
   id                  SERIAL PRIMARY KEY,
 
@@ -469,6 +484,7 @@ INSERT INTO security_policies (policy_name, description, policy_rules) VALUES
 ('session_security',
  'Session management',
  '{"max_sessions_per_user": 5, "auto_logout_minutes": 30, "require_device_verification": true}');
+*/
 
 ---
 
@@ -492,13 +508,14 @@ CREATE TRIGGER trg_refresh_tokens_updated_at
   BEFORE UPDATE ON refresh_tokens
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
-CREATE TRIGGER trg_mfa_settings_updated_at
-  BEFORE UPDATE ON mfa_settings
-  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
-
-CREATE TRIGGER trg_security_policies_updated_at
-  BEFORE UPDATE ON security_policies
-  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+-- Deferred tables (currently commented out)
+-- CREATE TRIGGER trg_mfa_settings_updated_at
+--   BEFORE UPDATE ON mfa_settings
+--   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+--
+-- CREATE TRIGGER trg_security_policies_updated_at
+--   BEFORE UPDATE ON security_policies
+--   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 -- ============================================
 -- FUNCTIONS FOR COMMON OPERATIONS

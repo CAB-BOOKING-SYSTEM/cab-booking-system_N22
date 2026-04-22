@@ -1,4 +1,4 @@
-const HOST = process.env.EXPO_PUBLIC_API_HOST || "192.168.1.10";
+const HOST = process.env.EXPO_PUBLIC_API_HOST || 'localhost';
 
 const BASE_URL = `http://${HOST}`;
 
@@ -12,4 +12,4 @@ export const API_URLS = {
   REVIEW: `${BASE_URL}:3007`,
   RIDE: `${BASE_URL}:3008`,
   USER: `${BASE_URL}:3009`,
-};
+} as const;

@@ -2,16 +2,26 @@ import pool from '../core/db.js';
 
 class UserModel {
 
-  static async create({ email, password_hash, role = 'RIDER', first_name = null, last_name = null }) {
+  static async create({
+    email,
+    password_hash,
+    role = 'RIDER',
+    first_name = null,
+    last_name = null,
+    phone_number = null,
+  }) {
     const query = `
-      INSERT INTO auth_users (email, password_hash, role, status, provider)
-      VALUES ($1, $2, $3, 'ACTIVE', 'email')
-      RETURNING id, email, role, status, email_verified, created_at;
+      INSERT INTO auth_users (email, password_hash, role, status, provider, first_name, last_name, phone_number)
+      VALUES ($1, $2, $3, 'ACTIVE', 'email', $4, $5, $6)
+      RETURNING id, email, role, status, email_verified, first_name, last_name, phone_number, created_at;
     `;
     const result = await pool.query(query, [
       email.toLowerCase().trim(),
       password_hash,
       role.toUpperCase(),
+      first_name,
+      last_name,
+      phone_number,
     ]);
     return result.rows[0];
   }

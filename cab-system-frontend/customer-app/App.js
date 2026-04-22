@@ -1,20 +1,35 @@
+import React from 'react';
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import COLORS from './src/auth/constants/colors';
+import SplashScreen from './src/auth/screens/splash';
+import SignInScreen from './src/auth/screens/sign-in';
+import SignUpScreen from './src/auth/screens/sign-up';
+import ForgotPasswordScreen from './src/auth/screens/forgot-password';
+
+const Stack = createNativeStackNavigator();
 
 export default function App() {
   return (
-    <View style={styles.container}>
-      <Text>Open up App.js to start working on your app!</Text>
+    <SafeAreaProvider>
       <StatusBar style="auto" />
-    </View>
+      <NavigationContainer>
+        <Stack.Navigator
+          initialRouteName="Splash"
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: COLORS.primary },
+          }}
+        >
+          <Stack.Screen name="Splash" component={SplashScreen} />
+          <Stack.Screen name="SignIn" component={SignInScreen} />
+          <Stack.Screen name="SignUp" component={SignUpScreen} />
+          <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+        </Stack.Navigator>
+      </NavigationContainer>
+    </SafeAreaProvider>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});

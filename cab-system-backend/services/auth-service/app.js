@@ -13,10 +13,29 @@ const app = express();
 
 // ====================== MIDDLEWARE ======================
 app.use(helmet());
-app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-  credentials: true
-}));
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  'http://localhost:3000',
+  'http://localhost:8081',
+  'http://localhost:8088',
+  'http://localhost:19006',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:8081',
+  'http://127.0.0.1:8088',
+  'http://127.0.0.1:19006',
+].filter(Boolean);
+
+app.use(
+  cors({
+    origin(origin, callback) {
+      // Allow non-browser clients (Postman/curl) with no Origin header
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      return callback(new Error(`CORS blocked for origin: ${origin}`));
+    },
+    credentials: true,
+  })
+);
 app.use(express.json());
 app.use(cookieParser());
 
