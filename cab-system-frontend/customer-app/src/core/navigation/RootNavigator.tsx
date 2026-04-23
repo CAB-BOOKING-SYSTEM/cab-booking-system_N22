@@ -9,6 +9,11 @@ import { ActivityScreen } from "../../screens/ActivityScreen";
 import { LoginScreen } from "../../screens/LoginScreen";
 import { ProfileScreen } from "../../screens/ProfileScreen";
 import { RatingFeedbackScreen } from "../../screens/RatingFeedbackScreen";
+import HomeScreen from "../../screens/HomeScreen";
+import DestinationScreen from "../../screens/DestinationScreen";
+import RideOptionsScreen from "../../screens/RideOptionsScreen";
+import { SearchingDriverScreen } from "../../screens/SearchingDriverScreen";
+import { RideTrackingScreen } from "../../screens/RideTrackingScreen";
 
 type RootStackParamList = {
   Auth: undefined;
@@ -20,16 +25,54 @@ type RootStackParamList = {
   };
 };
 
+type BookingStackParamList = {
+  Home: undefined;
+  Destination: undefined;
+  RideOptions: undefined;
+  SearchingDriver: undefined;
+  RideTracking: undefined;
+};
+
 type MainTabsParamList = {
+  BookingStack: undefined;
   Activity: undefined;
   Profile: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+const BookingStack = createNativeStackNavigator<BookingStackParamList>();
 const Tabs = createBottomTabNavigator<MainTabsParamList>();
 
 interface MainTabsProps {
   onLogout: () => void;
+}
+
+function BookingStackNavigator() {
+  return (
+    <BookingStack.Navigator screenOptions={{ headerShown: false }}>
+      <BookingStack.Screen name="Home" component={HomeScreen} />
+      <BookingStack.Screen
+        name="Destination"
+        component={DestinationScreen}
+        options={{ title: "Chọn điểm đến" }}
+      />
+      <BookingStack.Screen
+        name="RideOptions"
+        component={RideOptionsScreen}
+        options={{ title: "Chọn phương tiện" }}
+      />
+      <BookingStack.Screen
+        name="SearchingDriver"
+        component={SearchingDriverScreen}
+        options={{ headerShown: false }}
+      />
+      <BookingStack.Screen
+        name="RideTracking"
+        component={RideTrackingScreen}
+        options={{ headerShown: false }}
+      />
+    </BookingStack.Navigator>
+  );
 }
 
 function MainTabs({ onLogout }: MainTabsProps) {
@@ -40,7 +83,9 @@ function MainTabs({ onLogout }: MainTabsProps) {
       screenOptions={({ route }) => ({
         tabBarLabel: ({ focused }) => {
           let label = "";
-          if (route.name === "Activity") {
+          if (route.name === "BookingStack") {
+            label = "Booking";
+          } else if (route.name === "Activity") {
             label = "History";
           } else if (route.name === "Profile") {
             label = "Profile";
@@ -59,13 +104,15 @@ function MainTabs({ onLogout }: MainTabsProps) {
         },
         tabBarIcon: ({ focused }) => {
           let iconName = "";
-          if (route.name === "Profile") {
-            iconName = "account";
+          if (route.name === "BookingStack") {
+            iconName = "map-marker";
           } else if (route.name === "Activity") {
             iconName = "history";
+          } else if (route.name === "Profile") {
+            iconName = "account";
           }
           return (
-            <MaterialCommunityIcons 
+            <MaterialCommunityIcons
               name={iconName as any}
               size={24}
               color={focused ? "#00B14F" : "#9ca3af"}
@@ -82,6 +129,11 @@ function MainTabs({ onLogout }: MainTabsProps) {
         },
       })}
     >
+      <Tabs.Screen
+        name="BookingStack"
+        component={BookingStackNavigator}
+        options={{ title: "Booking" }}
+      />
       <Tabs.Screen
         name="Activity"
         component={ActivityScreen}
@@ -107,7 +159,10 @@ export function RootNavigator() {
             <Stack.Screen name="MainTabs">
               {() => <MainTabs onLogout={() => setIsLoggedIn(false)} />}
             </Stack.Screen>
-            <Stack.Screen name="RatingFeedback" component={RatingFeedbackScreen} />
+            <Stack.Screen
+              name="RatingFeedback"
+              component={RatingFeedbackScreen}
+            />
           </>
         ) : (
           <Stack.Screen name="Auth">
