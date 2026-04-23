@@ -25,7 +25,7 @@ import {
 } from "../../features/booking/utils/storage";
 
 // Types
-import { RootStackParamList } from "../../app/navigation/types";
+import { RootStackParamList } from "../../legacy_app/navigation/types";
 import {
   PlaceDetails,
   NearbyPlace,

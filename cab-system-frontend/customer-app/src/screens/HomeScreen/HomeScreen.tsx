@@ -19,7 +19,7 @@ import { useReverseGeocode } from '../../features/booking/hooks/useReverseGeocod
 import { getHomeAddress, getWorkAddress } from '../../features/booking/utils/storage';
 
 // Types
-import { RootStackParamList } from '../../app/navigation/types';
+import { RootStackParamList } from '../../legacy_app/navigation/types';
 import { Coordinates } from '../../features/booking/types';
 
 type HomeScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Home'>;
