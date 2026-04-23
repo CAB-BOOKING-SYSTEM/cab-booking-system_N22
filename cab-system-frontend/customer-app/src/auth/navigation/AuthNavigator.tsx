@@ -6,7 +6,7 @@ import SignInScreen from '../screens/login';
 import SignUpScreen from '../screens/register';
 import SplashScreen from '../screens/splash';
 import { RootStackParamList } from '../types/navigation';
-
+import ResetPasswordScreen from '../screens/resetPassword';
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 const AuthNavigator: React.FC = () => {
@@ -22,6 +22,7 @@ const AuthNavigator: React.FC = () => {
       <Stack.Screen name="SignIn" component={SignInScreen} />
       <Stack.Screen name="SignUp" component={SignUpScreen} />
       <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+      <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
     </Stack.Navigator>
   );
 };

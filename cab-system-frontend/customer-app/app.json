@@ -3,6 +3,7 @@
     "name": "CAB Customer App",
     "slug": "cab-customer-app",
     "version": "1.0.0",
+    "scheme": "cabapp",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -12,9 +13,11 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
+      "bundleIdentifier": "com.cabsystem.customerapp",
       "supportsTablet": true
     },
     "android": {
+      "package": "com.cabsystem.customerapp",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
