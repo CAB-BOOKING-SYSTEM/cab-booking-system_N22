@@ -6,8 +6,8 @@ import {
   refresh,
   logout,
   requestPasswordReset,
-  resetPassword,
 } from '../../controllers/auth.js';
+import { resetPassword } from '../../controllers/passwordReset.js';
 import { loginLimiter, refreshLimiter } from '../../middleware/rateLimiter.js';
 import { protect } from '../../middleware/auth.js';
 

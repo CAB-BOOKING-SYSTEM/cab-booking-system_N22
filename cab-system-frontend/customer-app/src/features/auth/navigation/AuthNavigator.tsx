@@ -14,14 +14,14 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 const AuthNavigator: React.FC = () => {
   return (
     <Stack.Navigator
-      initialRouteName="SignIn"
+      initialRouteName="Splash"
       screenOptions={{
         headerShown: false,
         contentStyle: { backgroundColor: COLORS.primary },
       }}
     >
-      <Stack.Screen name="SignIn" component={SignInScreen} />
       <Stack.Screen name="Splash" component={SplashScreen} />
+      <Stack.Screen name="SignIn" component={SignInScreen} />
       <Stack.Screen name="SignUp" component={SignUpScreen} />
       <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
       <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />

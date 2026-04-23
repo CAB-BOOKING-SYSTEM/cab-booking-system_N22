@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -9,18 +10,22 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { CommonActions } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { login } from "../apis/auth";
 import AuthCard from "../components/AuthCard";
 import AuthInput from "../components/AuthInput";
+import { saveCustomerSession } from "../session";
+import { useCustomerAuthSession } from "../AuthSessionContext";
 import { RootStackParamList } from "../types/navigation";
 
 type Props = NativeStackScreenProps<RootStackParamList, "SignIn">;
 
-const ALLOWED_ROLES = new Set(["CUSTOMER"]);
+const ALLOWED_ROLES = new Set(["CUSTOMER", "ADMIN", "SUPER_ADMIN"]);
 
 const SignInScreen: React.FC<Props> = ({ navigation }) => {
+  const { setSession } = useCustomerAuthSession();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -67,18 +72,42 @@ const SignInScreen: React.FC<Props> = ({ navigation }) => {
 
       if (!role || !ALLOWED_ROLES.has(role)) {
         throw new Error(
-          "Chỉ tài khoản khách hàng mới được đăng nhập vào ứng dụng này"
+          "Chỉ tài khoản khách hàng hoặc quản trị viên mới được vào ứng dụng khách hàng"
         );
       }
+
+      if (!data.accessToken || !data.user) {
+        throw new Error("Thiếu dữ liệu phiên đăng nhập từ máy chủ");
+      }
+
+      await saveCustomerSession({
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken,
+        user: data.user,
+      });
+      setSession({
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken,
+        user: data.user,
+      });
 
       const message = data.message || "Đăng nhập thành công";
       setSuccessMessage(message);
 
       setTimeout(() => {
-        navigation.navigate("Splash", {
-          postLogin: true,
-          successMessage: message,
-        });
+        const parentNavigation = navigation.getParent();
+
+        if (!parentNavigation) {
+          Alert.alert("Thông báo", "Không thể chuyển sang trang chủ.");
+          return;
+        }
+
+        parentNavigation.dispatch(
+          CommonActions.reset({
+            index: 0,
+            routes: [{ name: "MainTabs" }],
+          })
+        );
       }, 700);
     } catch (error) {
       const message =
@@ -101,8 +130,8 @@ const SignInScreen: React.FC<Props> = ({ navigation }) => {
         <View style={styles.header}>
           <Text style={styles.title}>Đăng nhập</Text>
           <Text style={styles.subtitle}>
-            Khi người dùng vào web sẽ vào trang đăng nhập trước. Đăng nhập thành
-            công sẽ qua splash rồi vào trang đặt xe có bản đồ.
+            Sau splash mở đầu, người dùng sẽ đăng nhập để vào trang chủ đặt xe
+            có bản đồ.
           </Text>
         </View>
 

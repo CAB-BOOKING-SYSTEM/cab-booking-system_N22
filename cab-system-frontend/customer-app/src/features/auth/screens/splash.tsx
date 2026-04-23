@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
   Dimensions,
   StatusBar,
   StyleSheet,
@@ -8,7 +7,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { CommonActions } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { RootStackParamList } from "../types/navigation";
@@ -39,34 +37,9 @@ const slides = [
 
 type Props = NativeStackScreenProps<RootStackParamList, "Splash">;
 
-const SplashScreen: React.FC<Props> = ({ navigation, route }) => {
+const SplashScreen: React.FC<Props> = ({ navigation }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
-  const postLogin = route.params?.postLogin ?? false;
-  const successMessage = route.params?.successMessage ?? "Đăng nhập thành công";
   const slide = useMemo(() => slides[currentIndex], [currentIndex]);
-
-  useEffect(() => {
-    if (!postLogin) {
-      return undefined;
-    }
-
-    const timeout = setTimeout(() => {
-      const parentNavigation = navigation.getParent();
-
-      if (!parentNavigation) {
-        return;
-      }
-
-      parentNavigation.dispatch(
-        CommonActions.reset({
-          index: 0,
-          routes: [{ name: "Home" }],
-        })
-      );
-    }, 1200);
-
-    return () => clearTimeout(timeout);
-  }, [navigation, postLogin]);
 
   const onNext = (): void => {
     if (currentIndex < slides.length - 1) {
@@ -74,23 +47,8 @@ const SplashScreen: React.FC<Props> = ({ navigation, route }) => {
       return;
     }
 
-    navigation.navigate("SignIn");
+    navigation.replace("SignIn");
   };
-
-  if (postLogin) {
-    return (
-      <View
-        style={[styles.container, styles.centered, { backgroundColor: "#4F8EF7" }]}
-      >
-        <StatusBar barStyle="light-content" backgroundColor="#4F8EF7" />
-        <Text style={styles.loadingLogo}>CAB</Text>
-        <ActivityIndicator size="large" color="#ffffff" />
-        <Text style={styles.loadingTitle}>Đăng nhập thành công</Text>
-        <Text style={styles.loadingDescription}>{successMessage}</Text>
-        <Text style={styles.loadingHint}>Đang chuyển sang trang đặt xe...</Text>
-      </View>
-    );
-  }
 
   return (
     <View style={[styles.container, { backgroundColor: slide.bgColor }]}>
@@ -99,7 +57,7 @@ const SplashScreen: React.FC<Props> = ({ navigation, route }) => {
       {currentIndex < slides.length - 1 ? (
         <TouchableOpacity
           style={styles.skipBtn}
-          onPress={() => navigation.navigate("SignIn")}
+          onPress={() => navigation.replace("SignIn")}
         >
           <Text style={styles.skipText}>Bỏ qua</Text>
         </TouchableOpacity>
@@ -135,32 +93,6 @@ const { width } = Dimensions.get("window");
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 24, paddingTop: 60, paddingBottom: 40 },
-  centered: {
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 16,
-  },
-  loadingLogo: {
-    fontSize: 34,
-    fontWeight: "800",
-    color: "#ffffff",
-    marginBottom: 12,
-  },
-  loadingTitle: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#ffffff",
-  },
-  loadingDescription: {
-    color: "rgba(255,255,255,0.9)",
-    fontSize: 15,
-    textAlign: "center",
-  },
-  loadingHint: {
-    color: "rgba(255,255,255,0.78)",
-    fontSize: 14,
-    textAlign: "center",
-  },
   skipBtn: {
     alignSelf: "flex-end",
     paddingVertical: 8,
