@@ -88,7 +88,6 @@ const ResetPasswordScreen: React.FC<Props> = ({ navigation }) => {
             {otp.map((digit, index) => (
               <TextInput
                 key={index}
-                ref={(ref) => (inputs.current[index] = ref)}
                 style={[styles.otpBox, digit ? styles.otpBoxFilled : null]}
                 value={digit}
                 onChangeText={(text) => handleOtpChange(text, index)}
