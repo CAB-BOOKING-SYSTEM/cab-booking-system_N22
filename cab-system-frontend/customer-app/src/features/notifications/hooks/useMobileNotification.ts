@@ -3,7 +3,8 @@
  * @description Hook quản lý notification state cho Mobile (Customer App).
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { NotificationSocketClient } from "@cab/realtime";
 import {
   getHistory,
   getUnreadCount,
@@ -45,6 +46,8 @@ export function useMobileNotification({
 
   const [currentUserId, setCurrentUserId] = useState(initialUserId);
   const [currentToken, setCurrentToken] = useState(initialToken);
+
+  const clientRef = useRef<NotificationSocketClient | null>(null);
 
   const connectSocket = useCallback((uid: string, token: string) => {
     setCurrentUserId(uid);
@@ -89,6 +92,31 @@ export function useMobileNotification({
 
     setNotificationAuthToken(currentToken);
   }, [currentToken]);
+
+  // Socket connection logic
+  useEffect(() => {
+    if (!currentUserId || !currentToken) return;
+
+    const client = new NotificationSocketClient();
+    clientRef.current = client;
+
+    // Connect and register
+    client.connect({ url: socketUrl, token: currentToken });
+    client.register(currentUserId);
+
+    // Listen for new notifications
+    const unsubscribe = client.onNotification((notification) => {
+      setNotifications((prev) => [notification, ...prev]);
+      setUnreadCount((prev) => prev + 1);
+      setLatestToast(notification);
+    });
+
+    return () => {
+      unsubscribe();
+      client.disconnect();
+      clientRef.current = null;
+    };
+  }, [currentUserId, currentToken, socketUrl]);
 
   const handleMarkAsRead = useCallback(
     async (notificationId: string) => {

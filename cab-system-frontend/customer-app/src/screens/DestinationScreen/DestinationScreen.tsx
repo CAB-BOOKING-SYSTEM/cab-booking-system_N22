@@ -109,7 +109,7 @@ const DestinationScreen: React.FC = () => {
       await saveRecentPlace(details);
 
       // Chuyển sang màn hình chọn xe (RideOptions)
-      navigation.navigate('RideOptions' as never, {
+      (navigation.navigate as any)('RideOptions', {
         pickupLocation,
         dropoffLocation: {
           lat: details.geometry.location.lat,
@@ -118,7 +118,7 @@ const DestinationScreen: React.FC = () => {
           name: details.name,
           placeId: details.place_id,
         },
-      } as never);
+      });
       
     } catch (error) {
       console.error("❌ Lỗi khi chọn địa điểm:", error);

@@ -3,7 +3,8 @@
  * @description Hook quản lý notification state cho Mobile (Driver App).
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { NotificationSocketClient } from "@cab/realtime";
 import {
   getHistory,
   getUnreadCount,
@@ -42,17 +43,22 @@ export function useMobileNotification({
   const [latestToast, setLatestToast] = useState<Notification | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
   const [currentUserId, setCurrentUserId] = useState(initialUserId);
   const [currentToken, setCurrentToken] = useState(initialToken);
+
+  const clientRef = useRef<NotificationSocketClient | null>(null);
 
   const connectSocket = useCallback((uid: string, token: string) => {
     setCurrentUserId(uid);
     setCurrentToken(token);
   }, []);
 
+  // Bootstrap REST data
   useEffect(() => {
     if (!currentUserId) return;
     let cancelled = false;
+
     (async () => {
       try {
         setIsLoading(true);
@@ -74,15 +80,43 @@ export function useMobileNotification({
         if (!cancelled) setIsLoading(false);
       }
     })();
+
     return () => {
       cancelled = true;
     };
   }, [currentUserId]);
 
+  // Keep the notification API authenticated when a token is available.
   useEffect(() => {
     if (!currentToken) return;
+
     setNotificationAuthToken(currentToken);
   }, [currentToken]);
+
+  // Socket connection logic
+  useEffect(() => {
+    if (!currentUserId || !currentToken) return;
+
+    const client = new NotificationSocketClient();
+    clientRef.current = client;
+
+    // Connect and register
+    client.connect({ url: socketUrl, token: currentToken });
+    client.register(currentUserId);
+
+    // Listen for new notifications
+    const unsubscribe = client.onNotification((notification) => {
+      setNotifications((prev) => [notification, ...prev]);
+      setUnreadCount((prev) => prev + 1);
+      setLatestToast(notification);
+    });
+
+    return () => {
+      unsubscribe();
+      client.disconnect();
+      clientRef.current = null;
+    };
+  }, [currentUserId, currentToken, socketUrl]);
 
   const handleMarkAsRead = useCallback(
     async (notificationId: string) => {
