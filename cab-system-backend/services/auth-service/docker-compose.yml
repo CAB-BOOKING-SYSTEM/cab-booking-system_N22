@@ -1,41 +1,12 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:16
     environment:
-      POSTGRES_DB: auth_db
+      POSTGRES_DB: cab_db
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
-    ports:
-      - "5432:5432"
-    volumes:
-      # Auto-runs db.sql on first container start (only if data volume is empty)
-      - ./db.sql:/docker-entrypoint-initdb.d/01_schema.sql
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d cab_db"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+    ports: ["5432:5432"]
 
   redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-
-
-volumes:
-  postgres_data:
-    driver: local
-  redis_data:
-    driver: local
-
-networks:
-  cab-network:
-    driver: bridge
+    image: redis:7
+    ports: ["6379:6379"]
