@@ -1,33 +1,23 @@
-import React from "react";
-import { View, Text, TouchableOpacity } from "react-native";
-import { styled } from "nativewind";
+import React from 'react';
+import { View, Text, TouchableOpacity } from 'react-native';
+import { BlurView } from 'expo-blur';
+import { styled } from 'nativewind';
 
 const StyledView = styled(View);
 const StyledText = styled(Text);
 const StyledTouchableOpacity = styled(TouchableOpacity);
+const StyledBlurView = styled(BlurView);
 
 const getStatusColor = (status) => {
   switch (status.toLowerCase()) {
-    case "completed":
-      return {
-        bg: "bg-green-100 dark:bg-green-900",
-        text: "text-green-700 dark:text-green-300",
-      };
-    case "cancelled":
-      return {
-        bg: "bg-red-100 dark:bg-red-900",
-        text: "text-red-700 dark:text-red-300",
-      };
-    case "ongoing":
-      return {
-        bg: "bg-blue-100 dark:bg-blue-900",
-        text: "text-blue-700 dark:text-blue-300",
-      };
+    case 'completed':
+      return { bg: 'bg-green-100 dark:bg-green-900', text: 'text-green-700 dark:text-green-300' };
+    case 'cancelled':
+      return { bg: 'bg-red-100 dark:bg-red-900', text: 'text-red-700 dark:text-red-300' };
+    case 'ongoing':
+      return { bg: 'bg-blue-100 dark:bg-blue-900', text: 'text-blue-700 dark:text-blue-300' };
     default:
-      return {
-        bg: "bg-gray-100 dark:bg-gray-800",
-        text: "text-gray-700 dark:text-gray-300",
-      };
+      return { bg: 'bg-gray-100 dark:bg-gray-800', text: 'text-gray-700 dark:text-gray-300' };
   }
 };
 
@@ -44,7 +34,7 @@ export const RideCard = ({
   const statusColor = getStatusColor(status);
 
   return (
-    <StyledView className="mb-3 rounded-2xl overflow-hidden">
+    <StyledBlurView intensity={80} tint="light" className="mb-3 rounded-2xl overflow-hidden">
       <StyledTouchableOpacity
         onPress={onPress}
         className="p-4 bg-white dark:bg-gray-800 bg-opacity-95 dark:bg-opacity-95 active:opacity-70"
@@ -105,6 +95,6 @@ export const RideCard = ({
           </StyledView>
         </StyledView>
       </StyledTouchableOpacity>
-    </StyledView>
+    </StyledBlurView>
   );
 };

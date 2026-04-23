@@ -3,13 +3,13 @@
  * @description Hook quản lý notification state cho Mobile (Driver App).
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { NotificationSocketClient } from "@cab-booking/realtime";
 import {
   getHistory,
   getUnreadCount,
   markAsRead,
   markAllAsRead,
-  setNotificationAuthToken,
 } from "@cab-booking/api-client";
 import type { Notification } from "@cab-booking/shared-types";
 
@@ -44,6 +44,7 @@ export function useMobileNotification({
   const [error, setError] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState(initialUserId);
   const [currentToken, setCurrentToken] = useState(initialToken);
+  const clientRef = useRef<NotificationSocketClient | null>(null);
 
   const connectSocket = useCallback((uid: string, token: string) => {
     setCurrentUserId(uid);
@@ -74,32 +75,34 @@ export function useMobileNotification({
         if (!cancelled) setIsLoading(false);
       }
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [currentUserId]);
 
   useEffect(() => {
-    if (!currentToken) return;
-    setNotificationAuthToken(currentToken);
-  }, [currentToken]);
+    if (!currentUserId || !currentToken) return;
+    const client = new NotificationSocketClient();
+    clientRef.current = client;
+    client.connect({ url: socketUrl, token: currentToken });
+    client.register(currentUserId);
+    const unsub = client.onNotification((n) => {
+      setNotifications((prev) => [n, ...prev]);
+      setUnreadCount((c) => c + 1);
+      setLatestToast(n);
+    });
+    return () => { unsub(); client.disconnect(); clientRef.current = null; };
+  }, [currentUserId, currentToken, socketUrl]);
 
-  const handleMarkAsRead = useCallback(
-    async (notificationId: string) => {
-      try {
-        await markAsRead(notificationId, currentUserId);
-        setNotifications((prev) =>
-          prev.map((n) =>
-            n.id === notificationId ? { ...n, isRead: true } : n,
-          ),
-        );
-        setUnreadCount((c) => Math.max(0, c - 1));
-      } catch (err) {
-        console.error("[useMobileNotification/driver] markAsRead:", err);
-      }
-    },
-    [currentUserId],
-  );
+  const handleMarkAsRead = useCallback(async (notificationId: string) => {
+    try {
+      await markAsRead(notificationId, currentUserId);
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === notificationId ? { ...n, isRead: true } : n)),
+      );
+      setUnreadCount((c) => Math.max(0, c - 1));
+    } catch (err) {
+      console.error("[useMobileNotification/driver] markAsRead:", err);
+    }
+  }, [currentUserId]);
 
   const handleMarkAllAsRead = useCallback(async () => {
     try {
@@ -113,15 +116,5 @@ export function useMobileNotification({
 
   const dismissToast = useCallback(() => setLatestToast(null), []);
 
-  return {
-    notifications,
-    unreadCount,
-    latestToast,
-    isLoading,
-    error,
-    handleMarkAsRead,
-    handleMarkAllAsRead,
-    dismissToast,
-    connectSocket,
-  };
+  return { notifications, unreadCount, latestToast, isLoading, error, handleMarkAsRead, handleMarkAllAsRead, dismissToast, connectSocket };
 }

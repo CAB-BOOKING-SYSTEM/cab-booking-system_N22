@@ -1,17 +1,34 @@
 const jwt = require('jsonwebtoken');
+const db = require('../config/database');
 const logger = require('../utils/logger');
 
+/**
+ * Middleware xác thực JWT cho Driver Service
+ * - Verify token từ header Authorization
+ * - Tự động lấy driver_id từ auth_user_id trong token
+ * - Gắn thông tin vào req.user và req.authDriverId
+ */
 module.exports = async (req, res, next) => {
   try {
-    const token = req.headers.authorization?.split(' ')[1];
+    const authHeader = req.headers.authorization;
     
-    if (!token) {
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({
         success: false,
         message: 'Không tìm thấy token xác thực',
       });
     }
 
+    const token = authHeader.split(' ')[1];
+    
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: 'Token không hợp lệ',
+      });
+    }
+
+    // Verify JWT token
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'supersecret');
     
     // Kiểm tra token hết hạn
@@ -22,14 +39,32 @@ module.exports = async (req, res, next) => {
       });
     }
     
+    // Gắn thông tin user từ token vào request
     req.user = decoded;
     
-    // Check if user has driver role
-    if (req.user.role !== 'driver' && req.user.role !== 'admin') {
-      return res.status(403).json({
-        success: false,
-        message: 'Truy cập bị từ chối. Yêu cầu quyền tài xế.',
-      });
+    // Nếu là driver, lấy driver_id từ database bằng auth_user_id
+    if (decoded.role === 'driver') {
+      try {
+        const query = `
+          SELECT driver_id, auth_user_id, phone, email, full_name, 
+                 license_plate, vehicle_type, status, rating, total_trips
+          FROM drivers 
+          WHERE auth_user_id = $1
+        `;
+        const result = await db.query(query, [decoded.sub]);
+        
+        if (result.rows.length > 0) {
+          const driver = result.rows[0];
+          req.authDriverId = driver.driver_id;
+          req.driver = driver;
+          
+          logger.debug(`✅ Auth middleware: Driver found - authUserId=${decoded.sub}, driverId=${driver.driver_id}`);
+        } else {
+          logger.warn(`⚠️ Auth middleware: Driver not found for authUserId=${decoded.sub}`);
+        }
+      } catch (dbError) {
+        logger.error('❌ Auth middleware: Database error when fetching driver:', dbError.message);
+      }
     }
     
     next();

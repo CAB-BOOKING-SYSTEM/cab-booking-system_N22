@@ -24,21 +24,16 @@ export interface MatchResult {
 }
 
 class MatchingService {
-  private baseUrl =
-    process.env.EXPO_PUBLIC_API_BASE_URL || "http://localhost:3000/api";
+  private baseUrl = process.env.EXPO_PUBLIC_MATCHING_URL || "http://localhost:3010";
 
   async findDriver(request: FindDriverRequest): Promise<any> {
     try {
-      const response = await apiClient.post(
-        `${this.baseUrl}/matching/find-driver`,
-        request,
-      );
+      // SỬA: thêm /api vào URL
+      const response = await apiClient.post(`${this.baseUrl}/api/matching/find-driver`, request);
       return response.data;
     } catch (error: any) {
-      return {
-        success: false,
-        error: error.response?.data?.message || "Lỗi kết nối",
-      };
+      console.error("Matching service error:", error);
+      return { success: false, error: error.response?.data?.message || "Lỗi kết nối" };
     }
   }
 }

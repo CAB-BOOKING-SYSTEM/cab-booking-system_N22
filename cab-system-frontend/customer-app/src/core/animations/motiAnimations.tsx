@@ -11,7 +11,7 @@ import { View, Text, TouchableOpacity } from 'react-native';
  */
 
 // Sliding header with fade
-export const HeaderSlideAnimation = ({ children }: any) => (
+export const HeaderSlideAnimation = ({ children }) => (
   <MotiView
     from={{ opacity: 0, translateY: -10 }}
     animate={{ opacity: 1, translateY: 0 }}
@@ -22,7 +22,7 @@ export const HeaderSlideAnimation = ({ children }: any) => (
 );
 
 // Header with scale effect
-export const HeaderScaleAnimation = ({ children }: any) => (
+export const HeaderScaleAnimation = ({ children }) => (
   <MotiView
     from={{ opacity: 0, scale: 0.95 }}
     animate={{ opacity: 1, scale: 1 }}
@@ -39,7 +39,7 @@ export const HeaderScaleAnimation = ({ children }: any) => (
  */
 
 // Staggered list items (main ride cards)
-export const ListItemStaggerAnimation = ({ children, index }: any) => (
+export const ListItemStaggerAnimation = ({ children, index }) => (
   <MotiView
     from={{
       opacity: 0,
@@ -59,7 +59,7 @@ export const ListItemStaggerAnimation = ({ children, index }: any) => (
 );
 
 // Slide-in from left (for menu items, location cards)
-export const SlideInLeftAnimation = ({ children, index, delay = 0 }: any) => (
+export const SlideInLeftAnimation = ({ children, index, delay = 0 }) => (
   <MotiView
     from={{ opacity: 0, translateX: -20 }}
     animate={{ opacity: 1, translateX: 0 }}
@@ -80,7 +80,7 @@ export const SlideInLeftAnimation = ({ children, index, delay = 0 }: any) => (
  */
 
 // Button scale on press
-export const ButtonScaleAnimation = ({ children, isPressed }: any) => (
+export const ButtonScaleAnimation = ({ children, isPressed }) => (
   <MotiView
     animate={{
       scale: isPressed ? 0.95 : 1,
@@ -92,7 +92,7 @@ export const ButtonScaleAnimation = ({ children, isPressed }: any) => (
 );
 
 // Filter button selection animation
-export const FilterButtonAnimation = ({ isActive }: any) => (
+export const FilterButtonAnimation = ({ isActive }) => (
   <MotiView
     animate={{
       scale: isActive ? 1.05 : 1,
@@ -116,7 +116,7 @@ export const FilterButtonAnimation = ({ isActive }: any) => (
  */
 
 // Fade in overlay
-export const OverlayAnimation = ({ children, visible }: any) => (
+export const OverlayAnimation = ({ children, visible }) => (
   <MotiView
     animate={{
       opacity: visible ? 1 : 0,
@@ -128,7 +128,7 @@ export const OverlayAnimation = ({ children, visible }: any) => (
 );
 
 // Slide up modal
-export const ModalSlideUpAnimation = ({ children, visible }: any) => (
+export const ModalSlideUpAnimation = ({ children, visible }) => (
   <MotiView
     from={{
       opacity: 0,
@@ -151,7 +151,7 @@ export const ModalSlideUpAnimation = ({ children, visible }: any) => (
  */
 
 // Pulse loading effect
-export const PulseAnimation = ({ children }: any) => (
+export const PulseAnimation = ({ children }) => (
   <MotiView
     from={{
       opacity: 0.5,
@@ -173,7 +173,7 @@ export const PulseAnimation = ({ children }: any) => (
 );
 
 // Skeleton loading shimmer
-export const ShimmerAnimation = ({ children }: any) => (
+export const ShimmerAnimation = ({ children }) => (
   <MotiView
     from={{
       opacity: 0.4,
@@ -199,7 +199,7 @@ export const ShimmerAnimation = ({ children }: any) => (
  */
 
 // Status badge bounce
-export const BadgeBounceAnimation = ({ children }: any) => (
+export const BadgeBounceAnimation = ({ children }) => (
   <MotiView
     from={{
       scale: 0,
@@ -226,7 +226,7 @@ export const BadgeBounceAnimation = ({ children }: any) => (
  */
 
 // Avatar pop-in with scale
-export const AvatarScaleAnimation = ({ children, delay = 0 }: any) => (
+export const AvatarScaleAnimation = ({ children, delay = 0 }) => (
   <MotiView
     from={{ scale: 0.5, opacity: 0 }}
     animate={{ scale: 1, opacity: 1 }}
@@ -247,10 +247,10 @@ export const AvatarScaleAnimation = ({ children, delay = 0 }: any) => (
  */
 
 // Card flip animation (for ride detail)
-export const CardFlipAnimation = ({ children, isFlipped }: any) => (
+export const CardFlipAnimation = ({ children, isFlipped }) => (
   <MotiView
     animate={{
-      rotateY: isFlipped ? '180deg' : '0deg',
+      rotateY: isFlipped ? 180 : 0,
       perspective: 1000,
     }}
     transition={{ type: 'timing', duration: 600 }}
@@ -261,7 +261,7 @@ export const CardFlipAnimation = ({ children, isFlipped }: any) => (
 );
 
 // Expandable section
-export const ExpandAnimation = ({ children, isExpanded, maxHeight }: any) => (
+export const ExpandAnimation = ({ children, isExpanded, maxHeight }) => (
   <MotiView
     animate={{
       height: isExpanded ? maxHeight : 0,

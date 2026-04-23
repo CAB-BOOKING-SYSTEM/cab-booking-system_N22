@@ -7,6 +7,7 @@ class ValidationError extends Error {
     super(message);
     this.name = 'ValidationError';
     this.errors = errors;
+    // Mặc định là 400, sẽ phân biệt trong validate
     this.statusCode = 400;
   }
 }
@@ -58,7 +59,23 @@ const validate = (schema, data) => {
       field: detail.path.join('.'),
       message: detail.message
     }));
-    throw new ValidationError('Validation failed', errors);
+    
+    const validationError = new ValidationError('Validation failed', errors);
+    
+    // Phân biệt lỗi:
+    // - Lỗi "required" (thiếu field) → 400
+    // - Lỗi "must be a number" (sai format) → 422
+    const hasTypeError = errors.some(e => 
+      e.message.includes('must be a number') || 
+      e.message.includes('must be a string') ||
+      e.message.includes('must be an object')
+    );
+    
+    if (hasTypeError) {
+      validationError.statusCode = 422;
+    }
+    
+    throw validationError;
   }
   return value;
 };

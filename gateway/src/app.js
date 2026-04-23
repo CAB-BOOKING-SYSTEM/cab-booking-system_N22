@@ -1,17 +1,35 @@
 const express = require("express");
 const proxy = require("express-http-proxy");
+const cors = require("cors");  // ← THÊM DÒNG NÀY
 const authMiddleware = require("./middlewares/auth");
 
 const app = express();
+
+// ← THÊM CORS VÀO ĐÂY
+app.use(cors({
+  origin: '*',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 app.use(express.json());
 
 const createProxy = (target, prefix) =>
   proxy(target, {
-    proxyReqPathResolver: (req) => `${prefix}${req.url}`,
+    proxyReqPathResolver: (req) => {
+      // Loại bỏ prefix khỏi req.url nếu có
+      let path = req.url;
+      if (path.startsWith(prefix)) {
+        path = path.slice(prefix.length);
+      }
+      return `${prefix}${path}`;
+    },
   });
 
 // Auth routes - no authentication required
 app.use("/auth", createProxy("http://auth-service:3001", "/api/auth"));
+
 
 // Protected API routes - all require authentication
 app.use(

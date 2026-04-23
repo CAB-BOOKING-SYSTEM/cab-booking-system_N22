@@ -14,7 +14,6 @@ class Database {
     try {
       const dbName = process.env.DB_NAME || 'driver_db';
       
-      // Bước 1: Kết nối đến database mặc định (postgres) để kiểm tra
       const defaultPool = new Pool({
         host: process.env.DB_HOST || 'postgres',
         port: process.env.DB_PORT || 5432,
@@ -26,7 +25,6 @@ class Database {
         connectionTimeoutMillis: 2000,
       });
 
-      // Kiểm tra database đã tồn tại chưa (cú pháp PostgreSQL)
       const checkDbQuery = 'SELECT 1 FROM pg_database WHERE datname = $1';
       const res = await defaultPool.query(checkDbQuery, [dbName]);
       
@@ -37,7 +35,6 @@ class Database {
       
       await defaultPool.end();
 
-      // Bước 2: Kết nối đến database chính
       this.pgPool = new Pool({
         host: process.env.DB_HOST || 'postgres',
         port: process.env.DB_PORT || 5432,
@@ -52,7 +49,6 @@ class Database {
       await this.pgPool.query('SELECT NOW()');
       logger.info('✅ PostgreSQL connected successfully');
       
-      // Chạy init.sql để tạo bảng
       await this.initDatabase();
       
       return this.pgPool;
@@ -72,7 +68,6 @@ class Database {
       }
 
       const initSql = fs.readFileSync(initSqlPath, 'utf8');
-      
       const statements = initSql.split(';').filter(stmt => stmt.trim().length > 0);
       
       for (const statement of statements) {
@@ -85,6 +80,19 @@ class Database {
             logger.warn('SQL statement error:', stmtError.message);
           }
         }
+      }
+      
+      // Thêm cột auth_user_id nếu chưa có (migration)
+      try {
+        await this.pgPool.query(`
+          ALTER TABLE drivers ADD COLUMN IF NOT EXISTS auth_user_id INTEGER UNIQUE
+        `);
+        await this.pgPool.query(`
+          CREATE INDEX IF NOT EXISTS idx_drivers_auth_user_id ON drivers(auth_user_id)
+        `);
+        logger.info('✅ Added auth_user_id column to drivers table');
+      } catch (migrateError) {
+        logger.warn('⚠️ Migration warning:', migrateError.message);
       }
       
       logger.info('✅ Database schema initialized successfully');
@@ -117,6 +125,19 @@ class Database {
     return this.pgPool;
   }
 
+  static getPool() {
+    const instance = global.databaseInstance || new Database();
+    if (!instance.pgPool) {
+      throw new Error('PostgreSQL not initialized. Call connectPostgreSQL() first.');
+    }
+    return instance.pgPool;
+  }
+
+  static async query(text, params) {
+    const pool = this.getPool();
+    return pool.query(text, params);
+  }
+
   getMongoConnection() {
     if (!this.mongoConnection) {
       throw new Error('MongoDB not initialized');
@@ -131,4 +152,7 @@ class Database {
   }
 }
 
-module.exports = new Database();
+const databaseInstance = new Database();
+module.exports = databaseInstance;
+module.exports.getPool = Database.getPool;
+module.exports.query = Database.query;

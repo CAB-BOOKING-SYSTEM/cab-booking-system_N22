@@ -1,6 +1,8 @@
 -- Bảng drivers
+
 CREATE TABLE IF NOT EXISTS drivers (
     driver_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    auth_user_id INTEGER UNIQUE,           -- ← THÊM DÒNG NÀY
     phone VARCHAR(20) UNIQUE NOT NULL,
     email VARCHAR(100) UNIQUE,
     full_name VARCHAR(100) NOT NULL,
@@ -14,6 +16,9 @@ CREATE TABLE IF NOT EXISTS drivers (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Tạo index cho auth_user_id
+ALTER TABLE drivers ADD COLUMN IF NOT EXISTS auth_user_id INTEGER UNIQUE;
+CREATE INDEX IF NOT EXISTS idx_drivers_auth_user_id ON drivers(auth_user_id);
 -- Bảng driver_documents
 CREATE TABLE IF NOT EXISTS driver_documents (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -7,11 +7,11 @@ function createBookingRoutes(bookingController) {
   // Public routes
   router.get('/health', bookingController.health);
   
-  // Booking CRUD
-  router.post('/bookings', bookingController.createBooking);
-  router.get('/bookings', bookingController.getMyBookings);
-  router.get('/bookings/:id', bookingController.getBooking);
-  router.patch('/bookings/:id/cancel', bookingController.cancelBooking);
+  // Booking CRUD - THÊM prefix /api
+  router.post('/api/bookings', bookingController.createBooking);
+  router.get('/api/bookings', bookingController.getMyBookings);
+  router.get('/api/bookings/:id', bookingController.getBooking);
+  router.patch('/api/bookings/:id/cancel', bookingController.cancelBooking);
   
   // Internal routes (for other services)
   router.patch('/internal/bookings/:id/assign-driver', bookingController.internalAssignDriver);

@@ -21,4 +21,20 @@ export type RootStackParamList = {
       name?: string;
     };
   };
+
+  RideOptions: {                    // ← THÊM TYPE NÀY
+    pickupLocation: {
+      lat: number;
+      lng: number;
+      address: string;
+    };
+    dropoffLocation: {
+      lat: number;
+      lng: number;
+      address: string;
+      name: string;
+    };
+    distance: number;
+    duration: number;
+  };
 };

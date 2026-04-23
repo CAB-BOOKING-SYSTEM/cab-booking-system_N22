@@ -1,5 +1,4 @@
-import "react-native-gesture-handler";
-import "react-native-reanimated";
+// customer-app/index.js
 import { registerRootComponent } from 'expo';
 import App from './App';
 

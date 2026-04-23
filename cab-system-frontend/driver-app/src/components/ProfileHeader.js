@@ -1,22 +1,21 @@
-import React from "react";
-import { View, Text } from "react-native";
-import { styled } from "nativewind";
+import React from 'react';
+import { View, Text } from 'react-native';
+import { BlurView } from 'expo-blur';
+import { styled } from 'nativewind';
 
+const StyledBlurView = styled(BlurView);
 const StyledView = styled(View);
 const StyledText = styled(Text);
 
-export const ProfileHeader = ({
-  userName = "Dong Cao",
-  phoneNumber = "090**567",
-}) => {
+export const ProfileHeader = ({ userName = 'Dong Cao', phoneNumber = '090**567' }) => {
   const initials = userName
-    .split(" ")
+    .split(' ')
     .map((n) => n[0])
-    .join("")
+    .join('')
     .toUpperCase();
 
   return (
-    <StyledView className="w-full">
+    <StyledBlurView intensity={95} tint="light" className="w-full">
       <StyledView className="w-full bg-green-500 bg-opacity-80 px-4 pt-8 pb-8">
         <StyledView className="flex-row items-center">
           {/* Avatar Circle with Initials */}
@@ -43,6 +42,6 @@ export const ProfileHeader = ({
           </StyledView>
         </StyledView>
       </StyledView>
-    </StyledView>
+    </StyledBlurView>
   );
 };

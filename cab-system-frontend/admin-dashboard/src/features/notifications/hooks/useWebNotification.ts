@@ -104,7 +104,7 @@ export function useWebNotification({
 
     bootstrap();
     return () => { cancelled = true; };
-  }, [currentUserId]);
+  }, [userId]);
 
   // ── Kết nối Socket.IO ────────────────────────────────────────────────────
   useEffect(() => {
@@ -128,7 +128,7 @@ export function useWebNotification({
       client.disconnect();
       clientRef.current = null;
     };
-  }, [currentUserId, currentToken, socketUrl]);
+  }, [userId, accessToken, socketUrl]);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
