@@ -30,7 +30,7 @@ type MainTabsParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tabs = createBottomTabNavigator<MainTabsParamList>();
 
-function MainTabs({ onLogout }: { onLogout: () => void }) {
+function MainTabs({ onLogout }: { onLogout: () => Promise<void> }) {
   return (
     <Tabs.Navigator>
       <Tabs.Screen
@@ -61,7 +61,7 @@ export function RootNavigator() {
         {isLoggedIn ? (
           <>
             <Stack.Screen name="MainTabs">
-              {() => <MainTabs onLogout={() => setIsLoggedIn(false)} />}
+              {() => <MainTabs onLogout={async () => setIsLoggedIn(false)} />}
             </Stack.Screen>
 
             {/* Modal screen cho incoming request */}

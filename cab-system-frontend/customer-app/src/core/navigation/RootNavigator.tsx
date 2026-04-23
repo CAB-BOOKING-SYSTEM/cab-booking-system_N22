@@ -29,7 +29,7 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tabs = createBottomTabNavigator<MainTabsParamList>();
 
 interface MainTabsProps {
-  onLogout: () => void;
+  onLogout: () => Promise<void>;
 }
 
 function MainTabs({ onLogout }: MainTabsProps) {
@@ -105,7 +105,7 @@ export function RootNavigator() {
         {isLoggedIn ? (
           <>
             <Stack.Screen name="MainTabs">
-              {() => <MainTabs onLogout={() => setIsLoggedIn(false)} />}
+              {() => <MainTabs onLogout={async () => setIsLoggedIn(false)} />}
             </Stack.Screen>
             <Stack.Screen name="RatingFeedback" component={RatingFeedbackScreen} />
           </>
