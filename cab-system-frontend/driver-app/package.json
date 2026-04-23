@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@cab/api-client": "file:../packages/api-client",
+    "@expo/metro-config": "~54.0.14",
+    "@expo/schema-utils": "^0.1.8",
     "@expo/vector-icons": "^15.1.1",
     "@react-navigation/bottom-tabs": "^7.15.9",
     "@react-navigation/native": "^7.2.2",
@@ -27,6 +29,7 @@
     "react-native-screens": "^4.16.0",
     "react-native-web": "^0.21.0",
     "react-redux": "^9.2.0",
+    "react-refresh": "^0.14.2",
     "socket.io-client": "^4.8.3"
   },
   "private": true
