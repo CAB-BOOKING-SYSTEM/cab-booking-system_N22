@@ -1,56 +1,73 @@
+// middleware/auth.js
 const jwt = require('jsonwebtoken');
 const logger = require('../utils/logger');
 
+// 🔥 Lấy JWT_SECRET từ env (phải giống với Auth Service)
+const JWT_SECRET = process.env.JWT_SECRET || 'supersecret';
+
 module.exports = async (req, res, next) => {
   try {
-    const token = req.headers.authorization?.split(' ')[1];
-    
-    if (!token) {
+    // Lấy token từ Authorization header
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({
         success: false,
-        message: 'Không tìm thấy token xác thực',
+        message: 'Unauthorized: No token provided',
       });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'supersecret');
-    
-    // Kiểm tra token hết hạn
-    if (decoded.exp && decoded.exp < Date.now() / 1000) {
+    const token = authHeader.split(' ')[1];
+
+    // Verify JWT với secret (giống Auth Service)
+    let decoded;
+    try {
+      decoded = jwt.verify(token, JWT_SECRET);
+    } catch (err) {
+      if (err.name === 'TokenExpiredError') {
+        return res.status(401).json({
+          success: false,
+          message: 'Token expired',
+        });
+      }
       return res.status(401).json({
         success: false,
-        message: 'Token đã hết hạn',
+        message: 'Invalid token',
       });
     }
+
+    // 🔥 LẤY driverId TỪ TOKEN
+    // Auth Service trả về JWT với payload: { sub: driverId, role: 'driver', ... }
+    const driverId = decoded.sub || decoded.driverId || decoded.id;
     
-    req.user = decoded;
-    
-    // Check if user has driver role
-    if (req.user.role !== 'driver' && req.user.role !== 'admin') {
+    if (!driverId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid token: missing driverId',
+      });
+    }
+
+    // Kiểm tra role (chỉ driver mới được gọi driver API)
+    if (decoded.role !== 'driver' && decoded.role !== 'admin') {
       return res.status(403).json({
         success: false,
-        message: 'Truy cập bị từ chối. Yêu cầu quyền tài xế.',
+        message: 'Forbidden: Driver role required',
       });
     }
+
+    // Gắn thông tin vào req
+    req.user = {
+      driverId: driverId,
+      email: decoded.email,
+      role: decoded.role,
+      ...decoded
+    };
     
     next();
   } catch (error) {
-    if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json({
-        success: false,
-        message: 'Token không hợp lệ',
-      });
-    }
-    if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({
-        success: false,
-        message: 'Token đã hết hạn',
-      });
-    }
-    
     logger.error('Auth middleware error:', error);
     return res.status(500).json({
       success: false,
-      message: 'Lỗi xác thực',
+      message: 'Authentication error',
     });
   }
 };

@@ -3,101 +3,7 @@ const { validationResult } = require('express-validator');
 const logger = require('../utils/logger');
 
 class DriverController {
-  // ==================== AUTH & PROFILE ====================
   
-  async login(req, res) {
-    try {
-      const { email, password } = req.body;
-      
-      // Tìm tài xế theo email
-      const driver = await driverService.getDriverByEmail(email);
-      
-      if (!driver) {
-        return res.status(401).json({
-          success: false,
-          message: 'Email không tồn tại'
-        });
-      }
-      
-      // Kiểm tra password (đơn giản cho test)
-      if (password !== 'password123' && password !== driver.password) {
-        return res.status(401).json({
-          success: false,
-          message: 'Mật khẩu không chính xác'
-        });
-      }
-      
-      // Tạo token đơn giản (chỉ để test)
-      const token = Buffer.from(JSON.stringify({
-        driverId: driver.driverId,
-        email: driver.email,
-        role: 'driver',
-        exp: Date.now() + 7 * 24 * 60 * 60 * 1000
-      })).toString('base64');
-      
-      res.json({
-        success: true,
-        message: 'Đăng nhập thành công',
-        data: {
-          token: token,
-          driverId: driver.driverId,
-          email: driver.email,
-          role: 'driver'
-        }
-      });
-    } catch (error) {
-      logger.error('Login error:', error);
-      res.status(401).json({
-        success: false,
-        message: error.message || 'Đăng nhập thất bại'
-      });
-    }
-  }
-
-  async register(req, res) {
-    try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
-      }
-
-      const { phone, fullName, licensePlate, vehicleType, email } = req.body;
-      
-      // Kiểm tra tài xế đã tồn tại
-      const existingDriver = await driverService.getDriverByPhoneOrEmail(phone, email);
-      if (existingDriver) {
-        return res.status(400).json({
-          success: false,
-          message: 'Số điện thoại hoặc email đã tồn tại'
-        });
-      }
-      
-      // Tạo driverId
-      const driverId = `DRV_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-      
-      const driver = await driverService.createDriver({
-        driverId,
-        phone,
-        email,
-        fullName,
-        licensePlate,
-        vehicleType
-      });
-      
-      res.status(201).json({
-        success: true,
-        message: 'Đăng ký tài xế thành công',
-        data: driver
-      });
-    } catch (error) {
-      logger.error('Register error:', error);
-      res.status(500).json({
-        success: false,
-        message: error.message
-      });
-    }
-  }
-
   async updateProfile(req, res) {
     try {
       const errors = validationResult(req);
@@ -105,7 +11,7 @@ class DriverController {
         return res.status(400).json({ errors: errors.array() });
       }
 
-      const { driverId } = req.params;
+      const driverId = req.user.driverId;
       const updateData = req.body;
 
       const driver = await driverService.updateDriverProfile(driverId, updateData);
@@ -129,9 +35,19 @@ class DriverController {
       const { driverId } = req.params;
       const driver = await driverService.getDriverById(driverId);
 
+      const publicData = {
+        driverId: driver.driverId,
+        fullName: driver.fullName,
+        vehicleType: driver.vehicleType,
+        licensePlate: driver.licensePlate,
+        rating: driver.rating,
+        status: driver.status,
+        currentLocation: driver.currentLocation
+      };
+
       res.json({
         success: true,
-        data: driver,
+        data: publicData,
       });
     } catch (error) {
       logger.error('Get driver info error:', error);
@@ -142,8 +58,6 @@ class DriverController {
     }
   }
 
-  // ==================== STATUS & LOCATION ====================
-
   async toggleStatus(req, res) {
     try {
       const errors = validationResult(req);
@@ -151,7 +65,7 @@ class DriverController {
         return res.status(400).json({ errors: errors.array() });
       }
 
-      const { driverId } = req.params;
+      const driverId = req.user.driverId;
       const { status } = req.body;
 
       const driver = await driverService.updateDriverStatus(driverId, status);
@@ -159,7 +73,11 @@ class DriverController {
       res.json({
         success: true,
         message: `Tài xế đã ${status === 'online' ? 'lên xe' : 'xuống xe'}`,
-        data: driver,
+        data: {
+          driverId: driver.driverId,
+          status: driver.status,
+          currentLocation: driver.currentLocation
+        },
       });
     } catch (error) {
       logger.error('Toggle status error:', error);
@@ -170,46 +88,9 @@ class DriverController {
     }
   }
 
-  async updateLocation(req, res) {
-    try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
-      }
-
-      const { driverId } = req.params;
-      const { lat, lng, speed, heading, accuracy } = req.body;
-
-      const driver = await driverService.updateDriverLocation(
-        driverId,
-        lat,
-        lng,
-        speed || 0,
-        heading || 0,
-        accuracy || 0
-      );
-
-      res.json({
-        success: true,
-        message: 'Cập nhật vị trí thành công',
-        data: {
-          driverId: driver.driverId,
-          location: driver.currentLocation,
-          status: driver.status,
-        },
-      });
-    } catch (error) {
-      logger.error('Update location error:', error);
-      res.status(500).json({
-        success: false,
-        message: error.message || 'Internal server error',
-      });
-    }
-  }
-
   async getLocationHistory(req, res) {
     try {
-      const { driverId } = req.params;
+      const driverId = req.user.driverId;
       const { startDate, endDate, limit } = req.query;
 
       const history = await driverService.getDriverLocationHistory(
@@ -250,10 +131,19 @@ class DriverController {
         drivers = await Driver.find({ status: 'online' });
       }
 
+      const publicDrivers = drivers.map(d => ({
+        driverId: d.driverId,
+        fullName: d.fullName,
+        vehicleType: d.vehicleType,
+        rating: d.rating,
+        currentLocation: d.currentLocation,
+        distanceKm: d.distanceKm
+      }));
+
       res.json({
         success: true,
-        count: drivers.length,
-        data: drivers,
+        count: publicDrivers.length,
+        data: publicDrivers,
       });
     } catch (error) {
       logger.error('Get online drivers error:', error);
@@ -264,11 +154,9 @@ class DriverController {
     }
   }
 
-  // ==================== RIDE MANAGEMENT ====================
-
   async acceptRide(req, res) {
     try {
-      const { driverId } = req.params;
+      const driverId = req.user.driverId;
       const { rideId } = req.body;
 
       const result = await driverService.acceptRide(driverId, rideId);
@@ -289,7 +177,7 @@ class DriverController {
 
   async rejectRide(req, res) {
     try {
-      const { driverId } = req.params;
+      const driverId = req.user.driverId;
       const { rideId } = req.body;
 
       const result = await driverService.rejectRide(driverId, rideId);
@@ -307,70 +195,10 @@ class DriverController {
       });
     }
   }
-  // ==================== WALLET MANAGEMENT ====================
 
-  async getWallet(req, res) {
-    try {
-      const { driverId } = req.params;
-      const walletService = require('../services/walletService');
-      const wallet = await walletService.getWallet(driverId);
-      
-      res.json({
-        success: true,
-        data: {
-          driverId: wallet.driverId,
-          balance: wallet.balance,
-          totalEarned: wallet.totalEarned,
-          totalWithdrawn: wallet.totalWithdrawn,
-          pendingWithdraw: wallet.pendingWithdraw,
-          updatedAt: wallet.updatedAt
-        }
-      });
-    } catch (error) {
-      logger.error('Get wallet error:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  }
-
-  async requestWithdraw(req, res) {
-    try {
-      const { driverId } = req.params;
-      const { amount, bankAccount } = req.body;
-      
-      if (!amount || amount <= 0) {
-        return res.status(400).json({ success: false, message: 'Số tiền không hợp lệ' });
-      }
-      
-      const walletService = require('../services/walletService');
-      const result = await walletService.requestWithdraw(driverId, amount, bankAccount);
-      
-      res.json(result);
-    } catch (error) {
-      logger.error('Request withdraw error:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  }
-
-  async getTransactionHistory(req, res) {
-    try {
-      const { driverId } = req.params;
-      const { page = 1, limit = 20 } = req.query;
-      
-      const walletService = require('../services/walletService');
-      const history = await walletService.getTransactionHistory(driverId, parseInt(page), parseInt(limit));
-      
-      res.json({
-        success: true,
-        data: history
-      });
-    } catch (error) {
-      logger.error('Get transaction history error:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  }
   async startRide(req, res) {
     try {
-      const { driverId } = req.params;
+      const driverId = req.user.driverId;
       const { rideId } = req.body;
 
       const result = await driverService.startRide(driverId, rideId);
@@ -396,7 +224,7 @@ class DriverController {
         return res.status(400).json({ errors: errors.array() });
       }
 
-      const { driverId } = req.params;
+      const driverId = req.user.driverId;
       const { rideId, distance, duration } = req.body;
 
       const driver = await driverService.completeRide(driverId, rideId, distance, duration);
@@ -418,11 +246,9 @@ class DriverController {
     }
   }
 
-  // ==================== EARNINGS & HISTORY ====================
-
   async getDriverEarnings(req, res) {
     try {
-      const { driverId } = req.params;
+      const driverId = req.user.driverId;
       const { startDate, endDate } = req.query;
 
       const earnings = await driverService.getDriverEarnings(
@@ -446,7 +272,7 @@ class DriverController {
 
   async getRideHistory(req, res) {
     try {
-      const { driverId } = req.params;
+      const driverId = req.user.driverId;
       const { page = 1, limit = 20, status } = req.query;
 
       const history = await driverService.getRideHistory(driverId, {
@@ -470,8 +296,7 @@ class DriverController {
 
   async getCurrentRide(req, res) {
     try {
-      const { driverId } = req.params;
-
+      const driverId = req.user.driverId;
       const currentRide = await driverService.getCurrentRide(driverId);
       
       res.json({
@@ -480,6 +305,116 @@ class DriverController {
       });
     } catch (error) {
       logger.error('Get current ride error:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message
+      });
+    }
+  }
+
+  async getWallet(req, res) {
+    try {
+      const driverId = req.user.driverId;
+      const walletService = require('../services/walletService');
+      const wallet = await walletService.getWallet(driverId);
+      
+      res.json({
+        success: true,
+        data: {
+          driverId: wallet.driverId,
+          balance: wallet.balance,
+          totalEarned: wallet.totalEarned,
+          totalWithdrawn: wallet.totalWithdrawn,
+          pendingWithdraw: wallet.pendingWithdraw,
+          updatedAt: wallet.updatedAt
+        }
+      });
+    } catch (error) {
+      logger.error('Get wallet error:', error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  }
+
+  async requestWithdraw(req, res) {
+    try {
+      const driverId = req.user.driverId;
+      const { amount, bankAccount } = req.body;
+      
+      if (!amount || amount <= 0) {
+        return res.status(400).json({ success: false, message: 'Số tiền không hợp lệ' });
+      }
+      
+      const walletService = require('../services/walletService');
+      const result = await walletService.requestWithdraw(driverId, amount, bankAccount);
+      
+      res.json(result);
+    } catch (error) {
+      logger.error('Request withdraw error:', error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  }
+
+  async getTransactionHistory(req, res) {
+    try {
+      const driverId = req.user.driverId;
+      const { page = 1, limit = 20 } = req.query;
+      
+      const walletService = require('../services/walletService');
+      const history = await walletService.getTransactionHistory(driverId, parseInt(page), parseInt(limit));
+      
+      res.json({
+        success: true,
+        data: history
+      });
+    } catch (error) {
+      logger.error('Get transaction history error:', error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  }
+
+  // 🔥 THÊM METHOD NÀY VÀO CUỐI, TRƯỚC module.exports
+  async internalCreateDriver(req, res) {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const { driverId, email, phone, fullName, vehicleType, licensePlate } = req.body;
+
+      const existingDriver = await driverService.getDriverById(driverId);
+      if (existingDriver) {
+        return res.status(200).json({
+          success: true,
+          message: 'Driver already exists',
+          data: existingDriver
+        });
+      }
+
+      const driver = await driverService.createDriver({
+        driverId: String(driverId),
+        email: email,
+        phone: phone || '',
+        fullName: fullName,
+        licensePlate: licensePlate || `TEMP${Date.now()}`,
+        vehicleType: vehicleType || '4_seat',
+        status: 'offline',
+        rating: 5.0,
+        totalTrips: 0
+      });
+
+      const walletService = require('../services/walletService');
+      await walletService.createWallet(driverId);
+
+      logger.info(`✅ Internal: Driver created for user ${driverId}`);
+      
+      res.status(201).json({
+        success: true,
+        message: 'Driver created successfully',
+        data: driver
+      });
+    } catch (error) {
+      logger.error('Internal create driver error:', error);
       res.status(500).json({
         success: false,
         message: error.message

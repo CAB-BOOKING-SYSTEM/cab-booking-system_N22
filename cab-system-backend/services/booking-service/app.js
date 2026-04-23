@@ -20,13 +20,13 @@ class App {
   initializeMiddlewares() {
     this.app.use(helmet());
     this.app.use(cors());
-    this.app.use(express.json({ limit: '10mb' }));
+    this.app.use(express.json({ limit: '1mb' }));
     this.app.use(express.urlencoded({ extended: true }));
     this.app.use(morgan('dev'));
   }
   
   initializeRoutes() {
-    this.app.use('/api/v1', this.bookingRoutes);
+    this.app.use('/', this.bookingRoutes);
   }
   
   initializeErrorHandling() {
