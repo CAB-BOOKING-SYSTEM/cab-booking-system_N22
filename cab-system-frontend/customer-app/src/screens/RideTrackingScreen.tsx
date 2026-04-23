@@ -17,7 +17,7 @@ export function RideTrackingScreen() {
     <View style={styles.container}>
       <RideTrackingView
         rideId={rideId || "RIDE_001"}
-        initialStatus={RideStatus.ACCEPTED}
+        initialStatus={RideStatus.ASSIGNED}
         initialDriver={driverInfo}
         pickupLocation={mockPickup}
         dropoffLocation={mockDropoff}

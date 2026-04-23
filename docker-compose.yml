@@ -1,10 +1,11 @@
 services:
   gateway:
     build:
-      context: ./gateway # Đường dẫn tương ứng với thư mục gateway trong ảnh
+      context: ./gateway
+      target: development
     container_name: cab_gateway
     ports:
-      - "${GATEWAY_PORT}:3000" # Giả sử gateway chạy port 3000
+      - "${GATEWAY_PORT}:3000"
     depends_on:
       - auth-service
       - user-service
@@ -168,6 +169,9 @@ services:
       - JWT_SECRET=${JWT_SECRET}
     depends_on:
       - postgres
+    volumes:
+      - ./cab-system-backend/services/driver-service:/app
+      - /app/node_modules
 
   notification-service:
     build:

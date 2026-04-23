@@ -30,12 +30,12 @@ type MainTabsParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tabs = createBottomTabNavigator<MainTabsParamList>();
 
-function MainTabs({ onLogout }: { onLogout: () => void }) {
+function MainTabs({ authData, onLogout }: { authData: any; onLogout: () => void }) {
   return (
     <Tabs.Navigator>
       <Tabs.Screen
         name="DriverHome"
-        component={DriverHomeScreen}
+        children={() => <DriverHomeScreen authData={authData} />}
         options={{ title: "Bản đồ" }}
       />
       <Tabs.Screen
@@ -54,6 +54,15 @@ function MainTabs({ onLogout }: { onLogout: () => void }) {
 
 export function RootNavigator() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [authData, setAuthData] = useState<{ userId: string; accessToken: string } | null>(null);
+
+  const handleLoginSuccess = (data: any) => {
+    setAuthData({
+      userId: data.user.id,
+      accessToken: data.accessToken,
+    });
+    setIsLoggedIn(true);
+  };
 
   return (
     <NavigationContainer>
@@ -61,7 +70,7 @@ export function RootNavigator() {
         {isLoggedIn ? (
           <>
             <Stack.Screen name="MainTabs">
-              {() => <MainTabs onLogout={() => setIsLoggedIn(false)} />}
+              {() => <MainTabs authData={authData} onLogout={() => setIsLoggedIn(false)} />}
             </Stack.Screen>
 
             {/* Modal screen cho incoming request */}
@@ -87,7 +96,7 @@ export function RootNavigator() {
           </>
         ) : (
           <Stack.Screen name="Auth">
-            {() => <LoginScreen onSuccess={() => setIsLoggedIn(true)} />}
+            {() => <LoginScreen onSuccess={handleLoginSuccess} />}
           </Stack.Screen>
         )}
       </Stack.Navigator>

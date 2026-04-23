@@ -16,7 +16,7 @@ const RESET_TOKEN_TTL_MINUTES = Number(
 const VALID_ROLES = ["CUSTOMER", "DRIVER", "ADMIN", "SUPER_ADMIN"];
 const ROLE_ALIAS = {
   CUSTOMER: "CUSTOMER",
-  USER: "DRIDER",
+  USER: "DRIVER",
 };
 
 const generateAccessToken = (user) =>

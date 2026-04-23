@@ -52,6 +52,7 @@ const ensureAuthSchema = async () => {
     `CREATE INDEX IF NOT EXISTS idx_auth_users_role ON auth_users(role)`,
   );
 };
+
 // Test kết nối khi khởi tạo pool
 pool.on("connect", () => {
   console.log("✅ Database connected successfully!");
@@ -78,24 +79,6 @@ try {
   }
   console.log(`🕐 Server time: ${result.rows[0].now}`);
   console.log("╔════════════════════════════════════════════════════════╝");
-} catch (error) {
-  console.error("╔════════════════════════════════════════════════════════╗");
-  console.error("║        ❌ DATABASE CONNECTION FAILED                  ║");
-  console.error("╚════════════════════════════════════════════════════════╝");
-  console.error("Error:", error.message);
-  process.exit(1);
-}
-
-export default pool;
-console.log(`📋 Connected via DB_URL: ${process.env.DB_URL}`);
-  } else {
-  console.log(
-    `📋 Connected to: ${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_NAME}`,
-  );
-  console.log(`👤 User: ${process.env.DB_USER}`);
-}
-console.log(`🕐 Server time: ${result.rows[0].now}`);
-console.log("╔════════════════════════════════════════════════════════╝");
 } catch (error) {
   console.error("╔════════════════════════════════════════════════════════╗");
   console.error("║        ❌ DATABASE CONNECTION FAILED                  ║");

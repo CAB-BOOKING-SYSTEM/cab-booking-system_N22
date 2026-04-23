@@ -24,8 +24,9 @@ module.exports = async (req, res, next) => {
     
     req.user = decoded;
     
-    // Check if user has driver role
-    if (req.user.role !== 'driver' && req.user.role !== 'admin') {
+    // Check if user has driver role (case-insensitive)
+    const role = String(req.user.role || '').toUpperCase();
+    if (role !== 'DRIVER' && role !== 'ADMIN') {
       return res.status(403).json({
         success: false,
         message: 'Truy cập bị từ chối. Yêu cầu quyền tài xế.',

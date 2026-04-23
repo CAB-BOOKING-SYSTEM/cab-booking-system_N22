@@ -1,12 +1,17 @@
 export enum RideStatus {
   IDLE = "IDLE",
   SEARCHING = "SEARCHING",
-  ACCEPTED = "ACCEPTED",
-  ARRIVING = "ARRIVING",
-  PICKED_UP = "PICKED_UP",
+  CREATED = "CREATED",
+  MATCHING = "MATCHING",
+  ASSIGNED = "ASSIGNED",
+  PICKUP = "PICKUP",
   IN_PROGRESS = "IN_PROGRESS",
   COMPLETED = "COMPLETED",
+  PAID = "PAID",
   CANCELLED = "CANCELLED",
+  // Legacy mappings for UI compatibility if needed
+  ACCEPTED = "ASSIGNED",
+  ARRIVING = "PICKUP",
 }
 
 export interface Location {

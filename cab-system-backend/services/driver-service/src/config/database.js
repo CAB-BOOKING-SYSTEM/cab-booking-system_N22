@@ -13,6 +13,7 @@ class Database {
   async connectPostgreSQL() {
     try {
       const dbName = process.env.DB_NAME || 'driver_db';
+      console.log(`🐘 Attempting to connect to PostgreSQL (DB: ${dbName})...`);
       
       // Bước 1: Kết nối đến database mặc định (postgres) để kiểm tra
       const defaultPool = new Pool({
@@ -29,10 +30,11 @@ class Database {
       // Kiểm tra database đã tồn tại chưa (cú pháp PostgreSQL)
       const checkDbQuery = 'SELECT 1 FROM pg_database WHERE datname = $1';
       const res = await defaultPool.query(checkDbQuery, [dbName]);
+      console.log(`🔍 Database check completed. Found: ${res.rowCount}`);
       
       if (res.rowCount === 0) {
         await defaultPool.query(`CREATE DATABASE ${dbName}`);
-        logger.info(`✅ Database ${dbName} created successfully`);
+        console.log(`✅ Database ${dbName} created successfully`);
       }
       
       await defaultPool.end();
@@ -50,7 +52,7 @@ class Database {
       });
 
       await this.pgPool.query('SELECT NOW()');
-      logger.info('✅ PostgreSQL connected successfully');
+      console.log('✅ PostgreSQL connected successfully');
       
       // Chạy init.sql để tạo bảng
       await this.initDatabase();

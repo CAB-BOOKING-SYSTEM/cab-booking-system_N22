@@ -22,6 +22,6 @@ server.on('upgrade', (req, socket, head) => {
   });
 });
 
-server.listen(PORT, () => {
+server.listen(PORT, "0.0.0.0", () => {
   console.log(`API Gateway is running on port ${PORT} with WebSocket support`);
 });

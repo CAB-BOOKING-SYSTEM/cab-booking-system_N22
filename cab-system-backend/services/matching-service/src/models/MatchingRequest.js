@@ -4,6 +4,12 @@ class MatchingRequest {
     const query = `
       INSERT INTO matching_requests (ride_id, user_id, pickup_lat, pickup_lng, status)
       VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (ride_id) 
+      DO UPDATE SET 
+        pickup_lat = EXCLUDED.pickup_lat,
+        pickup_lng = EXCLUDED.pickup_lng,
+        status = 'pending',
+        updated_at = CURRENT_TIMESTAMP
       RETURNING *
     `;
     const values = [data.rideId, data.userId, data.pickupLat, data.pickupLng, 'pending'];

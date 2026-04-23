@@ -20,7 +20,7 @@ const startServer = async () => {
     // Khởi động Surge AI Job (chạy mỗi 5 phút)
     startSurgeAIJob();
     
-    app.listen(PORT, () => {
+    app.listen(PORT, "0.0.0.0", () => {
       console.log(`🚀 Pricing Service running on port ${PORT}`);
       console.log(`📌 Surge AI: enabled (every 5 minutes)`);
       console.log(`📌 ETA Service: enabled (Google Maps + Redis cache)`);

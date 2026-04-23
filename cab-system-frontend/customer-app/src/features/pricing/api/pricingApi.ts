@@ -1,7 +1,7 @@
 import { apiClient } from '@cab/api-client';
 import type { EstimateRequest, EstimateResponse, PricingConfig } from '../types';
 
-const PRICING_SERVICE_URL = 'http://localhost:3006/api/v1';
+const PRICING_SERVICE_URL = 'http://localhost:3000/pricing';
 
 // Lấy danh sách loại xe
 export async function getVehicleTypes(): Promise<PricingConfig[]> {

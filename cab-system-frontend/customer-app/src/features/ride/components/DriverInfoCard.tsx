@@ -19,11 +19,14 @@ export function DriverInfoCard({
 }: DriverInfoCardProps) {
   const getStatusText = () => {
     switch (status) {
+      case RideStatus.ASSIGNED:
       case RideStatus.ACCEPTED: return "Tài xế đã nhận chuyến";
+      case RideStatus.PICKUP:
       case RideStatus.ARRIVING: return "Tài xế đang đến";
-      case RideStatus.PICKED_UP: return "Bắt đầu chuyến đi";
       case RideStatus.IN_PROGRESS: return "Đang di chuyển...";
       case RideStatus.COMPLETED: return "Chuyến đi đã hoàn thành";
+      case RideStatus.PAID: return "Đã thanh toán";
+      case RideStatus.CANCELLED: return "Chuyến đi đã bị hủy";
       default: return "Đang cập nhật...";
     }
   };

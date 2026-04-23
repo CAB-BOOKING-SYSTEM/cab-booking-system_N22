@@ -21,7 +21,11 @@ class LocationSocket {
           
           // Lấy user từ token (đã được Gateway xác thực)
           const user = socket.handshake.auth.user;
-          if (!user || user.driverId !== driverId) {
+          
+          logger.info(`[Socket] Register attempt: client_driverId=${driverId}, token_driverId=${user?.driverId}`);
+
+          if (!user || String(user.driverId) !== String(driverId)) {
+            logger.warn(`❌ Auth failed: ${user?.driverId} !== ${driverId}`);
             socket.emit('error', { message: 'Authentication failed' });
             return;
           }

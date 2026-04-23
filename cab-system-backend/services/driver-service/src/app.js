@@ -92,9 +92,39 @@ async function startServer(retryCount = 0) {
   const maxRetries = 5;
   
   try {
+    await database.connectPostgreSQL();
     await database.connectMongoDB();
     await redisClient.connect();
     await eventPublisher.connect();
+
+    // Middleware xác thực cho Socket.IO
+    io.use((socket, next) => {
+      try {
+        const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization?.split(' ')[1];
+        if (!token) {
+          return next(new Error('Authentication error: No token provided'));
+        }
+
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'supersecret');
+        if (decoded.exp && decoded.exp < Date.now() / 1000) {
+          return next(new Error('Authentication error: Token expired'));
+        }
+
+        // Đồng bộ role check (DRIVER/driver)
+        const role = String(decoded.role || '').toUpperCase();
+        if (role !== 'DRIVER' && role !== 'ADMIN') {
+          return next(new Error('Authentication error: Unauthorized role'));
+        }
+
+        socket.handshake.auth.user = {
+          ...decoded,
+          driverId: String(decoded.sub) // Map sub to driverId for internal logic
+        };
+        next();
+      } catch (err) {
+        next(new Error('Authentication error: Invalid token'));
+      }
+    });
 
     const locationSocket = new LocationSocket(io);
     locationSocket.initialize();

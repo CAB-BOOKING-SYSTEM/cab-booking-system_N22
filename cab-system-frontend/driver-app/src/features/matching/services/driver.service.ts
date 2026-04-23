@@ -97,12 +97,13 @@ class DriverService {
 
   // ========== WebSocket ==========
 
-  connectWebSocket(driverId: string, onIncomingRequest: (request: IncomingRequest) => void) {
+  connectWebSocket(driverId: string, token: string, onIncomingRequest: (request: IncomingRequest) => void) {
     this.onIncomingRequestCallback = onIncomingRequest;
 
     this.socket = io(this.wsUrl, {
       path: "/socket.io",
       transports: ["websocket"],
+      auth: { token, driverId }, // Gửi token để Gateway/Service xác thực
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,

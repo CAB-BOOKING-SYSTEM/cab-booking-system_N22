@@ -1,8 +1,20 @@
 const express = require("express");
 const proxy = require("express-http-proxy");
+const cors = require("cors");
 const authMiddleware = require("./middlewares/auth");
 
 const app = express();
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Cho phép tất cả các origin trong môi trường dev
+    callback(null, true);
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"]
+}));
+
 app.use(express.json());
 
 const createProxy = (target, prefix) =>
@@ -10,7 +22,7 @@ const createProxy = (target, prefix) =>
     proxyReqPathResolver: (req) => `${prefix}${req.url}`,
   });
 
-app.use("/auth", createProxy("http://auth-service:3001", "/api/auth"));
+app.use("/auth", createProxy("http://auth-service:3001", ""));
 app.use(
   "/api/v1/users",
   authMiddleware,
@@ -33,7 +45,7 @@ app.use(
 );
 app.use(
   "/pricing",
-  authMiddleware,
+  // authMiddleware,
   createProxy("http://pricing-service:3006", "/api/v1"),
 );
 app.use(
@@ -50,6 +62,11 @@ app.use(
   "/reviews",
   authMiddleware,
   createProxy("http://review-service:3007", "/api/v1/reviews"),
+);
+app.use(
+  "/matching",
+  // authMiddleware,
+  createProxy("http://matching-service:3010", "/api/matching"),
 );
 
 module.exports = app;

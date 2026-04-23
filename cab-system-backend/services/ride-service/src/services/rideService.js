@@ -1,6 +1,7 @@
 const Ride = require("../models/rideModel");
 const { publishEvent } = require("../events/rabbitmq");
 const RideStateMachine = require("../utils/rideStateMachine");
+const { getIO } = require("../gateway/websocket");
 
 class RideService {
   async createRide(rideData) {
@@ -77,6 +78,20 @@ class RideService {
         });
       }
 
+
+      // Emit WebSocket status update to ride room
+      try {
+        const io = getIO();
+        io.to(`ride:${ride.id}`).emit("ride_status_updated", {
+          rideId: ride.id,
+          status: ride.status,
+          driverId: ride.driverId,
+          fare: ride.fare
+        });
+      } catch (err) {
+        console.warn("WebSocket not ready for status update:", err.message);
+      }
+
       return ride;
     } catch (error) {
       console.error("Error updating ride status:", error);
@@ -107,6 +122,20 @@ class RideService {
         reason,
         cancelledBy,
       });
+
+
+      // Emit WebSocket status update to ride room
+      try {
+        const io = getIO();
+        io.to(`ride:${ride.id}`).emit("ride_status_updated", {
+          rideId: ride.id,
+          status: "CANCELLED",
+          reason,
+          cancelledBy
+        });
+      } catch (err) {
+        console.warn("WebSocket not ready for cancel update:", err.message);
+      }
 
       return ride;
     } catch (error) {
