@@ -1,20 +1,19 @@
-// metro.config.js
-const { getDefaultConfig } = require('expo/metro-config');
-const path = require('path');
+const path = require("path");
+const { getDefaultConfig } = require("expo/metro-config");
+const { withNativeWind } = require("nativewind/metro");
 
-// Tìm thư mục gốc của project (monorepo root)
 const projectRoot = __dirname;
-const workspaceRoot = path.resolve(projectRoot, '../..');
+const workspaceRoot = path.resolve(projectRoot, "../..");
 
 const config = getDefaultConfig(projectRoot);
 
-// 1. Theo dõi toàn bộ thư mục packages trong monorepo
+// 1. Theo dõi toàn bộ thư mục root trong monorepo
 config.watchFolders = [workspaceRoot];
 
 // 2. Ép Metro tìm node_modules ở cả thư mục hiện tại và root
 config.resolver.nodeModulesPaths = [
-  path.resolve(projectRoot, 'node_modules'),
-  path.resolve(workspaceRoot, 'node_modules'),
+  path.resolve(projectRoot, "node_modules"),
+  path.resolve(workspaceRoot, "node_modules"),
 ];
 
 // 3. Thêm alias cho các package nội bộ (@cab/*)
@@ -31,13 +30,17 @@ config.resolver.extraNodeModules = {
 
 // 4. Custom resolver để ưu tiên bản web của một số thư viện
 config.resolver.resolveRequest = (context, moduleName, platform) => {
-  if (platform === 'web' && moduleName === 'react-native-maps') {
+  if (platform === "web" && moduleName === "react-native-maps") {
     return {
-      filePath: require.resolve('@teovilla/react-native-web-maps'),
-      type: 'sourceFile',
+      filePath: require.resolve("@teovilla/react-native-web-maps"),
+      type: "sourceFile",
     };
   }
   return context.resolveRequest(context, moduleName, platform);
 };
 
-module.exports = config;
+module.exports = withNativeWind(config, {
+  input: "./src/index.css",
+  projectRoot,
+  configPath: path.resolve(projectRoot, "tailwind.config.js"),
+});

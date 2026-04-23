@@ -15,6 +15,24 @@
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "paths": {
+      "@cab-booking/shared-types": [
+        "cab-system-frontend/packages/shared-types/index.ts"
+      ],
+      "@cab-booking/shared-utils": [
+        "cab-system-frontend/packages/shared-utils/index.ts"
+      ],
+      "@cab-booking/api-client": [
+        "cab-system-frontend/packages/api-client/index.ts"
+      ],
+      "@cab-booking/mobile-ui": [
+        "cab-system-frontend/packages/mobile-ui/index.ts"
+      ],
+      "@cab-booking/map-core": [
+        "cab-system-frontend/packages/map-core/index.ts"
+      ],
+      "@cab-booking/realtime": [
+        "cab-system-frontend/packages/realtime/index.ts"
+      ],
       "@cab/shared-types": [
         "cab-system-frontend/packages/shared-types/index.ts"
       ],

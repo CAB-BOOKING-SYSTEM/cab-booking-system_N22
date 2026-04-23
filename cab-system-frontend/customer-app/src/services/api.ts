@@ -1,19 +1,22 @@
-// API Configuration
-const USER_SERVICE_URL = 'http://localhost:3009/api/v1'; // User service (port 3009)
-const BOOKING_SERVICE_URL = 'http://localhost:3002/api/v1'; // Booking service
-const GATEWAY_URL = 'http://localhost:8000/api/v1'; // Alternative gateway URL
+// API Configuration - Use environment variables, fallback to gateway
+const API_BASE_URL =
+  process.env.EXPO_PUBLIC_API_BASE_URL || "http://localhost:3000/api";
+const USER_SERVICE_URL =
+  process.env.EXPO_PUBLIC_USER_SERVICE_URL || `${API_BASE_URL}/v1/users`;
+const BOOKING_SERVICE_URL =
+  process.env.EXPO_PUBLIC_BOOKING_SERVICE_URL || `${API_BASE_URL}/bookings`;
 
 // Helper function to make API calls
 async function apiCall<T>(
   endpoint: string,
-  method: 'GET' | 'POST' | 'PATCH' | 'DELETE' = 'GET',
-  data?: any
+  method: "GET" | "POST" | "PATCH" | "DELETE" = "GET",
+  data?: any,
 ): Promise<T> {
   try {
     const options: RequestInit = {
       method,
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
     };
 
@@ -30,7 +33,7 @@ async function apiCall<T>(
     const result = await response.json();
     return result.data || result;
   } catch (error) {
-    console.error('API Call Error:', error);
+    console.error("API Call Error:", error);
     throw error;
   }
 }
@@ -39,35 +42,41 @@ async function apiCall<T>(
 export const userService = {
   // Get user profile by ID
   getUserProfile: async (userId: number) => {
-    return apiCall(`/users/${userId}`, 'GET');
+    return apiCall(`/users/${userId}`, "GET");
   },
 
   // Get user saved locations
   getSavedLocations: async (userId: number) => {
-    return apiCall(`/users/${userId}/locations`, 'GET');
+    return apiCall(`/users/${userId}/locations`, "GET");
   },
 
   // Add new saved location
-  addLocation: async (userId: number, location: {
-    label: string;
-    address: string;
-    lat?: number;
-    lng?: number;
-  }) => {
-    return apiCall(`/users/${userId}/locations`, 'POST', location);
+  addLocation: async (
+    userId: number,
+    location: {
+      label: string;
+      address: string;
+      lat?: number;
+      lng?: number;
+    },
+  ) => {
+    return apiCall(`/users/${userId}/locations`, "POST", location);
   },
 
   // Delete saved location
   deleteLocation: async (userId: number, locationId: number) => {
-    return apiCall(`/users/${userId}/locations/${locationId}`, 'DELETE');
+    return apiCall(`/users/${userId}/locations/${locationId}`, "DELETE");
   },
 
   // Update user profile
-  updateProfile: async (userId: number, data: {
-    full_name?: string;
-    email?: string;
-  }) => {
-    return apiCall(`/users/${userId}`, 'PATCH', data);
+  updateProfile: async (
+    userId: number,
+    data: {
+      full_name?: string;
+      email?: string;
+    },
+  ) => {
+    return apiCall(`/users/${userId}`, "PATCH", data);
   },
 };
 
@@ -83,7 +92,7 @@ export const bookingService = {
       const result = await response.json();
       return result.data || result;
     } catch (error) {
-      console.error('Get Bookings Error:', error);
+      console.error("Get Bookings Error:", error);
       throw error;
     }
   },
@@ -91,14 +100,16 @@ export const bookingService = {
   // Get booking details
   getBooking: async (bookingId: string) => {
     try {
-      const response = await fetch(`${BOOKING_SERVICE_URL}/bookings/${bookingId}`);
+      const response = await fetch(
+        `${BOOKING_SERVICE_URL}/bookings/${bookingId}`,
+      );
       if (!response.ok) {
         throw new Error(`API Error: ${response.statusText}`);
       }
       const result = await response.json();
       return result.data || result;
     } catch (error) {
-      console.error('Get Booking Error:', error);
+      console.error("Get Booking Error:", error);
       throw error;
     }
   },
@@ -106,17 +117,20 @@ export const bookingService = {
   // Cancel booking
   cancelBooking: async (bookingId: string) => {
     try {
-      const response = await fetch(`${BOOKING_SERVICE_URL}/bookings/${bookingId}/cancel`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-      });
+      const response = await fetch(
+        `${BOOKING_SERVICE_URL}/bookings/${bookingId}/cancel`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+        },
+      );
       if (!response.ok) {
         throw new Error(`API Error: ${response.statusText}`);
       }
       const result = await response.json();
       return result.data || result;
     } catch (error) {
-      console.error('Cancel Booking Error:', error);
+      console.error("Cancel Booking Error:", error);
       throw error;
     }
   },

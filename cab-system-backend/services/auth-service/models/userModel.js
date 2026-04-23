@@ -1,35 +1,60 @@
+// models/userModel.js
 import pool from "../core/db.js";
 
 class UserModel {
   static async create({
     email,
-    password_hash,
-    role = "CUSTOMER",
-    first_name = null,
-    last_name = null,
-    phone_number = null,
+    username,
+    password,
+    role = "customer",
+    image = null,
   }) {
     const query = `
-      INSERT INTO auth_users (email, password_hash, role, status, provider, first_name, last_name, phone_number)
-      VALUES ($1, $2, $3, 'ACTIVE', 'email', $4, $5, $6)
-      RETURNING id, email, role, status, email_verified, first_name, last_name, phone_number, created_at;
+      INSERT INTO auth_users (
+        email,
+        password_hash,
+        provider,
+        first_name,
+        avatar_url,
+        role,
+        status
+      )
+      VALUES ($1, $2, 'email', $3, $4, $5, 'ACTIVE')
+      RETURNING
+        id,
+        email,
+        first_name AS username,
+        role,
+        avatar_url AS image,
+        email_verified_at AS verified_at,
+        (status = 'ACTIVE') AS is_active,
+        created_at;
     `;
+
     const result = await pool.query(query, [
       email.toLowerCase().trim(),
-      password_hash,
-      role.toUpperCase(),
-      first_name,
-      last_name,
-      phone_number,
+      password,
+      username.trim(),
+      image,
+      role,
     ]);
     return result.rows[0];
   }
 
   static async findByEmail(email) {
     const query = `
-      SELECT id, email, password_hash, role, status, email_verified, last_login
+      SELECT
+        id,
+        email,
+        password_hash AS password,
+        first_name AS username,
+        role,
+        avatar_url AS image,
+        email_verified_at AS verified_at,
+        (status = 'ACTIVE') AS is_active,
+        last_login
       FROM auth_users
-      WHERE email = $1 AND deleted_at IS NULL
+      WHERE email = $1
     `;
     const result = await pool.query(query, [email.toLowerCase().trim()]);
     return result.rows[0];
@@ -37,19 +62,26 @@ class UserModel {
 
   static async findById(id) {
     const query = `
-      SELECT id, email, role, status, email_verified, last_login
+      SELECT
+        id,
+        email,
+        first_name AS username,
+        role,
+        avatar_url AS image,
+        email_verified_at AS verified_at,
+        (status = 'ACTIVE') AS is_active,
+        last_login
       FROM auth_users
-      WHERE id = $1 AND deleted_at IS NULL
+      WHERE id = $1
     `;
     const result = await pool.query(query, [id]);
     return result.rows[0];
   }
 
   static async updateLastLogin(userId) {
-    await pool.query(
-      `UPDATE auth_users SET last_login = NOW(), login_count = login_count + 1 WHERE id = $1`,
-      [userId],
-    );
+    await pool.query(`UPDATE auth_users SET last_login = NOW() WHERE id = $1`, [
+      userId,
+    ]);
   }
 
   static async hasRole(userId, requiredRole) {
@@ -59,10 +91,8 @@ class UserModel {
     );
     if (result.rows.length === 0) return false;
     const role = result.rows[0].role;
-    if (requiredRole === "ADMIN")
-      return role === "ADMIN" || role === "SUPER_ADMIN";
-    if (requiredRole === "DRIVER")
-      return role === "DRIVER" || role === "ADMIN" || role === "SUPER_ADMIN";
+    if (requiredRole === "admin") return role === "admin";
+    if (requiredRole === "driver") return role === "driver" || role === "admin";
     return true;
   }
 }

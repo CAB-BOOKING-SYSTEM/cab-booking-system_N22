@@ -11,15 +11,27 @@
     "start:driver": "npm run start --workspace @cab/driver-app"
   },
   "devDependencies": {
-    "@types/react": "~19.1.10",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@types/react-router-dom": "^5.3.3",
     "babel-preset-expo": "~54.0.10",
-    "react-native-reanimated": "^3.10.1",
+    "react-native-css-interop": "^0.2.3",
+    "react-native-reanimated": "^3.19.5",
+    "react-native-worklets": "^0.8.1",
+    "tailwindcss": "^3.4.17",
     "typescript": "^5.7.3"
   },
   "dependencies": {
+    "@vitejs/plugin-react": "^6.0.1",
+    "expo-linear-gradient": "^55.0.13",
+    "moti": "^0.30.0",
+    "nativewind": "^4.2.3",
     "react": "19.1.0",
+    "react-dom": "19.1.0",
     "react-native": "0.81.5",
     "react-native-screens": "~4.16.0",
-    "stripe": "^22.0.1"
+    "react-router-dom": "^7.14.2",
+    "stripe": "^22.0.1",
+    "vite": "^8.0.9"
   }
 }

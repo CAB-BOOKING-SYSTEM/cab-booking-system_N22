@@ -24,15 +24,21 @@ export interface MatchResult {
 }
 
 class MatchingService {
-    // @ts-ignore
-  private baseUrl = "http://localhost:3000/matching";
+  private baseUrl =
+    process.env.EXPO_PUBLIC_API_BASE_URL || "http://localhost:3000/api";
 
   async findDriver(request: FindDriverRequest): Promise<any> {
     try {
-      const response = await apiClient.post(`${this.baseUrl}/find-driver`, request);
+      const response = await apiClient.post(
+        `${this.baseUrl}/matching/find-driver`,
+        request,
+      );
       return response.data;
     } catch (error: any) {
-      return { success: false, error: error.response?.data?.message || "Lỗi kết nối" };
+      return {
+        success: false,
+        error: error.response?.data?.message || "Lỗi kết nối",
+      };
     }
   }
 }

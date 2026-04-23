@@ -5,11 +5,7 @@
   "main": "app.js",
   "scripts": {
     "start": "node app.js",
-    "dev": "nodemon app.js",
-    "test": "vitest run tests/rateLimiter.test.js tests/redis.test.js tests/authController.test.js",
-    "test:watch": "vitest tests/rateLimiter.test.js tests/redis.test.js tests/authController.test.js",
-    "test:coverage": "vitest run --coverage tests/rateLimiter.test.js tests/redis.test.js tests/authController.test.js",
-    "test:integration": "vitest run tests/auth.integration.test.js"
+    "dev": "nodemon app.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -25,9 +21,6 @@
     "redis": "^4.7.0"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^2.0.0",
-    "nodemon": "^3.1.4",
-    "supertest": "^7.0.0",
-    "vitest": "^2.0.0"
+    "nodemon": "^3.1.4"
   }
 }
