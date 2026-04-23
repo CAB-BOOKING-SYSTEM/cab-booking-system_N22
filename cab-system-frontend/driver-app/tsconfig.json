@@ -4,6 +4,6 @@
     "jsx": "react-jsx",
     "noEmit": true
   },
-  "include": ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx"],
+  "include": ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx", "metro.config.js"],
   "exclude": ["node_modules", "dist", "babel.config.js", "metro.config.js"]
 }

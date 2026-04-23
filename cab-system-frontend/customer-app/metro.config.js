@@ -26,4 +26,6 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
 
 module.exports = withNativeWind(config, {
   input: "./src/index.css",
+  projectRoot,
+  configPath: path.resolve(projectRoot, "tailwind.config.js"),
 });

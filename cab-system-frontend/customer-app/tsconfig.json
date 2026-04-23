@@ -9,12 +9,8 @@
     "**/*.tsx",
     "**/*.js",
     "**/*.jsx",
-    "nativewind-env.d.ts"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "babel.config.js",
+    "nativewind-env.d.ts",
     "metro.config.js"
-  ]
+  ],
+  "exclude": ["node_modules", "dist", "babel.config.js", "metro.config.js"]
 }
