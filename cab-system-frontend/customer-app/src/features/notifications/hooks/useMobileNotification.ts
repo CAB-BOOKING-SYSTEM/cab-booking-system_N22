@@ -3,13 +3,13 @@
  * @description Hook quản lý notification state cho Mobile (Customer App).
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { NotificationSocketClient } from "@cab-booking/realtime";
+import { useCallback, useEffect, useState } from "react";
 import {
   getHistory,
   getUnreadCount,
   markAsRead,
   markAllAsRead,
+  setNotificationAuthToken,
 } from "@cab-booking/api-client";
 import type { Notification } from "@cab-booking/shared-types";
 
@@ -46,8 +46,6 @@ export function useMobileNotification({
   const [currentUserId, setCurrentUserId] = useState(initialUserId);
   const [currentToken, setCurrentToken] = useState(initialToken);
 
-  const clientRef = useRef<NotificationSocketClient | null>(null);
-
   const connectSocket = useCallback((uid: string, token: string) => {
     setCurrentUserId(uid);
     setCurrentToken(token);
@@ -80,42 +78,34 @@ export function useMobileNotification({
       }
     })();
 
-    return () => { cancelled = true; };
-  }, [currentUserId]);
-
-  // Socket connection
-  useEffect(() => {
-    if (!currentUserId || !currentToken) return;
-
-    const client = new NotificationSocketClient();
-    clientRef.current = client;
-    client.connect({ url: socketUrl, token: currentToken });
-    client.register(currentUserId);
-
-    const unsub = client.onNotification((n) => {
-      setNotifications((prev) => [n, ...prev]);
-      setUnreadCount((c) => c + 1);
-      setLatestToast(n);
-    });
-
     return () => {
-      unsub();
-      client.disconnect();
-      clientRef.current = null;
+      cancelled = true;
     };
-  }, [currentUserId, currentToken, socketUrl]);
-
-  const handleMarkAsRead = useCallback(async (notificationId: string) => {
-    try {
-      await markAsRead(notificationId, currentUserId);
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === notificationId ? { ...n, isRead: true } : n)),
-      );
-      setUnreadCount((c) => Math.max(0, c - 1));
-    } catch (err) {
-      console.error("[useMobileNotification] markAsRead:", err);
-    }
   }, [currentUserId]);
+
+  // Keep the notification API authenticated when a token is available.
+  useEffect(() => {
+    if (!currentToken) return;
+
+    setNotificationAuthToken(currentToken);
+  }, [currentToken]);
+
+  const handleMarkAsRead = useCallback(
+    async (notificationId: string) => {
+      try {
+        await markAsRead(notificationId, currentUserId);
+        setNotifications((prev) =>
+          prev.map((n) =>
+            n.id === notificationId ? { ...n, isRead: true } : n,
+          ),
+        );
+        setUnreadCount((c) => Math.max(0, c - 1));
+      } catch (err) {
+        console.error("[useMobileNotification] markAsRead:", err);
+      }
+    },
+    [currentUserId],
+  );
 
   const handleMarkAllAsRead = useCallback(async () => {
     try {

@@ -33,17 +33,26 @@ export interface AcceptRideRequest {
 }
 
 class DriverService {
-  private baseUrl = process.env.EXPO_PUBLIC_DRIVER_URL || "http://localhost:3003";
-  private wsUrl = process.env.EXPO_PUBLIC_WS_URL || "http://localhost:3003";
+  private baseUrl =
+    process.env.EXPO_PUBLIC_API_BASE_URL || "http://localhost:3000/api";
+  private wsUrl = process.env.EXPO_PUBLIC_WS_URL || "ws://localhost:3000";
   private socket: Socket | null = null;
-  private onIncomingRequestCallback: ((request: IncomingRequest) => void) | null = null;
+  private onIncomingRequestCallback:
+    | ((request: IncomingRequest) => void)
+    | null = null;
 
   // ========== HTTP API ==========
 
   // Cập nhật trạng thái online/offline
-  async toggleStatus(driverId: string, status: "online" | "offline"): Promise<boolean> {
+  async toggleStatus(
+    driverId: string,
+    status: "online" | "offline",
+  ): Promise<boolean> {
     try {
-      await apiClient.post(`${this.baseUrl}/api/drivers/${driverId}/toggle-status`, { status });
+      await apiClient.post(
+        `${this.baseUrl}/drivers/${driverId}/toggle-status`,
+        { status },
+      );
       return true;
     } catch (error) {
       console.error("Toggle status error:", error);
@@ -54,7 +63,9 @@ class DriverService {
   // Nhận chuyến (Accept)
   async acceptRide(driverId: string, rideId: string): Promise<boolean> {
     try {
-      await apiClient.post(`${this.baseUrl}/api/drivers/${driverId}/accept-ride`, { rideId });
+      await apiClient.post(`${this.baseUrl}/drivers/${driverId}/accept-ride`, {
+        rideId,
+      });
       return true;
     } catch (error) {
       console.error("Accept ride error:", error);
@@ -65,7 +76,9 @@ class DriverService {
   // Từ chối chuyến (Reject)
   async rejectRide(driverId: string, rideId: string): Promise<boolean> {
     try {
-      await apiClient.post(`${this.baseUrl}/api/drivers/${driverId}/reject-ride`, { rideId });
+      await apiClient.post(`${this.baseUrl}/drivers/${driverId}/reject-ride`, {
+        rideId,
+      });
       return true;
     } catch (error) {
       console.error("Reject ride error:", error);
@@ -76,7 +89,9 @@ class DriverService {
   // Lấy thông tin tài xế
   async getDriverInfo(driverId: string): Promise<any> {
     try {
-      const response = await apiClient.get(`${this.baseUrl}/api/drivers/${driverId}`);
+      const response = await apiClient.get(
+        `${this.baseUrl}/drivers/${driverId}`,
+      );
       return response.data;
     } catch (error) {
       console.error("Get driver info error:", error);
@@ -86,7 +101,10 @@ class DriverService {
 
   // ========== WebSocket ==========
 
-  connectWebSocket(driverId: string, onIncomingRequest: (request: IncomingRequest) => void) {
+  connectWebSocket(
+    driverId: string,
+    onIncomingRequest: (request: IncomingRequest) => void,
+  ) {
     this.onIncomingRequestCallback = onIncomingRequest;
 
     this.socket = io(this.wsUrl, {
