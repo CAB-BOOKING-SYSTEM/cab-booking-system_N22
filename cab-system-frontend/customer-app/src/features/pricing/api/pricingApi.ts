@@ -1,4 +1,4 @@
-import { apiClient } from '@cab/api-client';
+import { apiClient } from '@cab-booking/api-client';
 import type { EstimateRequest, EstimateResponse, PricingConfig } from '../types';
 
 const PRICING_SERVICE_URL = 'http://localhost:3006/api/v1';

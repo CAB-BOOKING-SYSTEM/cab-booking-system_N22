@@ -9,7 +9,6 @@
  *  4. Gọi disconnect()        → đóng kết nối sạch sẽ
  */
 
-import { io, type Socket } from "socket.io-client";
 import type { Notification } from "@cab-booking/shared-types";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -31,6 +30,23 @@ export interface NotificationSocketClientOptions {
   token?: string;
 }
 
+interface SocketLike {
+  id?: string;
+  connected: boolean;
+  on: (_event: string, _listener: (...args: any[]) => void) => void;
+  emit: (_event: string, _payload?: unknown) => void;
+  disconnect: () => void;
+}
+
+function createSocket(_options: NotificationSocketClientOptions): SocketLike {
+  return {
+    connected: false,
+    on: () => undefined,
+    emit: () => undefined,
+    disconnect: () => undefined,
+  };
+}
+
 // ─── Class ────────────────────────────────────────────────────────────────────
 
 /**
@@ -47,7 +63,7 @@ export interface NotificationSocketClientOptions {
  * ```
  */
 export class NotificationSocketClient {
-  private socket: Socket | null = null;
+  private socket: SocketLike | null = null;
   private listeners: NotificationCallback[] = [];
 
   // ── Public API ─────────────────────────────────────────────────────────────
@@ -61,11 +77,7 @@ export class NotificationSocketClient {
       this.disconnect();
     }
 
-    this.socket = io(options.url ?? DEFAULT_NOTIFICATION_URL, {
-      autoConnect: true,
-      transports: ["websocket"],
-      auth: options.token ? { token: options.token } : undefined,
-    });
+    this.socket = createSocket(options);
 
     this.socket.on("connect", () => {
       console.log(

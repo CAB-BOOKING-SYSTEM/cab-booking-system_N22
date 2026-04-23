@@ -23,7 +23,7 @@ export const registerDriver = async (email: string, password: string): Promise<D
     const { data } = await authHttp.post<DriverAuthResponse>('/register', {
       email,
       password,
-      role: 'driver',
+      role: 'DRIVER', // ✅ viết hoa
     });
     return data;
   } catch (error) {

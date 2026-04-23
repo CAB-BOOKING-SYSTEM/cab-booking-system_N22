@@ -1,7 +1,7 @@
 import { View, TouchableOpacity, Text, StyleSheet } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { ProfileScreen as ProfileScreenComponent } from "./UserProfileView";
+import { LinearGradient } from "../shims/ui";
 
 interface ProfileScreenProps {
   onLogout: () => void;

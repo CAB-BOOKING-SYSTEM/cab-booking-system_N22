@@ -1,4 +1,4 @@
-import type { Coordinates } from "@cab/shared-types";
+import type { Coordinates } from "@cab-booking/shared-types";
 
 export function formatCurrency(
   value: number,

@@ -1,4 +1,4 @@
-import { apiClient } from "@cab/api-client";
+import { apiClient } from "@cab-booking/api-client";
 
 export interface ReviewPayload {
   bookingId: string;

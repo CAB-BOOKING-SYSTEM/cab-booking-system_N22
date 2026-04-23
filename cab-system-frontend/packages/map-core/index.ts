@@ -1,4 +1,4 @@
-import type { Coordinates } from "@cab/shared-types";
+import type { Coordinates } from "@cab-booking/shared-types";
 
 export interface MapRoutePoint extends Coordinates {
   label?: string;

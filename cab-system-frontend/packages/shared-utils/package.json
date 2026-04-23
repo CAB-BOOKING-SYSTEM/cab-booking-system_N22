@@ -1,11 +1,11 @@
 {
-  "name": "@cab-booking/api-client",
+  "name": "@cab-booking/shared-utils",
   "version": "1.0.0",
   "private": true,
   "main": "index.ts",
   "types": "index.ts",
   "dependencies": {
-    "axios": "^1.7.9"
+    "@cab-booking/shared-types": "file:../shared-types"
   },
   "sideEffects": false
 }

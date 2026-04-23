@@ -1,5 +1,5 @@
 import { AxiosError } from 'axios';
-import { authHttp } from '../../utils/http';
+import { authHttp } from '../../../utils/http';
 import { AuthResponse, LoginPayload, RegisterPayload } from '../types';
 
 const readError = (error: unknown, fallback: string): Error => {

@@ -9,7 +9,9 @@
     "web": "expo start --web"
   },
   "dependencies": {
-    "@cab/api-client": "file:../packages/api-client",
+    "@cab-booking/api-client": "file:../packages/api-client",
+    "@cab-booking/realtime": "file:../packages/realtime",
+    "@cab-booking/shared-types": "file:../packages/shared-types",
     "@expo/vector-icons": "^15.1.1",
     "@react-navigation/bottom-tabs": "^7.15.9",
     "@react-navigation/native": "^7.2.2",

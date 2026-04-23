@@ -8,11 +8,9 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from 'react-native';
-import { BlurView } from 'expo-blur';
-import { LinearGradient } from 'expo-linear-gradient';
-import { MotiView } from 'moti';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { userService } from '../services/api';
+import { BlurView, LinearGradient, MotiView } from '../shims/ui';
 
 const SavedLocationCard = ({ iconName, label, address, index }) => {
   return (

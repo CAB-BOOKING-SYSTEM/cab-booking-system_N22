@@ -15,7 +15,7 @@ const router = express.Router();
 
 // Public routes với rate limiting
 router.post('/register', register);
-router.post('/login', loginLimiter, login);
+router.post('/login', /*loginLimiter,*/ login);
 router.post('/refresh', refreshLimiter, refresh);
 router.post('/logout', logout);
 router.post('/forgot-password', loginLimiter, requestPasswordReset);

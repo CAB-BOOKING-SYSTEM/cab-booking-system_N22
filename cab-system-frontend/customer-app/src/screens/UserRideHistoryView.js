@@ -8,10 +8,8 @@ import {
   SafeAreaView,
   StyleSheet,
 } from 'react-native';
-import { BlurView } from 'expo-blur';
-import { MotiView } from 'moti';
-import { LinearGradient } from 'expo-linear-gradient';
 import { bookingService } from '../services/api';
+import { BlurView, LinearGradient, MotiView } from '../shims/ui';
 
 const FILTER_OPTIONS = ['All', 'Completed', 'Cancelled'];
 

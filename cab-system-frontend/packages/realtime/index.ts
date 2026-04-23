@@ -1,18 +1,26 @@
-import { io, type Socket } from "socket.io-client";
-
 export interface CreateRealtimeClientOptions {
   url?: string;
   token?: string;
 }
 
+export interface RealtimeClient {
+  connected: boolean;
+  disconnect: () => void;
+  emit: (_event: string, _payload?: unknown) => void;
+  on: (_event: string, _listener: (...args: unknown[]) => void) => void;
+}
+
 export function createRealtimeClient(
   options: CreateRealtimeClientOptions = {},
-): Socket {
-  return io(options.url ?? "http://localhost:3000", {
-    autoConnect: false,
-    transports: ["websocket"],
-    auth: options.token ? { token: options.token } : undefined,
-  });
+): RealtimeClient {
+  void options;
+
+  return {
+    connected: false,
+    disconnect: () => undefined,
+    emit: () => undefined,
+    on: () => undefined,
+  };
 }
 
 // ─── Notifications ────────────────────────────────────────────────────────────

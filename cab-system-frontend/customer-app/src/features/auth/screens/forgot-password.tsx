@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -10,9 +9,10 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
+
+import { requestPasswordReset } from "../apis/auth";
 import AuthCard from "../components/AuthCard";
 import AuthInput from "../components/AuthInput";
-import { requestPasswordReset } from "../apis/auth";
 import { RootStackParamList } from "../types/navigation";
 
 type Props = NativeStackScreenProps<RootStackParamList, "ForgotPassword">;
@@ -20,26 +20,32 @@ type Props = NativeStackScreenProps<RootStackParamList, "ForgotPassword">;
 const ForgotPasswordScreen: React.FC<Props> = ({ navigation }) => {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
+  const [submitError, setSubmitError] = useState("");
 
   const onSubmit = async (): Promise<void> => {
     if (!email.trim()) {
-      Alert.alert("Thông báo", "Vui lòng nhập email");
+      setSubmitError("Vui lòng nhập email");
       return;
     }
 
     setLoading(true);
+    setSubmitError("");
+    setSuccessMessage("");
+
     try {
       const data = await requestPasswordReset(email.trim());
-      Alert.alert(
-        "Đã gửi",
-        data.message ||
-          "Kiểm tra email của bạn để lấy liên kết đặt lại mật khẩu.",
-        [{ text: "OK" }], // ← user tự vào email lấy link, deep link sẽ tự navigate
-      );
+      const message =
+        data.message || "Đã gửi OTP về email, vui lòng nhập OTP và mật khẩu mới.";
+
+      setSuccessMessage(message);
+
+      setTimeout(() => {
+        navigation.navigate("ResetPassword", { email: email.trim() });
+      }, 700);
     } catch (error) {
-      Alert.alert(
-        "Thất bại",
-        error instanceof Error ? error.message : "Không thể gửi email",
+      setSubmitError(
+        error instanceof Error ? error.message : "Không thể gửi OTP"
       );
     } finally {
       setLoading(false);
@@ -57,8 +63,15 @@ const ForgotPasswordScreen: React.FC<Props> = ({ navigation }) => {
       >
         <AuthCard
           title="Quên mật khẩu"
-          subtitle="Nhập email để nhận liên kết đặt lại mật khẩu"
+          subtitle="Nhập email để nhận OTP đặt lại mật khẩu"
         >
+          {successMessage ? (
+            <Text style={styles.successText}>{successMessage}</Text>
+          ) : null}
+          {submitError ? (
+            <Text style={styles.errorText}>{submitError}</Text>
+          ) : null}
+
           <AuthInput
             label="Email"
             value={email}
@@ -75,16 +88,16 @@ const ForgotPasswordScreen: React.FC<Props> = ({ navigation }) => {
             {loading ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.btnText}>Gửi liên kết đặt lại</Text>
+              <Text style={styles.btnText}>Gửi OTP</Text>
             )}
           </TouchableOpacity>
 
           <TouchableOpacity
-            onPress={() => navigation.navigate("ResetPassword", { token: "" })}
+            onPress={() =>
+              navigation.navigate("ResetPassword", { email: email.trim() })
+            }
           >
-            <Text style={styles.linkText}>
-              Tôi đã có token đặt lại mật khẩu
-            </Text>
+            <Text style={styles.linkText}>Tôi đã có OTP</Text>
           </TouchableOpacity>
 
           <TouchableOpacity onPress={() => navigation.navigate("SignIn")}>
@@ -107,13 +120,29 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   btnText: { color: "#fff", fontWeight: "700" },
-  linkText: { 
-  textAlign: 'center', 
-  color: '#4F8EF7', 
-  fontWeight: '700', 
-  marginTop: 8,
-  textDecorationLine: 'underline' // ← thêm dòng này
-},
+  linkText: {
+    textAlign: "center",
+    color: "#4F8EF7",
+    fontWeight: "700",
+    marginTop: 8,
+    textDecorationLine: "underline",
+  },
+  successText: {
+    backgroundColor: "#dcfce7",
+    color: "#166534",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontWeight: "600",
+  },
+  errorText: {
+    backgroundColor: "#fee2e2",
+    color: "#991b1b",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontWeight: "600",
+  },
   disabled: { opacity: 0.75 },
 });
 

@@ -1,8 +1,8 @@
 // Animation showcase for Cab Booking UI
 // These can be used as templates for other components
 
-import { MotiView } from 'moti';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { MotiView } from '../shims/ui';
 
 /**
  * ============================================
@@ -100,11 +100,9 @@ export const FilterButtonAnimation = ({ isActive }) => (
     transition={{ type: 'timing', duration: 200 }}
   >
     <TouchableOpacity
-      className={`px-4 py-2 rounded-full ${
-        isActive ? 'bg-emerald-500' : 'bg-gray-200'
-      }`}
+      style={[styles.filterButton, isActive ? styles.filterButtonActive : styles.filterButtonInactive]}
     >
-      <Text className="text-sm font-semibold">Filter</Text>
+      <Text style={styles.filterButtonText}>Filter</Text>
     </TouchableOpacity>
   </MotiView>
 );
@@ -114,6 +112,25 @@ export const FilterButtonAnimation = ({ isActive }) => (
  * 4. MODAL/OVERLAY ANIMATIONS
  * ============================================
  */
+
+const styles = StyleSheet.create({
+  filterButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 999,
+  },
+  filterButtonActive: {
+    backgroundColor: '#10b981',
+  },
+  filterButtonInactive: {
+    backgroundColor: '#e5e7eb',
+  },
+  filterButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111827',
+  },
+});
 
 // Fade in overlay
 export const OverlayAnimation = ({ children, visible }) => (

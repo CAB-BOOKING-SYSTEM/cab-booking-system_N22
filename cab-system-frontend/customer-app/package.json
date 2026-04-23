@@ -9,6 +9,9 @@
     "web": "expo start --web"
   },
   "dependencies": {
+    "@cab-booking/api-client": "file:../packages/api-client",
+    "@cab-booking/realtime": "file:../packages/realtime",
+    "@cab-booking/shared-types": "file:../packages/shared-types",
     "@expo/metro-runtime": "~6.1.2",
     "@expo/vector-icons": "^15.1.1",
     "@react-native-async-storage/async-storage": "^1.21.0",

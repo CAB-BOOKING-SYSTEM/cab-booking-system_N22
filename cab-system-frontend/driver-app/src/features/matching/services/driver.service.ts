@@ -1,7 +1,7 @@
 // @ts-nocheck
 // @ts-ignore
 // driver-app/src/features/matching/services/driver.service.ts
-import { apiClient } from "@cab/api-client";
+import { apiClient } from "@cab-booking/api-client";
 import io, { Socket } from "socket.io-client";
 
 export interface IncomingRequest {
