@@ -188,6 +188,7 @@ services:
       target: development
       args:
         - PORT=${PAYMENT_PORT}
+
     container_name: cab_payment
     ports:
       - "${PAYMENT_PORT}:${PAYMENT_PORT}"

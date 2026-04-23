@@ -1,3 +1,4 @@
+//D:\bc_bigdata\cab-booking-system_N22\cab-system-backend\services\payment-service\src\models\payment.model.js
 const db = require("../config/db");
 
 const Payment = {

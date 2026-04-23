@@ -1,3 +1,4 @@
+//D:\cki_mrnam\cab-booking-system_N22\cab-system-backend\services\payment-service\src\services\payment.service.js
 const retry = require("../utils/retry");
 const repo = require("../repositories/payment.repo");
 const transactionRepo = require("../repositories/paymentTransaction.repo");
@@ -13,7 +14,14 @@ class PaymentService {
       "ride.completed",
       async (event) => {
 
-        const data = event.data;
+        // 🔥 FIX CHÍNH Ở ĐÂY
+        const data = event.data || event;
+
+        if (!data || !data.rideId) {
+          console.error("❌ Invalid event:", event);
+          return;
+        }
+
         const rideId = data.rideId;
 
         console.log("🚗 ride.completed:", rideId);
@@ -25,21 +33,24 @@ class PaymentService {
           return;
         }
 
-        payment = await repo.create({
+        // 🔥 FIX FIELD (fare vs finalPrice)
+        const amount = data.fare || data.finalPrice || 0;
+
+        const newPayment = await repo.create({
           rideId,
-          bookingId: data.bookingId,
-          userId: data.customerId || null,
-          amount: data.finalPrice
+          bookingId: data.bookingId || null,
+          userId: data.userId || data.customerId || null,
+          amount
         });
 
         await transactionRepo.create({
-          payment_id: payment.id,
+          payment_id: newPayment.id,
           provider: "VNPAY",
-          amount: data.finalPrice,
+          amount,
           status: "PENDING"
         });
 
-        console.log("✅ Payment created:", rideId);
+        console.log("💰 Payment inserted into DB:", newPayment.id);
       }
     );
   }
@@ -57,7 +68,6 @@ class PaymentService {
 
     const transaction = await transactionRepo.findLatestByPaymentId(payment.id);
 
-    // 🔥 phân loại lỗi
     const FAILED_CODES = ["51", "12", "10", "13", "24"];
     const RETRY_CODES = ["75", "99"];
 
@@ -65,7 +75,13 @@ class PaymentService {
 
     const process = async () => {
       attempt++;
+
       console.log(`👉 Attempt ${attempt}`);
+
+      if (attempt > 1) {
+        await repo.increaseRetry(payment.id);
+        console.log("🔥 retry_count +1");
+      }
 
       // ===== SUCCESS =====
       if (code === "00") {
@@ -96,7 +112,6 @@ class PaymentService {
 
         console.log("🔁 RETRY CASE");
 
-        // 🔥 test timeout (2 fail → 1 success)
         if (params.test === "timeout") {
           if (attempt < 3) {
             throw new Error("timeout");
@@ -114,7 +129,11 @@ class PaymentService {
           });
 
           await messageBroker.publish("payment.events", "payment.completed", {
-            data: { rideId }
+            data: {
+              rideId,
+              paymentId: payment.id,
+              amount: payment.amount
+            }
           });
 
           return;
@@ -138,10 +157,12 @@ class PaymentService {
     };
 
     try {
-      await retry(process, 3);
+      await retry(process, 4, 1000);
       return { success: true };
 
     } catch (err) {
+
+      console.log("❌ RETRY EXHAUSTED");
 
       await repo.update(payment.id, "FAILED");
 
@@ -153,7 +174,10 @@ class PaymentService {
       });
 
       await messageBroker.publish("payment.events", "payment.failed", {
-        data: { rideId }
+        data: {
+          rideId,
+          paymentId: payment.id
+        }
       });
 
       console.log("❌ FAILED:", rideId);
@@ -161,8 +185,6 @@ class PaymentService {
       return { success: false };
     }
   }
-
-  
 }
 
 module.exports = new PaymentService();

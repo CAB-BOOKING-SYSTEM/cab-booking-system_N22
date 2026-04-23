@@ -1,3 +1,5 @@
+//D:\bc_bigdata\cab-booking-system_N22\cab-system-backend\services\payment-service\index.js
+// index.js
 require("dotenv").config();
 
 const { connectDB } = require("./src/config/db");
@@ -7,13 +9,27 @@ const app = require("./src/app");
 
 const PORT = process.env.PORT || 3005;
 
-// 🚀 START SERVER TRƯỚC
-app.listen(PORT, () => {
-  console.log(`🚀 Payment Service running on http://localhost:${PORT}`);
-});
+const start = async () => {
+  try {
+    // 1. Connect DB trước
+    await connectDB();
 
-// 🔥 chạy async phía sau (KHÔNG await)
-connectDB();
-connectRabbitMQ().then(() => {
-  paymentService.startConsumer();
-});
+    // 2. Connect RabbitMQ
+    await connectRabbitMQ();
+
+    // 3. Start Consumer (🔥 QUAN TRỌNG)
+    await paymentService.startConsumer();
+    console.log("✅ Consumer started");
+
+    // 4. Start HTTP server SAU CÙNG
+    app.listen(PORT, () => {
+      console.log(`🚀 Payment Service running on http://localhost:${PORT}`);
+    });
+
+  } catch (err) {
+    console.error("❌ Failed to start Payment Service:", err);
+    process.exit(1);
+  }
+};
+
+start();
