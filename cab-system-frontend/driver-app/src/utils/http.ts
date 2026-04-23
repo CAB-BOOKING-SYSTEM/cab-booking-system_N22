@@ -2,7 +2,7 @@ import axios from 'axios';
 import { API_URLS } from './config';
 
 export const authHttp = axios.create({
-  baseURL: `${API_URLS.AUTH}/api/auth`,
+  baseURL: `${API_URLS.AUTH}/auth`,
   timeout: 15000,
   withCredentials: true,
   headers: {

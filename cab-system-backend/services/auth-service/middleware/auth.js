@@ -1,7 +1,5 @@
 // middleware/auth.js
 import jwt from 'jsonwebtoken';
-import redisClient from '../core/redis.js';
-import User from '../models/userModel.js';
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -14,27 +12,9 @@ export const protect = async (req, res, next) => {
 
     const token = authHeader.split(' ')[1];
 
-    // Kiểm tra blacklist
-    let isBlacklisted = false;
-    try {
-      const exists = await redisClient.exists(`blacklist:${token}`);
-      isBlacklisted = exists === 1;
-    } catch {
-      isBlacklisted = false;
-    }
-
-    if (isBlacklisted) {
-      return res.status(401).json({ message: 'Token has been revoked' });
-    }
-
     const decoded = jwt.verify(token, JWT_SECRET);
-    const user = await User.findById(decoded.sub);
+    req.user = decoded;
 
-    if (!user || user.status !== 'ACTIVE') {
-      return res.status(401).json({ message: 'User not found or inactive' });
-    }
-
-    req.user = user;
     next();
   } catch (error) {
     if (error.name === 'TokenExpiredError') {
@@ -42,4 +22,13 @@ export const protect = async (req, res, next) => {
     }
     return res.status(401).json({ message: 'Invalid token' });
   }
+};
+
+export const authorize = (...allowedRoles) => {
+  return (req, res, next) => {
+    if (!req.user || !allowedRoles.includes(req.user.role)) {
+      return res.status(403).json({ message: 'Access denied: insufficient permissions' });
+    }
+    next();
+  };
 };

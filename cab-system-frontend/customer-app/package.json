@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@cab/api-client": "file:../packages/api-client",
+    "@cab-booking/realtime": "file:../packages/realtime",
     "@expo/metro-runtime": "~6.1.2",
     "@expo/vector-icons": "^15.1.1",
     "@react-native-async-storage/async-storage": "^1.21.0",
@@ -28,6 +29,7 @@
     "expo-status-bar": "~3.0.9",
     "express": "^5.2.1",
     "leaflet": "^1.9.4",
+    "nativewind": "^4.2.3",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-leaflet": "^5.0.0",
@@ -37,14 +39,17 @@
     "react-native-reanimated": "^3.10.1",
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "^4.16.0",
+    "react-native-tailwindcss": "^1.1.11",
     "react-native-vector-icons": "^10.0.3",
     "react-native-web": "^0.21.0",
-    "react-redux": "^9.2.0"
+    "react-native-worklets": "^0.8.1",
+    "react-redux": "^9.2.0",
+    "tailwindcss": "^3.4.19"
   },
   "private": true,
   "devDependencies": {
-    "@types/react": "~19.1.10",
     "@types/leaflet": "^1.9.21",
+    "@types/react": "~19.1.10",
     "@types/react-native-vector-icons": "^6.4.18",
     "typescript": "~5.9.2"
   }

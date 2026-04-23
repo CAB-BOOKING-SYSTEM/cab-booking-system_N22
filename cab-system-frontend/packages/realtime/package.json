@@ -1,0 +1,9 @@
+{
+  "name": "@cab-booking/realtime",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "types": "index.ts",
+  "dependencies": {
+    "socket.io-client": "^4.5.0"
+  }
+}

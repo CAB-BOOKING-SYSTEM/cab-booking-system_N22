@@ -1,5 +1,5 @@
 {
-  "name": "@cab/api-client",
+  "name": "@cab-booking/api-client",
   "version": "1.0.0",
   "private": true,
   "main": "index.ts",

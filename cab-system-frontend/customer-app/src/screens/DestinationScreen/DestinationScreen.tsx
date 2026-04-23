@@ -28,6 +28,36 @@ type ListItem =
   | NearbyPlace
   | PlacePrediction;
 
+// ==================== HÀM TÍNH KHOẢNG CÁCH (HAVERSINE) ====================
+function calculateHaversineDistance(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): number {
+  const R = 6371; // Bán kính trái đất (km)
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+function calculateDistanceAndDuration(
+  originLat: number,
+  originLng: number,
+  destLat: number,
+  destLng: number
+): { distance: number; duration: number } {
+  const distance = calculateHaversineDistance(originLat, originLng, destLat, destLng);
+  const avgSpeedKmph = 30; // Tốc độ trung bình 30 km/h
+  const duration = Math.round((distance / avgSpeedKmph) * 60);
+  return { distance, duration };
+}
+// =========================================================================
+
 const DestinationScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute<DestinationScreenRouteProp>();
@@ -138,26 +168,44 @@ const DestinationScreen: React.FC = () => {
         address: details.formatted_address,
         name: details.name,
       });
-      console.log('===================================');
       
-      // TODO: Chuyển sang màn hình chọn xe (VehicleSelection)
-      // navigation.navigate('VehicleSelection', {
-      //   pickupLocation,
-      //   dropoffLocation: {
-      //     lat: details.geometry.location.lat,
-      //     lng: details.geometry.location.lng,
-      //     address: details.formatted_address,
-      //     name: details.name,
-      //     placeId: details.place_id,
-      //   },
-      // });
-      
-      // Hiển thị thông báo thành công (tạm thời)
-      Alert.alert(
-        '✅ Thành công',
-        `Đã chọn điểm đến:\n${details.name}\n${details.formatted_address}`,
-        [{ text: 'OK' }]
+      // ==================== TÍNH KHOẢNG CÁCH & THỜI GIAN THỰC TẾ ====================
+      const { distance, duration } = calculateDistanceAndDuration(
+        pickupLocation.lat,
+        pickupLocation.lng,
+        details.geometry.location.lat,
+        details.geometry.location.lng
       );
+      
+      console.log('=== 🧮 KẾT QUẢ TÍNH TOÁN ===');
+      console.log('Khoảng cách:', distance.toFixed(2), 'km');
+      console.log('Thời gian:', duration, 'phút');
+      console.log('==============================');
+      // ============================================================================
+      
+      // Chuyển sang màn hình chọn xe (RideOptions) - PHẦN CỦA BẠN
+      navigation.navigate('RideOptions', {
+        pickupLocation: {
+          lat: pickupLocation.lat,
+          lng: pickupLocation.lng,
+          address: pickupLocation.address,
+        },
+        dropoffLocation: {
+          lat: details.geometry.location.lat,
+          lng: details.geometry.location.lng,
+          address: details.formatted_address,
+          name: details.name,
+        },
+        distance: parseFloat(distance.toFixed(1)), // Làm tròn 1 số thập phân
+        duration: duration,
+      });
+
+      // Hiển thị thông báo thành công (tạm thời - đã comment)
+      // Alert.alert(
+      //   '✅ Thành công',
+      //   `Đã chọn điểm đến:\n${details.name}\n${details.formatted_address}`,
+      //   [{ text: 'OK' }]
+      // );
       
     } catch (error) {
       console.error('❌ Lỗi khi chọn địa điểm:', error);
