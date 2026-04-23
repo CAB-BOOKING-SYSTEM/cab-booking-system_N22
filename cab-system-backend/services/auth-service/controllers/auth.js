@@ -4,7 +4,7 @@ import jwt from "jsonwebtoken";
 import redisClient from "../core/redis.js";
 import User from "../models/userModel.js";
 import pool from "../core/db.js";
-
+import { sendPasswordResetEmail } from "../core/mailer.js";
 const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
 const ACCESS_EXPIRES = process.env.JWT_EXPIRES_IN || "15m";
@@ -27,8 +27,10 @@ const generateAccessToken = (user) =>
 const generateRefreshToken = (userId) =>
   jwt.sign({ sub: userId }, JWT_REFRESH_SECRET, { expiresIn: REFRESH_EXPIRES });
 
-const hashToken = (rawToken) =>
-  crypto.createHash("sha256").update(rawToken).digest("hex");
+const otp = Math.floor(100000 + Math.random() * 900000).toString();
+const hashToken = (token) =>
+  crypto.createHash("sha256").update(token).digest("hex");
+const tokenHash = hashToken(otp);
 
 const getTokenExpiryDate = (token) => {
   const decoded = jwt.decode(token);
@@ -623,59 +625,55 @@ export const logout = async (req, res) => {
 
 export const requestPasswordReset = async (req, res) => {
   const ip = req.ip;
-  const ua = req.headers["user-agent"];
+  const ua = req.headers['user-agent'];
 
   try {
-    const normalizedEmail = String(req.body?.email || "")
-      .toLowerCase()
-      .trim();
+    const normalizedEmail = String(req.body?.email || '').toLowerCase().trim();
     if (!normalizedEmail) {
-      return res.status(400).json({ message: "Email is required" });
+      return res.status(400).json({ message: 'Email is required' });
     }
 
     const user = await User.findByEmail(normalizedEmail);
     if (!user) {
-      await writeAuditLog({
-        userId: null,
-        eventType: "PASSWORD_RESET_REQUESTED",
-        status: "FAILED",
-        reason: "User not found",
-        ipAddress: ip,
-        userAgent: ua,
-        metadata: { email: normalizedEmail },
-      });
-      return res.json({
-        message: "Nếu email tồn tại, chúng tôi đã tạo reset token.",
-      });
+      return res.json({ message: 'Nếu email tồn tại, chúng tôi đã gửi mã OTP.' });
     }
 
-    const rawToken = crypto.randomBytes(32).toString("hex");
-    const tokenHash = hashToken(rawToken);
+    // ✅ Tạo OTP 6 số
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const tokenHash = hashToken(otp);
+
+    // Xóa OTP cũ chưa dùng của user này
+    await pool.query(
+      `UPDATE password_reset_tokens 
+       SET is_used = TRUE 
+       WHERE user_id = $1 AND is_used = FALSE`,
+      [user.id]
+    );
 
     await pool.query(
       `INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
        VALUES ($1, $2, NOW() + ($3 || ' minutes')::INTERVAL)`,
-      [user.id, tokenHash, RESET_TOKEN_TTL_MINUTES],
+      [user.id, tokenHash, RESET_TOKEN_TTL_MINUTES]
     );
+
+    await sendPasswordResetEmail({
+      to: user.email,
+      resetToken: otp,        // ✅ Gửi OTP thay vì token dài
+      ttlMinutes: RESET_TOKEN_TTL_MINUTES,
+    }).catch((err) => console.error('[Mailer] Failed:', err.message));
 
     await writeAuditLog({
       userId: user.id,
-      eventType: "PASSWORD_RESET_REQUESTED",
-      status: "SUCCESS",
+      eventType: 'PASSWORD_RESET_REQUESTED',
+      status: 'SUCCESS',
       ipAddress: ip,
       userAgent: ua,
     });
 
-    const response = {
-      message: "Reset token đã được tạo. Vui lòng kiểm tra email.",
-    };
-    if (process.env.NODE_ENV !== "production") {
-      response.resetToken = rawToken;
-    }
-    return res.json(response);
+    return res.json({ message: 'Chúng tôi đã gửi mã OTP đến email của bạn.' });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ message: "Không thể tạo reset token" });
+    return res.status(500).json({ message: 'Không thể tạo mã OTP' });
   }
 };
 
