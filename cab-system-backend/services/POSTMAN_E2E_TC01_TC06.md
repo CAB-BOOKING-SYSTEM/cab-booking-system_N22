@@ -1,4 +1,4 @@
-### [TC-01] Đăng ký khách hàng trả user hợp lệ (Level 1)
+### [TC-01] Đăng ký khách hàng trả về user hợp lệ (Level 1)
 **Method:** `POST`
 **URL:** `{{base_url}}/auth/register`
 **Headers:**
@@ -77,7 +77,7 @@ pm.test('Response has accessToken + user', function () {
 });
 ```
 
-### [TC-03] Đăng ký tài xế để phục vụ luồng ghép chuyến (Level 1)
+### [TC-03] Đăng ký tài khoản tài xế để phục vụ luồng ghép chuyến (Level 1)
 **Method:** `POST`
 **URL:** `{{base_url}}/api/drivers/register`
 **Headers:**
@@ -163,9 +163,7 @@ pm.test('Driver status is online', function () {
 
 **Pre-request Script:**
 ```javascript
-if (!pm.environment.get('idempotency_key')) {
-  pm.environment.set('idempotency_key', `idem-${Date.now()}`);
-}
+pm.environment.set('idempotency_key', `idem-${Date.now()}`);
 ```
 
 **Body:**
@@ -189,6 +187,11 @@ if (!pm.environment.get('idempotency_key')) {
   "duration": 25
 }
 ```
+
+> Lưu ý mapping `vehicleType` giữa service:
+> - driver-service `4_seat`  -> booking-service `car_4`
+> - driver-service `7_seat`  -> booking-service `car_7`
+> - driver-service `luxury`  -> booking-service **không hỗ trợ trực tiếp** (cần map nghiệp vụ riêng trước khi tạo booking)
 
 **Tests Script:**
 ```javascript
