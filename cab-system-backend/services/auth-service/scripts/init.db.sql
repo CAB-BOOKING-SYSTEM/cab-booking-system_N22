@@ -1,8 +1,5 @@
--- ============================================
--- ZERO TRUST AUTH SERVICE DATABASE SCHEMA
--- PostgreSQL
--- Roles: customer, driver, admin
--- ============================================
+-- Execute:
+-- psql -h <host> -U <user> -d <database> -f scripts/init.db.sql
 
 CREATE TABLE IF NOT EXISTS auth_users (
   id SERIAL PRIMARY KEY,
@@ -99,3 +96,19 @@ CREATE INDEX IF NOT EXISTS idx_auth_audit_logs_user_id ON auth_audit_logs(user_i
 CREATE INDEX IF NOT EXISTS idx_auth_audit_logs_event_type ON auth_audit_logs(event_type);
 CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_sessions_session_id ON user_sessions(session_id);
+
+INSERT INTO auth_users (
+  full_name,
+  phone_number,
+  email,
+  password_hash,
+  role,
+  status,
+  driver_id,
+  driver_status,
+  email_verified
+) VALUES
+('Admin System', '0900000000', 'admin@cab.com', '$2a$12$MU7n4P5j76iA4rBLMTE7vOgM2Rjznh8A1G2M4us7l9j0xF0PBnTTe', 'admin', 'ACTIVE', NULL, NULL, TRUE),
+('Driver Test', '0900000001', 'driver@cab.com', '$2a$12$MU7n4P5j76iA4rBLMTE7vOgM2Rjznh8A1G2M4us7l9j0xF0PBnTTe', 'driver', 'ACTIVE', 'DRV001', 'ONLINE', TRUE),
+('Customer Test', '0900000002', 'customer@cab.com', '$2a$12$MU7n4P5j76iA4rBLMTE7vOgM2Rjznh8A1G2M4us7l9j0xF0PBnTTe', 'customer', 'ACTIVE', NULL, NULL, TRUE)
+ON CONFLICT (email) DO NOTHING;
