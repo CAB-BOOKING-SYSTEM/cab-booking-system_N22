@@ -54,9 +54,9 @@ export const register = async (req, res) => {
       password,
       role = "customer",
       phone_number = null,
-      driver_id = null,
       driver_status = null,
     } = req.body;
+    let driver_id = req.body.driver_id || null;  // 🔥 SỬA: dùng let thay vì const
 
     if (!email || !username || !password) {
       return res.status(400).json({ message: "Missing required fields" });
@@ -64,10 +64,11 @@ export const register = async (req, res) => {
 
     const normalizedRole = User.normalizeRole(role);
     if (normalizedRole === "driver" && !driver_id) {
-      return res.status(400).json({
-        message: "driver_id is required when registering a driver account",
-      });
+      // Tự động tạo driver_id nếu chưa có
+      driver_id = `DRV_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
     }
+
+
 
     const existingUser = await User.findByEmail(email);
     if (existingUser) {

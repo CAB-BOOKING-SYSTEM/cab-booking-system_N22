@@ -11,7 +11,7 @@ const driverSchema = new mongoose.Schema(
     phone: {
       type: String,
       required: false,
-      unique: true,
+      unique: false,  // 🔥 ĐÃ SỬA: bỏ unique
       sparse: true,
     },
     email: {
