@@ -12,53 +12,12 @@ const {
 
 const DEFAULT_USER_ROLE = "customer";
 
-/**
- * Defensive extraction: bóc tách object chứa dữ liệu thực sự của chuyến xe
- * từ notificationPayload có thể bị lồng nhiều tầng do lỗi thiết kế của booking-service.
- *
- * Thứ tự ưu tiên (giống consumer.js để nhất quán):
- *   1. notificationPayload.payload.data  — bị wrap thêm một lớp ngoài
- *   2. notificationPayload.data          — cấu trúc chuẩn
- *   3. notificationPayload               — raw flat object, loại bỏ các key envelope
- *
- * KHÔNG bao giờ trả về nguyên cục notificationPayload thô.
- */
 function getEventData(notificationPayload = {}) {
-  // Ưu tiên 1: payload.payload.data (booking-service bắn message bị wrap thêm lớp)
-  if (
-    notificationPayload.payload &&
-    typeof notificationPayload.payload === "object" &&
-    notificationPayload.payload.data &&
-    typeof notificationPayload.payload.data === "object"
-  ) {
-    return notificationPayload.payload.data;
+  if (notificationPayload && typeof notificationPayload.data === "object") {
+    return notificationPayload.data || {};
   }
 
-  // Ưu tiên 2: payload.data (cấu trúc chuẩn)
-  if (notificationPayload.data && typeof notificationPayload.data === "object") {
-    return notificationPayload.data;
-  }
-
-  // Fallback: loại bỏ các trường envelope trước khi fallback
-  const {
-    metaData,
-    payload: _inner,
-    bookingData: _bd,
-    eventId,
-    eventType,
-    eventName,
-    type,
-    source,
-    sourceService,
-    timestamp,
-    title,
-    body,
-    userId,
-    userRole,
-    routingKey,
-    ...rest
-  } = notificationPayload;
-  return rest;
+  return notificationPayload || {};
 }
 
 function toPascalCase(routingKey) {
@@ -245,21 +204,8 @@ function buildNotificationContent(routingKey, notificationPayload = {}) {
   }
 }
 
-/**
- * Chuẩn hóa payload đầu vào thành một object gọn gàng, sẵn sàng để lưu DB.
- *
- * Object trả về CHỄ chứa:
- *  - các trường điều phối   : eventId, eventType, routingKey, timestamp, source
- *  - các trường người dùng  : userId, userRole
- *  - nội dung thông báo : title, body
- *  - dữ liệu chuyến xe    : bookingData — object thuần, đã bóc tách khỏi các wrapper lồng nhau
- *
- * KHÔNG bao gồm trường `metaData` chứa thông tin chuyến xe bị dội lại.
- */
 function normalizeNotificationPayload(routingKey, notificationPayload = {}) {
-  // Bóc tách bookingData sạch khỏi message có thể bị lồng nhiều tầng
-  const bookingData = getEventData(notificationPayload);
-
+  const eventData = getEventData(notificationPayload);
   const content =
     notificationPayload.title && notificationPayload.body
       ? {
@@ -278,48 +224,34 @@ function normalizeNotificationPayload(routingKey, notificationPayload = {}) {
         }
       : buildNotificationContent(routingKey, notificationPayload);
 
-  // Gom eventId từ các vị trí có thể có trong message bị lồng
-  const eventId =
-    notificationPayload.eventId ||
-    notificationPayload.id ||
-    notificationPayload.payload?.eventId ||
-    bookingData.eventId ||
-    null;
-
-  const eventType =
-    notificationPayload.eventType ||
-    notificationPayload.eventName ||
-    notificationPayload.type ||
-    routingKey;
-
-  const timestamp =
-    notificationPayload.timestamp ||
-    bookingData.timestamp ||
-    new Date().toISOString();
-
-  const source =
-    notificationPayload.source ||
-    notificationPayload.sourceService ||
-    bookingData.source ||
-    bookingData.sourceService ||
-    null;
-
   return {
-    // --- Envelope (dùng để map vào sourceEventId, không lưu raw metaData) ---
-    eventId,
-    eventType,
+    eventId:
+      notificationPayload.eventId ||
+      notificationPayload.id ||
+      eventData.eventId ||
+      null,
+    eventType:
+      notificationPayload.eventType ||
+      notificationPayload.eventName ||
+      notificationPayload.type ||
+      routingKey,
     routingKey,
-    timestamp,
-    source,
-    // --- Người dùng nhận thông báo ---
+    timestamp:
+      notificationPayload.timestamp ||
+      eventData.timestamp ||
+      new Date().toISOString(),
+    source:
+      notificationPayload.source ||
+      notificationPayload.sourceService ||
+      eventData.source ||
+      eventData.sourceService ||
+      null,
     userId: content.userId,
     userRole: content.userRole,
-    // --- Nội dung thông báo ---
     title: content.title,
     body: content.body,
-    // --- Dữ liệu chuyến xe đã bóc tách sạch — đây là THỨ DUY NHẤT được lưu xuống DB ---
-    bookingData,
-    // metaData đã bị loại bỏ cố tình — không dump raw message vào DB
+    data: eventData,
+    metaData: notificationPayload.metaData || notificationPayload,
   };
 }
 
@@ -363,16 +295,8 @@ async function processNotification(routingKey, payload = {}) {
       type: notificationType,
       title: normalizedPayload.title,
       body: normalizedPayload.body,
-      // payload chỉ chứa bookingData đã bóc tách sạch — không dump toàn bộ normalizedPayload
-      payload: normalizedPayload.bookingData || {},
-      // metaData chỉ giữ các trường cần thiết cho trà cứu (không có thông tin chuyến xe lồng nhau)
-      metaData: {
-        eventType: normalizedPayload.eventType,
-        routingKey: normalizedPayload.routingKey,
-        timestamp: normalizedPayload.timestamp,
-        source: normalizedPayload.source,
-      },
-      // eventId từ message được map vào sourceEventId để khử trùng
+      payload: normalizedPayload,
+      metaData: normalizedPayload.metaData,
       sourceEventId: normalizedPayload.eventId,
       status: "pending",
     });
@@ -392,9 +316,9 @@ async function processNotification(routingKey, payload = {}) {
         type: notificationType,
         title: normalizedPayload.title,
         body: normalizedPayload.body,
-        routingKey: normalizedPayload.routingKey,
-        // Chỉ gửi bookingData sạch qua socket, không gửi metaData lồng nhau
-        data: normalizedPayload.bookingData || {},
+        routingKey,
+        data: normalizedPayload.data,
+        metaData: normalizedPayload.metaData,
       },
     );
 

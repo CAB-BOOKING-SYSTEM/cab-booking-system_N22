@@ -10,56 +10,27 @@ const SERVICE_ACCOUNT_PATH = path.resolve(
 );
 
 if (admin.apps.length === 0) {
-  const serviceAccountBase64 = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64;
   const accountPath =
     process.env.FIREBASE_SERVICE_ACCOUNT_PATH || SERVICE_ACCOUNT_PATH;
-  let initialized = false;
 
-  if (serviceAccountBase64) {
+  if (!fs.existsSync(accountPath)) {
+    console.warn(
+      `⚠️  [FCM] Không tìm thấy Firebase service account tại: ${accountPath}`,
+    );
+    console.warn(
+      "⚠️  [FCM] Push Notification sẽ bị vô hiệu hoá cho đến khi cấu hình đúng file.",
+    );
+  } else {
     try {
-      const serviceAccountBuffer = Buffer.from(serviceAccountBase64, "base64");
-      const serviceAccount = JSON.parse(serviceAccountBuffer.toString("utf-8"));
-
+      const serviceAccount = require(accountPath);
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
-        projectId: process.env.FIREBASE_PROJECT_ID || serviceAccount.project_id,
       });
-
-      initialized = true;
-      console.log(
-        "✅ [FCM] Firebase Admin SDK đã khởi tạo thành công qua Base64",
-      );
+      console.log("✅ [FCM] Firebase Admin SDK đã khởi tạo thành công");
     } catch (error) {
       console.warn(
-        `⚠️  [FCM] Không thể khởi tạo Firebase qua FIREBASE_SERVICE_ACCOUNT_BASE64: ${error.message}`,
+        `⚠️  [FCM] Không thể khởi tạo Firebase Admin SDK: ${error.message}`,
       );
-    }
-  }
-
-  if (!initialized) {
-    if (!fs.existsSync(accountPath)) {
-      console.warn(
-        `⚠️  [FCM] Không tìm thấy Firebase service account tại: ${accountPath}`,
-      );
-      console.warn(
-        "⚠️  [FCM] Push Notification sẽ bị vô hiệu hoá cho đến khi cấu hình đúng file hoặc FIREBASE_SERVICE_ACCOUNT_BASE64.",
-      );
-    } else {
-      try {
-        const serviceAccount = require(accountPath);
-        admin.initializeApp({
-          credential: admin.credential.cert(serviceAccount),
-          projectId:
-            process.env.FIREBASE_PROJECT_ID || serviceAccount.project_id,
-        });
-        console.log(
-          "✅ [FCM] Firebase Admin SDK đã khởi tạo thành công qua file JSON",
-        );
-      } catch (error) {
-        console.warn(
-          `⚠️  [FCM] Không thể khởi tạo Firebase Admin SDK: ${error.message}`,
-        );
-      }
     }
   }
 }

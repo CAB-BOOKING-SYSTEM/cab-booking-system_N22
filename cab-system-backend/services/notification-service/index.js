@@ -59,13 +59,10 @@ app.get("/metrics", (req, res) => {
 });
 
 // REST API — Notification CRUD (Frontend gọi để lấy lịch sử, đánh dấu đã đọc)
-// Keep legacy path and add gateway-aligned path.
 app.use("/notifications", notificationRoutes);
-app.use("/api/notifications", notificationRoutes);
 
 // ─── Bootstrap ────────────────────────────────────────────────────────────────
 const start = async () => {
-  console.log("Version0.0 - 24 -04 : Starting Notification Service...");
   // 1. Kết nối MongoDB
   if (!DB_URL) {
     console.error(
@@ -73,7 +70,7 @@ const start = async () => {
     );
     process.exit(1);
   }
-  console.log("Version0.0 - 24 -04 : Starting Notification Service...");
+
   console.log("⏳ [MongoDB] Đang kết nối tới database..."); // Thêm dòng này để biết nó đang chạy
   await mongoose.connect(DB_URL, {
     serverSelectionTimeoutMS: 5000, // Nếu sau 5 giây không kết nối được thì báo lỗi ngay, không treo máy
