@@ -2,8 +2,7 @@ const ReviewService = require("./review.service");
 
 const reviewService = new ReviewService();
 
-const getUserIdFromRequest = (req) =>
-  req.user?.id || req.user?.sub || req.user?.userId || req.headers["x-customer-id"];
+const getUserIdFromRequest = (req) => req.user?.id || req.user?.sub || req.user?.userId;
 
 /**
  * POST /reviews

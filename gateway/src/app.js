@@ -75,9 +75,28 @@ app.use(
 );
 
 app.use(
+  "/reviews",
+  authMiddleware,
+  proxy("http://review-service:3007", {
+    proxyReqPathResolver: (req) => `/api/v1/reviews${req.url}`,
+    proxyReqOptDecorator: (proxyReqOpts) => {
+      proxyReqOpts.headers["x-gateway-proxy"] = "true";
+      return proxyReqOpts;
+    },
+  }),
+);
+
+// Backward-compatible alias
+app.use(
   "/api/reviews",
   authMiddleware,
-  createProxy("http://review-service:3007", "/api/v1/reviews"),
+  proxy("http://review-service:3007", {
+    proxyReqPathResolver: (req) => `/api/v1/reviews${req.url}`,
+    proxyReqOptDecorator: (proxyReqOpts) => {
+      proxyReqOpts.headers["x-gateway-proxy"] = "true";
+      return proxyReqOpts;
+    },
+  }),
 );
 
 app.use(
