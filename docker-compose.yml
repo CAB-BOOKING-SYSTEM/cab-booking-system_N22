@@ -261,6 +261,9 @@ services:
       - postgres
       - kafka
       - redis
+    volumes:
+      - ./cab-system-backend/services/ride-service:/app
+      - /app/node_modules
 
   user-service:
     build:
