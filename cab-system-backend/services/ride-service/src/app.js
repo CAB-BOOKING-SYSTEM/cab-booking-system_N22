@@ -16,9 +16,15 @@ const PORT = process.env.PORT || 3008;
 app.use(cors());
 app.use(express.json());
 app.use(morgan("dev"));
+app.use((req, res, next) => {
+  console.log(`[Ride Service] Incoming: ${req.method} ${req.url}`);
+  next();
+});
 
 // Routes
+app.use("/api/rides", rideRoutes);
 app.use("/rides", rideRoutes);
+app.use("/", rideRoutes);
 
 // Health check
 app.get("/health", (req, res) => {
