@@ -1,19 +1,45 @@
-
 // src/controllers/booking.controller.js
+const jwt = require('jsonwebtoken');
 const { validate, createBookingSchema, cancelBookingSchema, paginationSchema } = require('../utils/validation');
 
 class BookingController {
   constructor(bookingService) {
     this.bookingService = bookingService;
   }
-  
+
+  // Hàm giải mã token lấy email
+  getCustomerIdFromToken(req) {
+    try {
+      const token = req.headers.authorization?.split(' ')[1];
+      if (!token) {
+        console.log('No token provided');
+        return null;
+      }
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'supersecret');
+      console.log('Decoded token:', decoded);
+      return decoded.email || decoded.sub || null;
+    } catch (error) {
+      console.error('Token decode error:', error.message);
+      return null;
+    }
+  }
+
   createBooking = async (req, res, next) => {
     try {
-      // req.user comes from JWT auth middleware
-      const customerId = req.user?.sub || req.body.customerId || 'test-customer-123';
+      // Giải mã token để lấy customerId
+      const customerId = this.getCustomerIdFromToken(req) || req.body.customerId;
+      
+      if (!customerId) {
+        return res.status(401).json({
+          success: false,
+          message: 'Unauthorized: Cannot identify customer'
+        });
+      }
+      
+      console.log('Creating booking for customer:', customerId);
       
       const validatedData = validate(createBookingSchema, req.body);
-      const booking = await this.bookingService.createBooking(customerId, validatedData);
+      const booking = await this.bookingService.createBooking(String(customerId), validatedData);
       
       res.status(201).json({
         success: true,
@@ -27,7 +53,7 @@ class BookingController {
   getBooking = async (req, res, next) => {
     try {
       const { id } = req.params;
-      const userId = req.user?.sub || 'test-customer-123';
+      const userId = this.getCustomerIdFromToken(req) || 'test-customer-123';
       const role = req.user?.role || 'customer';
       
       const booking = await this.bookingService.getBooking(id, userId, role);
@@ -44,7 +70,7 @@ class BookingController {
   getMyBookings = async (req, res, next) => {
     try {
       const { page, limit } = validate(paginationSchema, req.query);
-      const userId = req.user?.sub || 'test-customer-123';
+      const userId = this.getCustomerIdFromToken(req) || 'test-customer-123';
       const role = req.user?.role || 'customer';
       
       let result;
@@ -67,7 +93,7 @@ class BookingController {
     try {
       const { id } = req.params;
       const { reason } = validate(cancelBookingSchema, req.body);
-      const userId = req.user?.sub || 'test-customer-123';
+      const userId = this.getCustomerIdFromToken(req) || 'test-customer-123';
       const role = req.user?.role || 'customer';
       
       const booking = await this.bookingService.cancelBooking(id, userId, role, reason);
