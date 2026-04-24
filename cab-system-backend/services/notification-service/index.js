@@ -2,7 +2,6 @@
 
 require("dotenv").config();
 
-const http = require("http");
 const express = require("express");
 const cors = require("cors");
 const morgan = require("morgan");
@@ -14,9 +13,10 @@ const {
   metricsHandler,
   socketOnlineUsersGauge,
 } = require("./src/metrics/prometheus");
+const mtls = require("../../../shared/mtls.cjs");
 
 const app = express();
-const server = http.createServer(app);
+const server = mtls.createServer(app);
 const PORT = process.env.PORT || 3004;
 const DB_URL = process.env.DB_URL;
 const NODE_ENV = process.env.NODE_ENV || "development";
@@ -97,11 +97,14 @@ const start = async () => {
   }
 
   // 4. Khởi động HTTP server (Socket.IO dùng chung server này)
+  const protocol = mtls.getProtocol();
   server.listen(PORT, () => {
     console.log(
-      `🚀 Notification Service đang chạy tại cổng ${PORT} [${NODE_ENV}]`,
+      `🚀 Notification Service đang chạy tại ${protocol}://localhost:${PORT} [${NODE_ENV}]`,
     );
-    console.log(`🔌 Socket.IO đang lắng nghe tại ws://localhost:${PORT}`);
+    console.log(
+      `🔌 Socket.IO đang lắng nghe tại ${protocol === "https" ? "wss" : "ws"}://localhost:${PORT}`,
+    );
   });
 
   // ─── Graceful Shutdown ──────────────────────────────────────────────────────
