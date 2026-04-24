@@ -1,12 +1,18 @@
 const db = require("../config/db");
 
-const checkDuplicate = async (key) => {
-  const result = await db.pool.query(
-    "SELECT * FROM payments WHERE idempotency_key = $1",
+async function checkDuplicate(key) {
+  const res = await db.pool.query(
+    "SELECT * FROM idempotency_keys WHERE key=$1",
     [key]
   );
+  return res.rows[0];
+}
 
-  return result.rows[0] || null;
-};
+async function saveKey(key, response) {
+  await db.pool.query(
+    "INSERT INTO idempotency_keys(key, response) VALUES($1,$2)",
+    [key, response]
+  );
+}
 
-module.exports = { checkDuplicate };
+module.exports = { checkDuplicate, saveKey };

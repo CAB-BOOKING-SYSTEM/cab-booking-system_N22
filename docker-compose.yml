@@ -30,6 +30,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./cab-system-backend/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./cab-system-backend/init_dinh.sql:/docker-entrypoint-initdb.d/init_dinh.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d postgres"]
       interval: 5s
