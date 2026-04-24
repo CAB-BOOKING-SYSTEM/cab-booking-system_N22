@@ -2,21 +2,7 @@
 
 Đây là dịch vụ quản lý chuyến đi (Ride) của hệ thống Cab Booking, chạy qua **API Gateway (Port 3000)**.
 
-### 1. Đăng ký tài khoản
-- **Method**: `POST`
-- **URL**: `http://localhost:3000/auth/register`
-![Đăng ký](src/public/img1.jpg)
-
-```json
-{
-  "email": "user@example.com",
-  "username": "user123",
-  "password": "Password123",
-  "role": "CUSTOMER"
-}
-```
-
-### 2. Đăng nhập để lấy access token
+### 1. Đăng nhập để lấy access token
 - **Method**: `POST`
 - **URL**: `http://localhost:3000/auth/login`
 ![Đăng nhập](src/public/img2.jpg)
@@ -28,7 +14,7 @@
 }
 ```
 
-### 3. Tạo chuyến đi mới
+### 2. Tạo chuyến đi mới
 - **Method**: `POST`
 - **URL**: `http://localhost:3000/api/rides`
 ![Tạo chuyến đi](src/public/img3.jpg)
@@ -42,17 +28,17 @@
 }
 ```
 
-### 4. Xem danh sách tất cả chuyến đi
+### 3. Xem danh sách tất cả chuyến đi
 - **Method**: `GET`
 - **URL**: `http://localhost:3000/api/rides`
 ![Danh sách chuyến đi](src/public/img4.jpg)
 
-### 5. Lấy chi tiết một chuyến đi
+### 4. Lấy chi tiết một chuyến đi
 - **Method**: `GET`
 - **URL**: `http://localhost:3000/api/rides/{YOUR-RIDE-ID}`
 ![Chi tiết chuyến đi](src/public/img5.jpg)
 
-### 6. Cập nhật trạng thái chuyến đi
+### 5. Cập nhật trạng thái chuyến đi
 - **Method**: `PATCH`
 - **URL**: `http://localhost:3000/api/rides/{YOUR-RIDE-ID}/status`
 ![Cập nhật trạng thái](src/public/img6.jpg)
@@ -64,7 +50,7 @@
 }
 ```
 
-### 7. Hủy chuyến đi
+### 6. Hủy chuyến đi
 - **Method**: `POST`
 - **URL**: `http://localhost:3000/api/rides/{YOUR-RIDE-ID}/cancel`
 ![Hủy chuyến đi](src/public/img7.jpg)
@@ -76,7 +62,7 @@
 }
 ```
 
-### 8. Xóa chuyến đi
+### 7. Xóa chuyến đi
 - **Method**: `DELETE`
 - **URL**: `http://localhost:3000/api/rides/{YOUR-RIDE-ID}`
 ![Xóa chuyến đi](src/public/img8.jpg)

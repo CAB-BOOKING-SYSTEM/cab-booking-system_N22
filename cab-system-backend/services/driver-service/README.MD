@@ -1,3 +1,95 @@
+1.  ĐĂNG KÝ TÀI KHOẢN DRIVER
+Method: POST
+URL: http://localhost:3000/auth/register
+Headers: Content-Type: application/json
+Body:
+{
+    "email": "driver_test@cab.com",
+    "username": "Driver Test",
+    "password": "password123",
+    "role": "driver"
+}
+![alt text](../driver-service/public/images/10.png)
+
+2. ĐĂNG NHẬP LẤY TOKEN
+Method: POST
+URL: http://localhost:3000/auth/login
+Headers:
+  Content-Type: application/json
+Body (raw JSON):
+{
+    "email": "driver_test@cab.com",
+    "password": "password123"
+}
+![alt text](../driver-service/public/images/11.png)
+
+3. TEST CASE TC5 - Driver online
+Method: POST
+URL: http://localhost:3000/api/drivers/toggle-status
+Headers:
+  Authorization: Bearer {{TOKEN}}
+  Content-Type: application/json
+Body:
+{
+    "status": "online"
+}
+![alt text](../driver-service/public/images/12.png)
+
+4. TC13 - Level 2: Driver offline không nhận booking
+POST http://localhost:3000/api/drivers/toggle-status
+Headers: Authorization: Bearer {{TOKEN}}
+Body: {
+    "status": "offline"
+}
+![alt text](../driver-service/public/images/13.png)
+
+5. TC18 - Level 2: Token expired → 401
+POST http://localhost:3000/api/drivers/toggle-status
+Headers: Authorization: Bearer {{EXPIRED_TOKEN}}
+Body: {
+    "status": "online"
+}
+![alt text](../driver-service/public/images/14.png)
+
+6. TC84 - Level 9: Unauthorized (no token)
+POST http://localhost:3000/api/drivers/toggle-status
+Body: {
+    "status": "online"
+}
+![alt text](../driver-service/public/images/15.png)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 1. Health Check - Kiểm tra service
 Phương thức: GET
 URL: http://localhost:3003/health

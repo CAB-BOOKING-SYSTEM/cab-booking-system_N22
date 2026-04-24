@@ -27,10 +27,10 @@ class ReviewRepository {
         this.modelInitPromise = this.pool.query(`
           CREATE TABLE IF NOT EXISTS reviews (
             id UUID PRIMARY KEY,
-            booking_id UUID NOT NULL UNIQUE,
-            customer_id UUID NOT NULL,
-            driver_id UUID NOT NULL,
-            rating SMALLINT NOT NULL CHECK (rating BETWEEN 1 AND 5),
+            booking_id VARCHAR(120) NOT NULL UNIQUE,
+            customer_id VARCHAR(120) NOT NULL,
+            driver_id VARCHAR(120) NOT NULL,
+            rating NUMERIC(2,1) NOT NULL CHECK (rating BETWEEN 1 AND 5),
             comment TEXT,
             status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -41,8 +41,8 @@ class ReviewRepository {
 
           CREATE TABLE IF NOT EXISTS reports (
             report_id UUID PRIMARY KEY,
-            ride_id UUID NOT NULL,
-            user_id UUID NOT NULL,
+            ride_id VARCHAR(120) NOT NULL,
+            user_id VARCHAR(120) NOT NULL,
             reason VARCHAR(150) NOT NULL,
             description TEXT,
             status VARCHAR(20) NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'RESOLVED')),
@@ -56,9 +56,79 @@ class ReviewRepository {
       }
 
       await this.modelInitPromise;
+      await this.ensureIdColumnsAreText();
+      await this.ensureRatingColumnSupportsDecimal();
     } catch (error) {
       console.error("[ReviewRepository] initModel error:", error);
       throw error;
+    }
+  }
+
+  async ensureIdColumnsAreText() {
+    const columnsToNormalize = [
+      { table: "reviews", column: "booking_id" },
+      { table: "reviews", column: "customer_id" },
+      { table: "reviews", column: "driver_id" },
+      { table: "reports", column: "ride_id" },
+      { table: "reports", column: "user_id" },
+    ];
+
+    for (const item of columnsToNormalize) {
+      const result = await this.pool.query(
+        `
+          SELECT data_type, udt_name
+          FROM information_schema.columns
+          WHERE table_name = $1 AND column_name = $2
+          LIMIT 1;
+        `,
+        [item.table, item.column]
+      );
+
+      const column = result.rows[0];
+      if (!column) {
+        continue;
+      }
+
+      const isTextLike =
+        column.data_type === "character varying" ||
+        column.data_type === "text" ||
+        column.udt_name === "varchar";
+
+      if (isTextLike) {
+        continue;
+      }
+
+      await this.pool.query(
+        `
+          ALTER TABLE ${item.table}
+          ALTER COLUMN ${item.column} TYPE VARCHAR(120)
+          USING ${item.column}::text;
+        `
+      );
+    }
+  }
+
+  async ensureRatingColumnSupportsDecimal() {
+    const result = await this.pool.query(
+      `
+        SELECT data_type
+        FROM information_schema.columns
+        WHERE table_name = 'reviews' AND column_name = 'rating'
+        LIMIT 1;
+      `
+    );
+
+    const column = result.rows[0];
+    if (!column) {
+      return;
+    }
+
+    if (column.data_type !== "numeric") {
+      await this.pool.query(`
+        ALTER TABLE reviews
+        ALTER COLUMN rating TYPE NUMERIC(2,1)
+        USING rating::numeric;
+      `);
     }
   }
 
@@ -164,13 +234,14 @@ class ReviewService {
   }
 
   validatePayload({ bookingId, rating, comment, tags }) {
-    if (!bookingId) {
+    const normalizedBookingId = String(bookingId || "").trim();
+    if (!normalizedBookingId) {
       throw new AppError("bookingId is required", 400);
     }
 
     const normalizedRating = Number(rating);
-    if (!Number.isInteger(normalizedRating) || normalizedRating < 1 || normalizedRating > 5) {
-      throw new AppError("rating must be an integer between 1 and 5", 400);
+    if (!Number.isFinite(normalizedRating) || normalizedRating < 1 || normalizedRating > 5) {
+      throw new AppError("rating must be a number between 1 and 5", 400);
     }
 
     let normalizedComment = null;
@@ -193,15 +264,16 @@ class ReviewService {
     }
 
     return {
-      bookingId,
-      rating: normalizedRating,
+      bookingId: normalizedBookingId,
+      rating: Number(normalizedRating.toFixed(1)),
       comment: normalizedComment,
       tags: normalizedTags,
     };
   }
 
   validateReportPayload({ rideId, reason, description }) {
-    if (!rideId) {
+    const normalizedRideId = String(rideId || "").trim();
+    if (!normalizedRideId) {
       throw new AppError("rideId is required", 400);
     }
 
@@ -227,7 +299,7 @@ class ReviewService {
     }
 
     return {
-      rideId,
+      rideId: normalizedRideId,
       reason: normalizedReason,
       description: normalizedDescription,
     };

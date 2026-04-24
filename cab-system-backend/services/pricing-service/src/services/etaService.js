@@ -2,6 +2,11 @@ const { redisClient } = require('../config/redisConfig');
 
 // Công thức Haversine tính khoảng cách giữa 2 tọa độ (km)
 function calculateDistance(lat1, lon1, lat2, lon2) {
+  // THÊM ĐOẠN NÀY - Nếu cùng tọa độ, trả về 0 ngay
+  if (lat1 === lat2 && lon1 === lon2) {
+    return 0;
+  }
+  
   const R = 6371; // Bán kính trái đất (km)
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;

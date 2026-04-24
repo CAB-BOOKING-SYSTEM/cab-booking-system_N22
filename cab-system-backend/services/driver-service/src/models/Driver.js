@@ -1,4 +1,3 @@
- 
 const mongoose = require('mongoose');
 
 const driverSchema = new mongoose.Schema(
@@ -11,8 +10,9 @@ const driverSchema = new mongoose.Schema(
     },
     phone: {
       type: String,
-      required: true,
+      required: false,
       unique: true,
+      sparse: true,
     },
     email: {
       type: String,
@@ -63,7 +63,6 @@ const driverSchema = new mongoose.Schema(
   }
 );
 
-// Index for geospatial queries
 driverSchema.index({ 'currentLocation.lat': 1, 'currentLocation.lng': 1 });
 
 module.exports = mongoose.model('Driver', driverSchema);

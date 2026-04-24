@@ -1,3 +1,94 @@
+ĐĂNG KÝ CUSTOMER
+POST http://localhost:3000/auth/register
+{
+  "email": "customer1@test.com",
+  "password": "123456",
+  "username": "customer1",
+  "role": "customer"
+}
+
+![alt text](public/1.png)
+
+ĐĂNG NHẬP LẤY TOKEN
+POST http://localhost:3000/auth/login
+{
+  "email": "customer1@test.com",
+  "password": "123456"
+}
+![alt text](public/2.png)
+
+-----sau khi đăng nhập xong có token mỗi bước tiếp theo đều cần token
+
+
+TC7 + TC41 Gọi API ETA trả về giá trị > 0
+POST http://localhost:3000/api/pricing/eta
+{
+  "pickupLat": 10.850587,
+  "pickupLng": 106.762776,
+  "dropoffLat": 10.835642,
+  "dropoffLng": 106.658679
+}
+![alt text](public/3.png)
+
+TC15: ETA VỚI DISTANCE = 0
+POST http://localhost:3000/api/pricing/eta
+{
+  "pickupLat": 10.850587,
+  "pickupLng": 106.762776,
+  "dropoffLat": 10.850587,
+  "dropoffLng": 106.762776
+}
+![alt text](public/4.png)
+
+TC8 + TC3 + TC22
+POST http://localhost:3000/api/pricing/estimate
+{
+  "pickupLocation": {"lat": 10.850587, "lng": 106.762776},
+  "dropoffLocation": {"lat": 10.835642, "lng": 106.658679},
+  "vehicleType": "car",
+  "distance": 11.26,
+  "duration": 23
+}
+![alt text](public/5.png)
+✅ TC8: giá hợp lệ
+✅ TC3 + TC22: ETA + Pricing thành công
+
+
+TC16: SURGE >= 1
+GET http://localhost:3000/api/pricing/surge/CENTER
+![alt text](public/6.png)
+
+TC30
+POST http://localhost:3000/api/bookings
+{
+  "pickupLocation": {"lat": 10.850587, "lng": 106.762776, "address": "123 Đường Test, Quận 1"},
+  "dropoffLocation": {"lat": 10.835642, "lng": 106.658679, "address": "456 Đường Test, Quận 2"},
+  "vehicleType": "car_4",
+  "paymentMethod": "cash",
+  "distance": 11.26,
+  "duration": 23
+}
+![alt text](public/7.png)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # Bước 1: Clone dự án
 git clone ........
 cd cab-system-backend
@@ -352,3 +443,6 @@ kết quả
     },
     "timestamp": "2026-04-12T08:31:54.017Z"
 }
+
+
+-------------------------------------------------------------
