@@ -7,6 +7,7 @@ const redisClient = require("./config/redis");
 const matchingRoutes = require("./routes/matchingRoutes");
 const logger = require("./utils/logger");
 const mtls = require("../../../../shared/mtls.cjs");
+const { startBookingConsumer, connectRabbitMQ } = require('./consumers/bookingConsumer');
 
 const app = express();
 const PORT = process.env.PORT || 3010;
@@ -87,8 +88,12 @@ async function startServer() {
 
   try {
     // Connect to databases
+        // Connect to databases
     await database.connectPostgreSQL();
     await redisClient.connect();
+    
+    await connectRabbitMQ();
+    await startBookingConsumer();
 
     const protocol = mtls.getProtocol();
     server.listen(PORT, () => {
@@ -98,6 +103,7 @@ async function startServer() {
       logger.info(`   Redis: ${redisClient.client ? "✅" : "❌"}`);
       logger.info(`   AI Scoring: ENABLED`);
       logger.info(`   Fallback: nearest-driver (auto on AI error)`);
+      logger.info(`   RabbitMQ Consumer: ✅ ENABLED`);
       retryCount = 0; // Reset retry count khi thành công
       isStarting = false;
     });

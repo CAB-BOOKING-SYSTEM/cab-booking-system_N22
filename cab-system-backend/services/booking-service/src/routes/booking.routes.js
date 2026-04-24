@@ -1,14 +1,20 @@
 // src/routes/booking.routes.js
 const express = require('express');
+const idempotencyMiddleware = require('../middleware/idempotency');
 
 function createBookingRoutes(bookingController) {
   const router = express.Router();
   
-  // Public routes
+  // Public
   router.get('/health', bookingController.health);
   
   // Booking CRUD - THÊM prefix /api
-  router.post('/api/bookings', bookingController.createBooking);
+  router.post(
+    '/api/bookings',
+    idempotencyMiddleware,
+    bookingController.createBooking
+  );
+
   router.get('/api/bookings', bookingController.getMyBookings);
   router.get('/api/bookings/:id', bookingController.getBooking);
   router.patch('/api/bookings/:id/cancel', bookingController.cancelBooking);

@@ -117,8 +117,9 @@ class DriverService {
         lng = driver.currentLocation?.lng;
 
         if (!lat || !lng) {
-          lat = 21.0285;
-          lng = 105.8542;
+          lat = 10.850587;   // TP.HCM
+          lng = 106.762776;
+
           logger.warn(
             `⚠️ Driver ${driverId} has no location, using default (${lat}, ${lng})`,
           );

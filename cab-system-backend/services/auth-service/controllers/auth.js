@@ -12,6 +12,11 @@ const ACCESS_EXPIRES = process.env.JWT_EXPIRES_IN || "15m";
 const REFRESH_EXPIRES = process.env.JWT_REFRESH_EXPIRES_IN || "7d";
 const serviceAgent = mtls.createClientAgent();
 
+// URLs for other services
+const USER_SERVICE_URL = process.env.USER_SERVICE_URL || "http://cab_user:3009";
+const DRIVER_SERVICE_URL = process.env.DRIVER_SERVICE_URL || "http://cab_driver:3003";
+const INTERNAL_SECRET = process.env.INTERNAL_SECRET || "cab-internal-2024";
+
 const generateAccessToken = (user) =>
   jwt.sign(
     {
@@ -48,6 +53,73 @@ const isBlacklisted = async (token) => {
   return exists === 1;
 };
 
+// ============================================================
+// HÀM SYNC USER VÀO USER SERVICE (CHO MỌI ROLE)
+// ============================================================
+async function syncUserToUserService(user) {
+  try {
+    // Map role từ Auth Service sang User Service
+    let userServiceRole = "RIDER";
+    if (user.role === "admin") userServiceRole = "ADMIN";
+    if (user.role === "driver") userServiceRole = "DRIVER";
+    
+    const response = await axios.post(
+      `${USER_SERVICE_URL}/internal/users`,
+      {
+        full_name: user.username,
+        phone_number: user.phone_number || `090000000${user.id}`,
+        email: user.email,
+        role: userServiceRole,
+      },
+      {
+        headers: {
+          "Content-Type": "application/json",
+          "x-internal-secret": INTERNAL_SECRET,
+        },
+        timeout: 5000,
+        ...(serviceAgent ? { httpsAgent: serviceAgent } : {})
+      }
+    );
+    console.log(`✅ User synced to User Service: ${user.email} (role: ${user.role})`);
+    return response.data;
+  } catch (error) {
+    console.error(`❌ Failed to sync user to User Service:`, error.message);
+    // Không throw lỗi để không ảnh hưởng đến việc tạo user trong Auth DB
+    return null;
+  }
+}
+
+// ============================================================
+// HÀM TẠO DRIVER TRONG DRIVER SERVICE (CHỈ CHO ROLE DRIVER)
+// ============================================================
+async function createDriverInDriverService(user) {
+  try {
+    const response = await axios.post(
+      `${DRIVER_SERVICE_URL}/api/drivers/internal/create`,
+      {
+        driverId: String(user.id),
+        email: user.email,
+        phone: user.phone_number || "",
+        fullName: user.username,
+        vehicleType: "4_seat",
+        licensePlate: `TEMP${String(user.id).padStart(5, "0")}`,
+      },
+      {
+        timeout: 5000,
+        ...(serviceAgent ? { httpsAgent: serviceAgent } : {})
+      }
+    );
+    console.log(`✅ Auto-created driver for user ${user.id} (${user.email})`);
+    return response.data;
+  } catch (error) {
+    console.error(`❌ Failed to auto-create driver:`, error.message);
+    return null;
+  }
+}
+
+// ============================================================
+// REGISTER CONTROLLER
+// ============================================================
 export const register = async (req, res) => {
   try {
     const {
@@ -58,7 +130,7 @@ export const register = async (req, res) => {
       phone_number = null,
       driver_status = null,
     } = req.body;
-    let driver_id = req.body.driver_id || null; // 🔥 SỬA: dùng let thay vì const
+    let driver_id = req.body.driver_id || null;
 
     if (!email || !username || !password) {
       return res.status(400).json({ message: "Missing required fields" });
@@ -66,7 +138,6 @@ export const register = async (req, res) => {
 
     const normalizedRole = User.normalizeRole(role);
     if (normalizedRole === "driver" && !driver_id) {
-      // Tự động tạo driver_id nếu chưa có
       driver_id = `DRV_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
     }
 
@@ -94,31 +165,22 @@ export const register = async (req, res) => {
       driver_id,
       driver_status,
     });
-    // 🔥 THÊM ĐOẠN NÀY: Tạo driver tự động nếu role = driver
-    if (role === "driver") {
-      try {
-        const driverServiceUrl =
-          process.env.DRIVER_SERVICE_URL || "http://cab_driver:3003";
 
-        await axios.post(
-          `${driverServiceUrl}/api/drivers/internal/create`,
-          {
-            driverId: String(newUser.id),
-            email: email,
-            phone: "",
-            fullName: username,
-            vehicleType: "4_seat",
-            licensePlate: `TEMP${String(newUser.id).padStart(5, "0")}`,
-          },
-          serviceAgent ? { httpsAgent: serviceAgent } : undefined,
-        );
+    // ============================================================
+    // 🔥 QUAN TRỌNG: Sync user vào User Service (CHO MỌI ROLE)
+    // ============================================================
+    await syncUserToUserService(newUser);
 
-        console.log(`✅ Auto-created driver for user ${newUser.id} (${email})`);
-      } catch (driverError) {
-        console.error(`❌ Failed to auto-create driver:`, driverError.message);
-      }
+    // ============================================================
+    // Nếu là driver, tạo thêm trong Driver Service
+    // ============================================================
+    if (normalizedRole === "driver") {
+      await createDriverInDriverService(newUser);
     }
 
+    // ============================================================
+    // Trả về response
+    // ============================================================
     return res.status(201).json({
       message: "User registered successfully",
       user: {
@@ -128,8 +190,10 @@ export const register = async (req, res) => {
         username: newUser.username,
         role: newUser.role,
         status: newUser.status,
-        driver_id: newUser.driver_id,
-        driver_status: newUser.driver_status,
+        ...(newUser.role === 'driver' && {
+          driver_id: newUser.driver_id,
+          driver_status: newUser.driver_status
+        })
       },
     });
   } catch (error) {
@@ -138,6 +202,9 @@ export const register = async (req, res) => {
   }
 };
 
+// ============================================================
+// LOGIN CONTROLLER
+// ============================================================
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -214,6 +281,9 @@ export const login = async (req, res) => {
   }
 };
 
+// ============================================================
+// REFRESH CONTROLLER
+// ============================================================
 export const refresh = async (req, res) => {
   try {
     const oldRefreshToken = req.cookies.refreshToken;
@@ -281,6 +351,9 @@ export const refresh = async (req, res) => {
   }
 };
 
+// ============================================================
+// LOGOUT CONTROLLER
+// ============================================================
 export const logout = async (req, res) => {
   try {
     const refreshToken = req.cookies.refreshToken;
