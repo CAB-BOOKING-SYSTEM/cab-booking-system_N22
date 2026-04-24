@@ -3,7 +3,13 @@ const rideService = require("../services/rideService");
 class RideController {
   async createRide(req, res) {
     try {
-      const ride = await rideService.createRide(req.body);
+      // Automatic use userId from JWT if not in body
+      const rideData = {
+        ...req.body,
+        userId: req.body.userId || req.user.sub
+      };
+      
+      const ride = await rideService.createRide(rideData);
       res.status(201).json(ride);
     } catch (error) {
       res.status(400).json({ error: error.message });
