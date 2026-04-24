@@ -2,10 +2,14 @@ const jwt = require("jsonwebtoken");
 const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
 
 module.exports = (req, res, next) => {
-  const token = req.headers.authorization?.split(" ")[1];
+  const authHeader = req.headers.authorization;
+  const token = authHeader && authHeader.split(" ")[1];
 
   if (!token) {
-    return res.status(401).json({ message: "Unauthorized: No token provided" }); // [cite: 88]
+    return res.status(401).json({
+      code: "TOKEN_MISSING",
+      message: "Unauthorized: No token provided",
+    });
   }
 
   try {
@@ -13,6 +17,27 @@ module.exports = (req, res, next) => {
     req.user = decoded;
     next();
   } catch (error) {
-    return res.status(403).json({ message: "Forbidden: Invalid token" }); // [cite: 93]
+    console.log(error);
+
+    // Phân loại lỗi dựa trên đặc điểm của thư viện jsonwebtoken
+    if (error.name === "TokenExpiredError") {
+      return res.status(401).json({
+        code: "TOKEN_EXPIRED",
+        message: "Unauthorized: Token has expired",
+        expiredAt: error.expiredAt, // Trả thêm thời điểm hết hạn nếu cần
+      });
+    }
+
+    if (error.name === "JsonWebTokenError") {
+      return res.status(401).json({
+        code: "TOKEN_INVALID",
+        message: "Unauthorized: Invalid token signature or format",
+      });
+    }
+
+    return res.status(401).json({
+      code: "AUTH_ERROR",
+      message: "Unauthorized: Authentication failed",
+    });
   }
 };

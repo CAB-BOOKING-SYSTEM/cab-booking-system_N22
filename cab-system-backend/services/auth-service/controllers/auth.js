@@ -56,7 +56,7 @@ export const register = async (req, res) => {
       phone_number = null,
       driver_status = null,
     } = req.body;
-    let driver_id = req.body.driver_id || null;  // 🔥 SỬA: dùng let thay vì const
+    let driver_id = req.body.driver_id || null; // 🔥 SỬA: dùng let thay vì const
 
     if (!email || !username || !password) {
       return res.status(400).json({ message: "Missing required fields" });
@@ -67,8 +67,6 @@ export const register = async (req, res) => {
       // Tự động tạo driver_id nếu chưa có
       driver_id = `DRV_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
     }
-
-
 
     const existingUser = await User.findByEmail(email);
     if (existingUser) {
@@ -97,17 +95,18 @@ export const register = async (req, res) => {
     // 🔥 THÊM ĐOẠN NÀY: Tạo driver tự động nếu role = driver
     if (role === "driver") {
       try {
-        const driverServiceUrl = process.env.DRIVER_SERVICE_URL || "http://cab_driver:3003";
-        
+        const driverServiceUrl =
+          process.env.DRIVER_SERVICE_URL || "http://cab_driver:3003";
+
         await axios.post(`${driverServiceUrl}/api/drivers/internal/create`, {
           driverId: String(newUser.id),
           email: email,
           phone: "",
           fullName: username,
           vehicleType: "4_seat",
-          licensePlate: `TEMP${String(newUser.id).padStart(5, "0")}`
+          licensePlate: `TEMP${String(newUser.id).padStart(5, "0")}`,
         });
-        
+
         console.log(`✅ Auto-created driver for user ${newUser.id} (${email})`);
       } catch (driverError) {
         console.error(`❌ Failed to auto-create driver:`, driverError.message);
@@ -136,9 +135,11 @@ export const register = async (req, res) => {
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
-    
+
     if (!email || !password) {
-      return res.status(400).json({ message: "Email and password are required" });
+      return res
+        .status(400)
+        .json({ message: "Email and password are required" });
     }
 
     const user = await User.findByEmail(email);
@@ -187,6 +188,7 @@ export const login = async (req, res) => {
     return res.status(200).json({
       message: "Login successful",
       access_token: accessToken,
+      refresh_token: refreshToken,
       token_type: "Bearer",
       token_payload: decodedAccessToken,
       user: {
@@ -292,9 +294,7 @@ export const logout = async (req, res) => {
     if (refreshToken) {
       try {
         const decodedRefresh = jwt.decode(refreshToken);
-        const ttl = Math.floor(
-          (decodedRefresh.exp * 1000 - Date.now()) / 1000,
-        );
+        const ttl = Math.floor((decodedRefresh.exp * 1000 - Date.now()) / 1000);
         if (ttl > 0) {
           await blacklistToken(refreshToken, ttl);
         }
