@@ -5,13 +5,10 @@ const authMiddleware = require('../middleware/auth');
 
 const router = express.Router();
 
-// Health check (public)
 router.get('/health', matchingController.healthCheck);
 
-// All other routes require authentication
-//router.use(authMiddleware);
+// router.use(authMiddleware);
 
-// Find driver for a ride
 router.post(
   '/find-driver',
   [
@@ -19,21 +16,21 @@ router.post(
     body('userId').notEmpty().withMessage('User ID is required'),
     body('pickupLat').isFloat({ min: -90, max: 90 }).withMessage('Invalid latitude'),
     body('pickupLng').isFloat({ min: -180, max: 180 }).withMessage('Invalid longitude'),
+    body('dropoffLat').optional().isFloat({ min: -90, max: 90 }),
+    body('dropoffLng').optional().isFloat({ min: -180, max: 180 }),
     body('vehicleType').optional().isIn(['4_seat', '7_seat', 'luxury']).withMessage('Invalid vehicle type'),
   ],
   matchingController.findDriver
 );
 
-// Get match result by ride ID
 router.get(
   '/result/:rideId',
   [
-    param('rideId').notEmpty().withMessage('Ride ID is required'),  // ← Sửa lại
+    param('rideId').notEmpty().withMessage('Ride ID is required'),
   ],
   matchingController.getMatchResult
 );
 
-// Get matching statistics
 router.get(
   '/stats',
   matchingController.getMatchingStats

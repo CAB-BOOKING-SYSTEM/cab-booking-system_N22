@@ -5,20 +5,34 @@ const redisClient = require('../config/redis');
 const aiScoringService = require('./aiScoringService');
 const fallbackService = require('./fallbackService');
 const featureStoreService = require('./featureStoreService');
+const pricingClient = require('./pricingClient');
 const logger = require('../utils/logger');
 
 class MatchingService {
   constructor() {
     this.driverServiceUrl = process.env.DRIVER_SERVICE_URL || 'http://cab_driver:3003';
-    this.matchTimeout = 30000; // 30 seconds timeout
+    this.matchTimeout = 30000;
   }
 
-  async findDriverForRide(rideId, userId, pickupLat, pickupLng, vehicleType = null) {
+  async findDriverForRide(rideId, userId, pickupLat, pickupLng, dropoffLat = null, dropoffLng = null, vehicleType = null) {
     const startTime = Date.now();
     logger.info(`🎯 Finding driver for ride ${rideId} at (${pickupLat}, ${pickupLng})`);
 
     try {
-      // Step 1: Save matching request
+      let etaMinutes = 5;
+      let etaSeconds = 300;
+      
+      if (dropoffLat && dropoffLng) {
+        try {
+          const etaData = await pricingClient.getETA(pickupLat, pickupLng, dropoffLat, dropoffLng);
+          etaMinutes = etaData.eta_minutes;
+          etaSeconds = etaData.eta_seconds;
+          logger.info(`📊 ETA calculated: ${etaMinutes} minutes, distance: ${etaData.distance_km}km`);
+        } catch (error) {
+          logger.warn('ETA calculation failed, using default', error.message);
+        }
+      }
+
       const pool = require('../config/database').getPGPool();
       const request = await MatchingRequest.create(pool, {
         rideId,
@@ -29,7 +43,6 @@ class MatchingService {
 
       logger.info(`📝 Matching request created: ${request.id}`);
 
-      // Step 2: Get nearby drivers from Redis Geo
       const nearbyDrivers = await redisClient.getNearbyDrivers(pickupLng, pickupLat, 5);
       
       if (nearbyDrivers.length === 0) {
@@ -43,10 +56,8 @@ class MatchingService {
 
       logger.info(`📍 Found ${nearbyDrivers.length} nearby drivers for ride ${rideId}`);
 
-      // Step 3: Get driver details from Driver Service
       const driverDetailsMap = await this.getDriverDetails(nearbyDrivers.map(d => d.driverId));
       
-      // Filter online drivers only
       const onlineDrivers = nearbyDrivers.filter(d => 
         driverDetailsMap[d.driverId] && driverDetailsMap[d.driverId].data?.status === 'online'
       );
@@ -62,7 +73,6 @@ class MatchingService {
 
       logger.info(`✅ Found ${onlineDrivers.length} online drivers`);
 
-      // Step 4: Filter by vehicle type if specified
       let filteredDrivers = onlineDrivers;
       if (vehicleType) {
         filteredDrivers = onlineDrivers.filter(d => 
@@ -79,19 +89,16 @@ class MatchingService {
         };
       }
 
-      // Step 5: Get driver features from Feature Store
       const featuresMap = await featureStoreService.getMultipleDriverFeatures(
         filteredDrivers.map(d => d.driverId)
       );
 
-      // Step 6: AI Scoring or Fallback
       let matchedDriver = null;
       let usedFallback = false;
       let aiAvailable = await aiScoringService.checkAIAvailability();
 
       try {
         if (aiAvailable) {
-          // AI Mode
           const scoredDrivers = await aiScoringService.scoreMultipleDrivers(
             filteredDrivers,
             featuresMap,
@@ -108,7 +115,6 @@ class MatchingService {
           throw new Error('AI service unavailable');
         }
       } catch (aiError) {
-        // FALLBACK: AI failed, use rule-based
         logger.warn(`⚠️ AI failed for ride ${rideId}, using fallback:`, aiError.message);
         usedFallback = true;
         
@@ -131,7 +137,6 @@ class MatchingService {
         };
       }
 
-      // Step 7: Save matching result
       const result = await MatchingResult.create(pool, {
         requestId: request.id,
         driverId: matchedDriver.driverId,
@@ -142,7 +147,6 @@ class MatchingService {
 
       logger.info(`💾 Saved match result: ${result.id}`);
 
-      // Step 8: Cache result in Redis
       const driverDetails = driverDetailsMap[matchedDriver.driverId]?.data || {};
       const matchResult = {
         rideId,
@@ -153,7 +157,8 @@ class MatchingService {
         vehicleType: driverDetails.vehicleType,
         vehiclePlate: driverDetails.licensePlate,
         driverRating: driverDetails.rating || 5.0,
-        estimatedArrivalSec: Math.ceil(matchedDriver.distanceKm * 2 * 60), // 2 minutes per km
+        estimatedArrivalSec: etaSeconds,
+        etaMinutes: etaMinutes,
         usedFallback,
         aiScore: matchedDriver.totalScore,
         matchedAt: new Date().toISOString(),
@@ -163,9 +168,8 @@ class MatchingService {
       await MatchingRequest.updateStatus(pool, rideId, 'matched');
 
       const duration = Date.now() - startTime;
-      logger.info(`✅ Matching completed for ride ${rideId} in ${duration}ms`);
+      logger.info(`✅ Matching completed for ride ${rideId} in ${duration}ms, ETA: ${etaMinutes} min`);
 
-      // Step 9: Publish to RabbitMQ (async, don't wait)
       this.publishMatchEvent(matchResult).catch(err => {
         logger.error('Failed to publish match event:', err);
       });
@@ -178,6 +182,7 @@ class MatchingService {
           candidatesCount: filteredDrivers.length,
           usedFallback,
           aiAvailable,
+          etaMinutes,
         },
       };
     } catch (error) {
@@ -212,15 +217,6 @@ class MatchingService {
 
   async publishMatchEvent(matchResult) {
     try {
-      // In production, publish to RabbitMQ
-      // const amqp = require('amqplib');
-      // const conn = await amqp.connect(process.env.RABBITMQ_URL);
-      // const channel = await conn.createChannel();
-      // await channel.assertExchange('ride.events', 'topic', { durable: true });
-      // channel.publish('ride.events', 'ride.matched', Buffer.from(JSON.stringify(matchResult)));
-      // await channel.close();
-      // await conn.close();
-      
       logger.info(`📤 Match event published for ride ${matchResult.rideId}`);
     } catch (error) {
       logger.error('Failed to publish match event:', error);
@@ -229,14 +225,12 @@ class MatchingService {
 
   async getMatchResult(rideId) {
     try {
-      // Check cache first
       const cached = await redisClient.getCachedMatch(rideId);
       if (cached) {
         logger.debug(`Returning cached match result for ride ${rideId}`);
         return cached;
       }
 
-      // Check database
       const pool = require('../config/database').getPGPool();
       const request = await MatchingRequest.findById(pool, rideId);
       
@@ -247,7 +241,6 @@ class MatchingService {
       const result = await MatchingResult.findByRequestId(pool, request.id);
       
       if (result) {
-        // Format result
         return {
           rideId,
           driverId: result.driver_id,
@@ -269,7 +262,6 @@ class MatchingService {
     try {
       const pool = require('../config/database').getPGPool();
       
-      // Get stats from database
       const statsQuery = `
         SELECT 
           COUNT(*) as total_requests,

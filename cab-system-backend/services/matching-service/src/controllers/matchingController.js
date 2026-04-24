@@ -13,19 +13,15 @@ class MatchingController {
         });
       }
 
-      const { rideId, userId, pickupLat, pickupLng, vehicleType } = req.body;
-
-      // Validate userId từ token nếu có
-      if (req.user && req.user.id && req.user.id !== userId) {
-        logger.warn(`User ID mismatch: token=${req.user.id}, request=${userId}`);
-        // Không block, chỉ log warning
-      }
+      const { rideId, userId, pickupLat, pickupLng, dropoffLat, dropoffLng, vehicleType } = req.body;
 
       const result = await matchingService.findDriverForRide(
         rideId,
         userId,
         pickupLat,
         pickupLng,
+        dropoffLat,
+        dropoffLng,
         vehicleType
       );
 

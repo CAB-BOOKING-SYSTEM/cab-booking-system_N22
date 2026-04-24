@@ -5,7 +5,7 @@ const redisGeoService = require('./redisGeoService');
 const logger = require('../utils/logger');
 const axios = require('axios');
 const eventPublisher = require('./eventPublisher');
-const redisClient = require('../config/redis'); // THÊM DÒNG NÀY
+const pricingClient = require('./pricingClient');
 
 class DriverService {
   async createDriver(driverData) {
@@ -32,12 +32,12 @@ class DriverService {
     try {
       const driver = await Driver.findOne({ driverId });
       if (!driver) {
-        throw new Error('Driver not found');
+         return null;
       }
       return driver;
     } catch (error) {
       logger.error('Error getting driver:', error);
-      throw error;
+      return null;
     }
   }
 
@@ -93,7 +93,6 @@ class DriverService {
     }
   }
 
-  // ========== ĐÃ SỬA - THÊM TỌA ĐỘ MẶC ĐỊNH ==========
   async updateDriverStatus(driverId, newStatus) {
     try {
       const driver = await Driver.findOneAndUpdate(
@@ -106,13 +105,13 @@ class DriverService {
         throw new Error('Driver not found');
       }
 
-      // Update Redis geo index
+      let lat = null;
+      let lng = null;
+
       if (newStatus === 'online') {
-        // Lấy tọa độ từ currentLocation hoặc dùng mặc định
-        let lat = driver.currentLocation?.lat;
-        let lng = driver.currentLocation?.lng;
+        lat = driver.currentLocation?.lat;
+        lng = driver.currentLocation?.lng;
         
-        // Nếu chưa có tọa độ, dùng tọa độ mặc định (Hồ Gươm, Hà Nội)
         if (!lat || !lng) {
           lat = 21.0285;
           lng = 105.8542;
@@ -120,8 +119,17 @@ class DriverService {
         }
         
         await redisGeoService.updateDriverLocation(driverId, lat, lng, 'online');
+        
+        const zone = pricingClient.determineZone(lat, lng);
+        const onlineCount = await this.getOnlineDriversCountInZone(zone);
+        await pricingClient.updateDriverCount(zone, onlineCount);
+        
       } else if (newStatus === 'offline') {
         await redisGeoService.updateDriverLocation(driverId, null, null, 'offline');
+        
+        const zone = pricingClient.determineZone(driver.currentLocation?.lat, driver.currentLocation?.lng);
+        const onlineCount = await this.getOnlineDriversCountInZone(zone);
+        await pricingClient.updateDriverCount(zone, onlineCount);
       }
 
       await eventPublisher.publishEvent('driver.status.changed', {
@@ -136,6 +144,26 @@ class DriverService {
     } catch (error) {
       logger.error('Error updating driver status:', error);
       throw error;
+    }
+  }
+
+  async getOnlineDriversCountInZone(zone) {
+    try {
+      const drivers = await Driver.find({ status: 'online' });
+      let count = 0;
+      for (const driver of drivers) {
+        const driverZone = pricingClient.determineZone(
+          driver.currentLocation?.lat, 
+          driver.currentLocation?.lng
+        );
+        if (driverZone === zone) {
+          count++;
+        }
+      }
+      return count;
+    } catch (error) {
+      logger.error('Error counting online drivers in zone:', error);
+      return 0;
     }
   }
 

@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import redisClient from "../core/redis.js";
 import User from "../models/userModel.js";
 import UserOtp from "../models/userOTP.js";
+import axios from "axios";
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || JWT_SECRET;
@@ -69,6 +70,25 @@ export const register = async (req, res) => {
       password: hashedPassword,
       role: ["customer", "driver", "admin"].includes(role) ? role : "customer",
     });
+    // 🔥 THÊM ĐOẠN NÀY: Tạo driver tự động nếu role = driver
+    if (role === "driver") {
+      try {
+        const driverServiceUrl = process.env.DRIVER_SERVICE_URL || "http://cab_driver:3003";
+        
+        await axios.post(`${driverServiceUrl}/api/drivers/internal/create`, {
+          driverId: String(newUser.id),
+          email: email,
+          phone: "",
+          fullName: username,
+          vehicleType: "4_seat",
+          licensePlate: `TEMP${String(newUser.id).padStart(5, "0")}`
+        });
+        
+        console.log(`✅ Auto-created driver for user ${newUser.id} (${email})`);
+      } catch (driverError) {
+        console.error(`❌ Failed to auto-create driver:`, driverError.message);
+      }
+    }
 
     res.status(201).json({
       message:

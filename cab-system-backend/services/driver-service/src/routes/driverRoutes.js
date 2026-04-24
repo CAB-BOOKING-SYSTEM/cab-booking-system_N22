@@ -1,3 +1,4 @@
+// routes/driverRoutes.js
 const express = require('express');
 const { body, param, query } = require('express-validator');
 const driverController = require('../controllers/driverController');
@@ -5,106 +6,121 @@ const authMiddleware = require('../middleware/auth');
 
 const router = express.Router();
 
-// Public routes
-router.post('/register', [
-  body('phone').isMobilePhone(),
-  body('fullName').notEmpty(),
-  body('licensePlate').notEmpty(),
-  body('vehicleType').isIn(['4_seat', '7_seat', 'luxury']),
-  body('email').optional().isEmail(),
-], driverController.register);
-
-router.post('/login', [
-  body('email').isEmail(),
-  body('password').notEmpty(),
-], driverController.login);
-
-// Public route for matching service
+// ========== PUBLIC ROUTES ==========
 router.get('/online/list', [
   query('lat').optional().isFloat(),
   query('lng').optional().isFloat(),
 ], driverController.getOnlineDrivers);
 
-// ⚠️ ĐÃ XÓA HTTP LOCATION API - Mobile App phải dùng WebSocket
-// router.post('/:driverId/location', ...) - ĐÃ XÓA
-
-// Profile routes
-router.put('/:driverId/profile', [
-  param('driverId').notEmpty(),
-  body('fullName').optional().isString(),
-  body('vehicleType').optional().isIn(['4_seat', '7_seat', 'luxury']),
-], driverController.updateProfile);
-
 router.get('/:driverId', driverController.getDriverInfo);
 
-// Status routes
-router.post('/:driverId/toggle-status', [
-  param('driverId').notEmpty(),
-  body('status').isIn(['online', 'offline']),
-], driverController.toggleStatus);
+// 🔥 THÊM INTERNAL ROUTE NÀY (cho Auth Service gọi)
+router.post('/internal/create', [
+  body('driverId').notEmpty(),
+  body('email').isEmail(),
+  body('fullName').notEmpty(),
+  body('phone').optional(),
+  body('vehicleType').optional().isIn(['4_seat', '7_seat', 'luxury']),
+  body('licensePlate').optional(),
+], driverController.internalCreateDriver);
 
-// Ride management
-router.post('/:driverId/accept-ride', [
-  param('driverId').notEmpty(),
-  body('rideId').notEmpty(),
-], driverController.acceptRide);
+// ========== PROTECTED ROUTES ==========
+router.put('/profile', 
+  authMiddleware,
+  [
+    body('fullName').optional().isString(),
+    body('vehicleType').optional().isIn(['4_seat', '7_seat', 'luxury']),
+  ], 
+  driverController.updateProfile
+);
 
-router.post('/:driverId/reject-ride', [
-  param('driverId').notEmpty(),
-  body('rideId').notEmpty(),
-], driverController.rejectRide);
+router.post('/toggle-status',
+  authMiddleware,
+  [
+    body('status').isIn(['online', 'offline']),
+  ],
+  driverController.toggleStatus
+);
 
-router.post('/:driverId/start-ride', [
-  param('driverId').notEmpty(),
-  body('rideId').notEmpty(),
-], driverController.startRide);
+router.get('/location-history',
+  authMiddleware,
+  driverController.getLocationHistory
+);
 
-router.post('/:driverId/complete-ride', [
-  param('driverId').notEmpty(),
-  body('rideId').notEmpty(),
-  body('distance').isFloat({ min: 0 }),
-  body('duration').isInt({ min: 0 }),
-], driverController.completeRide);
+router.post('/accept-ride',
+  authMiddleware,
+  [
+    body('rideId').notEmpty(),
+  ],
+  driverController.acceptRide
+);
 
-// Location history (read-only)
-router.get('/:driverId/location-history', [
-  param('driverId').notEmpty(),
-], driverController.getLocationHistory);
+router.post('/reject-ride',
+  authMiddleware,
+  [
+    body('rideId').notEmpty(),
+  ],
+  driverController.rejectRide
+);
 
-// Earnings & History
-router.get('/:driverId/earnings', [
-  param('driverId').notEmpty(),
-], driverController.getDriverEarnings);
+router.post('/start-ride',
+  authMiddleware,
+  [
+    body('rideId').notEmpty(),
+  ],
+  driverController.startRide
+);
 
-router.get('/:driverId/ride-history', [
-  param('driverId').notEmpty(),
-  query('page').optional().isInt({ min: 1 }),
-  query('limit').optional().isInt({ min: 1, max: 100 }),
-], driverController.getRideHistory);
+router.post('/complete-ride',
+  authMiddleware,
+  [
+    body('rideId').notEmpty(),
+    body('distance').isFloat({ min: 0 }),
+    body('duration').isInt({ min: 0 }),
+  ],
+  driverController.completeRide
+);
 
-router.get('/:driverId/current-ride', [
-  param('driverId').notEmpty(),
-], driverController.getCurrentRide);
-// ==================== WALLET MANAGEMENT ====================
+router.get('/earnings',
+  authMiddleware,
+  driverController.getDriverEarnings
+);
 
-// Xem ví
-router.get('/:driverId/wallet', driverController.getWallet);
+router.get('/ride-history',
+  authMiddleware,
+  [
+    query('page').optional().isInt({ min: 1 }),
+    query('limit').optional().isInt({ min: 1, max: 100 }),
+  ],
+  driverController.getRideHistory
+);
 
-// Yêu cầu rút tiền
-router.post('/:driverId/wallet/withdraw', [
-  param('driverId').notEmpty(),
-  body('amount').isFloat({ min: 10000 }).withMessage('Số tiền tối thiểu 10,000đ'),
-  body('bankAccount').optional(),
-], driverController.requestWithdraw);
+router.get('/current-ride',
+  authMiddleware,
+  driverController.getCurrentRide
+);
 
-// Lịch sử giao dịch
-router.get('/:driverId/wallet/transactions', [
-  param('driverId').notEmpty(),
-  query('page').optional().isInt({ min: 1 }),
-  query('limit').optional().isInt({ min: 1, max: 100 }),
-], driverController.getTransactionHistory);
-// ==================== WALLET MANAGEMENT ====================
-router.get('/:driverId/wallet', driverController.getWallet);
-router.post('/:driverId/wallet/withdraw', driverController.requestWithdraw);
-router.get('/:driverId/wallet/transactions', driverController.getTransactionHistory);
+router.get('/wallet',
+  authMiddleware,
+  driverController.getWallet
+);
+
+router.post('/wallet/withdraw',
+  authMiddleware,
+  [
+    body('amount').isFloat({ min: 10000 }),
+    body('bankAccount').optional(),
+  ],
+  driverController.requestWithdraw
+);
+
+router.get('/wallet/transactions',
+  authMiddleware,
+  [
+    query('page').optional().isInt({ min: 1 }),
+    query('limit').optional().isInt({ min: 1, max: 100 }),
+  ],
+  driverController.getTransactionHistory
+);
+
 module.exports = router;
