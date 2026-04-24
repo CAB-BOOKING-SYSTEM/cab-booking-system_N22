@@ -47,7 +47,7 @@ const pool = new Pool({
 });
 
 // ========== KIỂM TRA KẾT NỐI DATABASE (VỚI RETRY) ==========
-const testConnection = async (maxRetries = 5, delay = 3000) => {
+const testConnection = async (maxRetries = 20, delay = 3000) => {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const client = await pool.connect();
@@ -67,7 +67,7 @@ const testConnection = async (maxRetries = 5, delay = 3000) => {
 };
 
 // ========== KHỞI TẠO DATABASE & BẢNG (VỚI RETRY) ==========
-const initDatabase = async (maxRetries = 5, delay = 3000) => {
+const initDatabase = async (maxRetries = 20, delay = 3000) => {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     let client;
     try {
@@ -145,7 +145,37 @@ app.get("/api/v1/health", (req, res) => {
   });
 });
 
-// ========== UTILS: MASKING DỮ LIỆU NHẠY CẢM ==========
+// ========== UTILS: SANITIZE XSS & MASKING ==========
+const escapeHtml = (text) => {
+  if (!text) return text;
+  const map = {
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#039;",
+  };
+  return String(text).replace(/[&<>"']/g, (char) => map[char]);
+};
+
+const validateInput = (input) => {
+  // Kiểm tra XSS patterns
+  const xssPatterns = [
+    /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi,
+    /on\w+\s*=/gi,  // onclick=, onerror=, etc
+    /<iframe/gi,
+    /<object/gi,
+    /<embed/gi,
+  ];
+
+  for (let pattern of xssPatterns) {
+    if (pattern.test(input)) {
+      return false; // Contains XSS attempt
+    }
+  }
+  return true;
+};
+
 const maskPhoneNumber = (phone) => {
   if (!phone) return null;
   return phone.slice(0, 3) + "****" + phone.slice(-3);
@@ -170,9 +200,36 @@ app.post("/api/v1/users", async (req, res) => {
       });
     }
 
+    // XSS Protection: Validate input
+    if (!validateInput(full_name)) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "Invalid characters detected in full_name (XSS attempt blocked)" 
+      });
+    }
+
+    if (!validateInput(phone_number)) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "Invalid characters detected in phone_number" 
+      });
+    }
+
+    if (email && !validateInput(email)) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "Invalid characters detected in email" 
+      });
+    }
+
+    // Sanitize input
+    const sanitizedName = escapeHtml(full_name.trim());
+    const sanitizedPhone = phone_number.trim();
+    const sanitizedEmail = email ? email.trim() : null;
+
     const result = await pool.query(
       "INSERT INTO users (full_name, phone_number, email, role) VALUES ($1, $2, $3, $4) RETURNING id, full_name, phone_number, email, role, status, created_at",
-      [full_name, phone_number, email, role || "RIDER"],
+      [sanitizedName, sanitizedPhone, sanitizedEmail, role || "RIDER"],
     );
     res.status(201).json({ 
       success: true, 
