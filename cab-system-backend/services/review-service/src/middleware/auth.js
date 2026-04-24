@@ -6,6 +6,12 @@ const jwt = require("jsonwebtoken");
  */
 module.exports = (req, res, next) => {
   try {
+    if (req.headers["x-gateway-proxy"] !== "true") {
+      return res.status(403).json({
+        message: "Forbidden: review APIs must be called through API Gateway",
+      });
+    }
+
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
