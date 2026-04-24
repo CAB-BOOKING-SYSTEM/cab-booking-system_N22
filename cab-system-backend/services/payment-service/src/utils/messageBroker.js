@@ -1,62 +1,112 @@
 const amqp = require("amqplib");
 
+let connection = null;
 let channel = null;
+let isConnecting = false;
 
+const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
+
+// ✅ CONNECT (retry liên tục)
 const connect = async () => {
-  const conn = await amqp.connect(process.env.RABBITMQ_URL);
-  channel = await conn.createChannel();
-  console.log("🐰 RabbitMQ connected");
+  if (channel || isConnecting) return;
+
+  isConnecting = true;
+
+  while (!channel) {
+    try {
+      console.log("⏳ Connecting RabbitMQ...");
+
+      connection = await amqp.connect(process.env.RABBITMQ_URL);
+
+      connection.on("close", () => {
+        console.log("⚠️ RabbitMQ closed → reconnect...");
+        channel = null;
+        isConnecting = false;
+        setTimeout(connect, 3000);
+      });
+
+      connection.on("error", (err) => {
+        console.log("❌ RabbitMQ error:", err.message);
+      });
+
+      channel = await connection.createChannel();
+
+      console.log("🐰 RabbitMQ connected");
+    } catch (err) {
+      console.log("❌ Connect fail → retry 3s...");
+      await sleep(3000);
+    }
+  }
+
+  isConnecting = false;
 };
 
-const publish = async (exchange, routingKey, message) => {
+// ✅ GET CHANNEL
+const getChannel = async () => {
   if (!channel) await connect();
 
+  while (!channel) {
+    await sleep(500);
+  }
+
+  return channel;
+};
+
+// ✅ PUBLISH
+const publish = async (exchange, routingKey, message) => {
   try {
-    await channel.assertExchange(exchange, "topic", { durable: true });
+    const ch = await getChannel();
 
-    // 🔥 CHỈ SỬA DÒNG NÀY (KHÔNG replace nữa)
-    const queueName = routingKey;
+    await ch.assertExchange(exchange, "topic", { durable: true });
 
-    await channel.assertQueue(queueName, { durable: true });
-    await channel.bindQueue(queueName, exchange, routingKey);
-
-    channel.publish(
+    ch.publish(
       exchange,
       routingKey,
       Buffer.from(JSON.stringify(message)),
       { persistent: true }
     );
 
-    console.log(`📤 Published: ${exchange} → ${routingKey} | Queue: ${queueName}`);
+    console.log(`📤 Published: ${routingKey}`, message);
   } catch (err) {
     console.error("❌ Publish error:", err.message);
   }
 };
 
-// Consume giữ nguyên
+// ✅ CONSUME
 const consume = async (queue, exchange, routingKey, handler) => {
-  if (!channel) await connect();
+  try {
+    const ch = await getChannel();
 
-  await channel.assertExchange(exchange, "topic", { durable: true });
-  await channel.assertQueue(queue, { durable: true });
-  await channel.bindQueue(queue, exchange, routingKey);
+    await ch.assertExchange(exchange, "topic", { durable: true });
 
-  console.log(`👂 Listening on queue: ${queue} (exchange: ${exchange}, key: ${routingKey})`);
+    await ch.assertQueue(queue, { durable: true });
 
-  channel.consume(queue, async (msg) => {
-    if (!msg) return;
+    await ch.bindQueue(queue, exchange, routingKey);
 
-    try {
-      const event = JSON.parse(msg.content.toString());
-      console.log("📥 Received event on queue", queue, ":", event);
+    console.log(`👂 Listening: ${queue}`);
 
-      await handler(event);
-      channel.ack(msg);
-    } catch (err) {
-      console.error("❌ Error processing message:", err);
-      channel.nack(msg, false, false);
-    }
-  });
+    ch.consume(queue, async (msg) => {
+      if (!msg) return;
+
+      try {
+        const data = JSON.parse(msg.content.toString());
+
+        await handler(data);
+
+        ch.ack(msg);
+      } catch (err) {
+        console.error("❌ Consume error:", err.message);
+        ch.nack(msg, false, false);
+      }
+    });
+  } catch (err) {
+    console.error("❌ Consume setup error:", err.message);
+  }
 };
 
-module.exports = { connect, publish, consume };
+module.exports = {
+  connect,
+  publish,
+  consume,
+  getChannel, // 👈 QUAN TRỌNG
+};

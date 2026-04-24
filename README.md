@@ -9,55 +9,17 @@ https://sandbox.vnpayment.vn/apis/docs/thanh-toan-pay/pay.html
 ****
 
 
-1. THANH TOÁN THÀNH CÔNG
 
-#### 🔗 Link VNPAY
-![LINKVNPAY](./cab-system-backend/publics/linkvnpay.png)
+Testcase14: Chọn phương thức thanh toán khác
+![TESTCASE14](./cab-system-backend/publics/tc14.png)
 
-#### 💳 Chọn ngân hàng
-![vnpay1](./cab-system-backend/publics/chonnganhang.png)
+Testcase24: Khởi tạo payment
+![TESTCASE24_Booking](./cab-system-backend/publics/tc24_booking.png)
+![TESTCASE24_Khoitaopayment](./cab-system-backend/publics/tc24_khoitaopayment.png)
 
-#### 💰 Thanh toán
-![vnpay2](./cab-system-backend/publics/hinhthuctt.png)
-![vnpay3](./cab-system-backend/publics/tttt.png)
-![vnpay4](./cab-system-backend/publics/otp.png)
-
-
-#### ✅ Success
-![Payment Success](./cab-system-backend/publics/success.png)
-
-
-#### 🐰 RabbitMQ
-![RabbitMQ](./cab-system-backend/publics/rabbitmq.png)
-
-#### 🐰 update status
-![container postgres](./cab-system-backend/publics/updatestatus.png)
-
-2. THANH TOÁN THÂT BẠI
-. Số dư không đủ(có thể test thẻ bị khóa)
-#### 🔗 Link VNPAY
-![LINKVNPAYfailed](./cab-system-backend/publics/linkvnpay1.png)
-
-#### 💳 Chọn ngân hàng
-![vnpay1](./cab-system-backend/publics/chonnganhang.png)
-
-#### 💰 Thanh toán
-![vnpay2](./cab-system-backend/publics/hinhthuctt.png)
-![vnpay3](./cab-system-backend/publics/sodukdu.png)
-
-#### ✅ Failed
-![Payment Failed](./cab-system-backend/publics/failed.png)
-
-
-#### 🐰 RabbitMQ
-![RabbitMQ](./cab-system-backend/publics/publishfailed.png)
-
-#### 🐰 update status
-![container postgres](./cab-system-backend/publics/updatefail.png)
-
-
-3. RETRY
-### RETRY THÀNH CÔNG
-![retry success](./cab-system-backend/publics/retrysuccess.png)
-### RETRY THẤT BẠI
-![retry success](./cab-system-backend/publics/retryfailed.png)
+Testcase36:hởi tạo payment
+![TESTCASE36_1](./cab-system-backend/publics/tc36_url.png)
+![TESTCASE36_2](./cab-system-backend/publics/tc36_vnpay.png)
+![TESTCASE36_3](./cab-system-backend/publics/tc36_thanhtoan.png)
+![TESTCASE36_4](./cab-system-backend/publics/tc36_otp.png)
+![TESTCASE36a_5](./cab-system-backend/publics/tc36_kqua.png)
