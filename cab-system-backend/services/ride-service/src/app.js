@@ -7,6 +7,7 @@ const { connectRabbitMQ } = require("./events/rabbitmq");
 const { connectKafka } = require("./events/kafka");
 const { initWebSocket } = require("./gateway/websocket");
 const http = require("http");
+const mtls = require("../../../shared/mtls.cjs");
 const rideRoutes = require("./routes/rideRoutes");
 
 const app = express();
@@ -46,11 +47,12 @@ const start = async () => {
     await connectKafka();
 
     // Create HTTP & WebSocket Gateway
-    const server = http.createServer(app);
+    const server = mtls.createServer(app);
+    const protocol = mtls.getProtocol();
     initWebSocket(server);
 
     server.listen(PORT, () => {
-      console.log(`🚀 Ride Service running on port ${PORT}`);
+      console.log(`🚀 Ride Service running on ${protocol}://localhost:${PORT}`);
     });
   } catch (error) {
     console.error("Unable to start the server:", error);

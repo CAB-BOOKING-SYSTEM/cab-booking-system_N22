@@ -4,11 +4,13 @@ import jwt from "jsonwebtoken";
 import redisClient from "../core/redis.js";
 import User from "../models/userModel.js";
 import axios from "axios";
+import mtls from "../../../../shared/mtls.cjs";
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || JWT_SECRET;
 const ACCESS_EXPIRES = process.env.JWT_EXPIRES_IN || "15m";
 const REFRESH_EXPIRES = process.env.JWT_REFRESH_EXPIRES_IN || "7d";
+const serviceAgent = mtls.createClientAgent();
 
 const generateAccessToken = (user) =>
   jwt.sign(
@@ -98,14 +100,18 @@ export const register = async (req, res) => {
         const driverServiceUrl =
           process.env.DRIVER_SERVICE_URL || "http://cab_driver:3003";
 
-        await axios.post(`${driverServiceUrl}/api/drivers/internal/create`, {
-          driverId: String(newUser.id),
-          email: email,
-          phone: "",
-          fullName: username,
-          vehicleType: "4_seat",
-          licensePlate: `TEMP${String(newUser.id).padStart(5, "0")}`,
-        });
+        await axios.post(
+          `${driverServiceUrl}/api/drivers/internal/create`,
+          {
+            driverId: String(newUser.id),
+            email: email,
+            phone: "",
+            fullName: username,
+            vehicleType: "4_seat",
+            licensePlate: `TEMP${String(newUser.id).padStart(5, "0")}`,
+          },
+          serviceAgent ? { httpsAgent: serviceAgent } : undefined,
+        );
 
         console.log(`✅ Auto-created driver for user ${newUser.id} (${email})`);
       } catch (driverError) {

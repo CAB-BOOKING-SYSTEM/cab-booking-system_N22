@@ -17,6 +17,13 @@ services:
       - review-service
     environment:
       - JWT_SECRET=${JWT_SECRET:-supersecret}
+      - MTLS_ENABLED=true
+      - TLS_CA_PATH=/shared-certs/ca-root.pem
+      - TLS_CERT_PATH=/shared-certs/gateway-cert.pem
+      - TLS_KEY_PATH=/shared-certs/gateway-key.pem
+    volumes:
+      - ./shared-certs:/shared-certs:ro
+      - ./shared:/shared:ro
 
   # --- 1. INFRASTRUCTURE ---
   postgres:
@@ -120,6 +127,14 @@ services:
       - JWT_SECRET=${JWT_SECRET:-supersecret}
       - JWT_REFRESH_SECRET=${JWT_SECRET:-supersecret}
       - REDIS_URL=redis://redis:6379
+      - MTLS_ENABLED=true
+      - TLS_CA_PATH=/shared-certs/ca-root.pem
+      - TLS_CERT_PATH=/shared-certs/auth-service-cert.pem
+      - TLS_KEY_PATH=/shared-certs/auth-service-key.pem
+      - DRIVER_SERVICE_URL=https://driver-service:${DRIVER_PORT}
+    volumes:
+      - ./shared-certs:/shared-certs:ro
+      - ./shared:/shared:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -139,8 +154,15 @@ services:
       - MONGODB_URI=mongodb://${MONGO_USER:-admin}:${MONGO_PASSWORD:-password123}@mongodb:27017
       - MONGODB_DB_NAME=booking_db
       - RABBITMQ_URL=amqp://${RABBITMQ_USER:-admin}:${RABBITMQ_PASS:-password123}@rabbitmq:5672
-      - PRICING_SERVICE_URL=http://cab_pricing:${PRICING_PORT:-3006}
+      - PRICING_SERVICE_URL=https://pricing-service:${PRICING_PORT:-3006}
       - JWT_SECRET=${JWT_SECRET:-supersecret}
+      - MTLS_ENABLED=true
+      - TLS_CA_PATH=/shared-certs/ca-root.pem
+      - TLS_CERT_PATH=/shared-certs/booking-service-cert.pem
+      - TLS_KEY_PATH=/shared-certs/booking-service-key.pem
+    volumes:
+      - ./shared-certs:/shared-certs:ro
+      - ./shared:/shared:ro
     depends_on:
       mongodb:
         condition: service_started
@@ -163,6 +185,15 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - JWT_SECRET=${JWT_SECRET}
+      - PRICING_SERVICE_URL=https://pricing-service:${PRICING_PORT:-3006}
+      - RIDE_SERVICE_URL=https://ride-service:${RIDE_PORT:-3008}
+      - MTLS_ENABLED=true
+      - TLS_CA_PATH=/shared-certs/ca-root.pem
+      - TLS_CERT_PATH=/shared-certs/driver-service-cert.pem
+      - TLS_KEY_PATH=/shared-certs/driver-service-key.pem
+    volumes:
+      - ./shared-certs:/shared-certs:ro
+      - ./shared:/shared:ro
     depends_on:
       - postgres
 
@@ -178,6 +209,13 @@ services:
       - DB_URL=mongodb+srv://hle26625_db_user:aEuxe83lA4lX9OEk@notification.jrxenun.mongodb.net/?appName=Notification
       - RABBITMQ_URL=amqp://admin:password123@rabbitmq:5672
       - REDIS_URL=redis://redis:6379
+      - MTLS_ENABLED=true
+      - TLS_CA_PATH=/shared-certs/ca-root.pem
+      - TLS_CERT_PATH=/shared-certs/notification-service-cert.pem
+      - TLS_KEY_PATH=/shared-certs/notification-service-key.pem
+    volumes:
+      - ./shared-certs:/shared-certs:ro
+      - ./shared:/shared:ro
     depends_on:
       - rabbitmq
       - redis
@@ -195,6 +233,13 @@ services:
       - PORT=${PAYMENT_PORT}
       - DB_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/payment_db
       - RABBITMQ_URL=amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@rabbitmq:5672
+      - MTLS_ENABLED=true
+      - TLS_CA_PATH=/shared-certs/ca-root.pem
+      - TLS_CERT_PATH=/shared-certs/payment-service-cert.pem
+      - TLS_KEY_PATH=/shared-certs/payment-service-key.pem
+    volumes:
+      - ./shared-certs:/shared-certs:ro
+      - ./shared:/shared:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -215,6 +260,13 @@ services:
       - DB_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/pricing_db
       - REDIS_URL=redis://redis:6379
       - RABBITMQ_URL=amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@rabbitmq:5672
+      - MTLS_ENABLED=true
+      - TLS_CA_PATH=/shared-certs/ca-root.pem
+      - TLS_CERT_PATH=/shared-certs/pricing-service-cert.pem
+      - TLS_KEY_PATH=/shared-certs/pricing-service-key.pem
+    volumes:
+      - ./shared-certs:/shared-certs:ro
+      - ./shared:/shared:ro
     depends_on:
       - postgres
       - redis
@@ -234,6 +286,13 @@ services:
       - DB_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/review_db
       - REDIS_URL=redis://redis:6379
       - RABBITMQ_URL=amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@rabbitmq:5672
+      - MTLS_ENABLED=true
+      - TLS_CA_PATH=/shared-certs/ca-root.pem
+      - TLS_CERT_PATH=/shared-certs/review-service-cert.pem
+      - TLS_KEY_PATH=/shared-certs/review-service-key.pem
+    volumes:
+      - ./shared-certs:/shared-certs:ro
+      - ./shared:/shared:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -257,11 +316,17 @@ services:
       - RABBITMQ_URL=amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@rabbitmq:5672
       - KAFKA_BROKER=kafka:9092
       - REDIS_URL=redis://redis:6379
+      - MTLS_ENABLED=true
+      - TLS_CA_PATH=/shared-certs/ca-root.pem
+      - TLS_CERT_PATH=/shared-certs/ride-service-cert.pem
+      - TLS_KEY_PATH=/shared-certs/ride-service-key.pem
     depends_on:
       - postgres
       - kafka
       - redis
     volumes:
+      - ./shared-certs:/shared-certs:ro
+      - ./shared:/shared:ro
       - ./cab-system-backend/services/ride-service:/app
       - /app/node_modules
 
@@ -277,9 +342,15 @@ services:
     environment:
       - PORT=${USER_PORT}
       - DB_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/user_db
+      - MTLS_ENABLED=true
+      - TLS_CA_PATH=/shared-certs/ca-root.pem
+      - TLS_CERT_PATH=/shared-certs/user-service-cert.pem
+      - TLS_KEY_PATH=/shared-certs/user-service-key.pem
     depends_on:
       - postgres
     volumes:
+      - ./shared-certs:/shared-certs:ro
+      - ./shared:/shared:ro
       - ./cab-system-backend/services/user-service:/app
       - /app/node_modules
 
@@ -300,14 +371,21 @@ services:
       - DB_NAME=matching_db
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - DRIVER_SERVICE_URL=http://cab_driver:${DRIVER_PORT}
+      - DRIVER_SERVICE_URL=https://driver-service:${DRIVER_PORT}
+      - PRICING_SERVICE_URL=https://pricing-service:${PRICING_PORT:-3006}
       - JWT_SECRET=${JWT_SECRET}
       - LOG_LEVEL=info
+      - MTLS_ENABLED=true
+      - TLS_CA_PATH=/shared-certs/ca-root.pem
+      - TLS_CERT_PATH=/shared-certs/matching-service-cert.pem
+      - TLS_KEY_PATH=/shared-certs/matching-service-key.pem
     depends_on:
       - postgres
       - redis
       - driver-service
     volumes:
+      - ./shared-certs:/shared-certs:ro
+      - ./shared:/shared:ro
       - ./cab-system-backend/services/matching-service:/app
       - /app/node_modules
     restart: unless-stopped

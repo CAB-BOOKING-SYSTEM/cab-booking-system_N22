@@ -1,9 +1,13 @@
-const axios = require('axios');
-const logger = require('../utils/logger');
+const axios = require("axios");
+const logger = require("../utils/logger");
+const mtls = require("../../../../../shared/mtls.cjs");
+
+const httpsAgent = mtls.createClientAgent();
 
 class FeatureStoreService {
   constructor() {
-    this.featureStoreUrl = process.env.FEATURE_STORE_URL || 'http://feature-store:8080';
+    this.featureStoreUrl =
+      process.env.FEATURE_STORE_URL || "http://feature-store:8080";
     this.cache = new Map();
     this.cacheTTL = 300000; // 5 minutes
   }
@@ -19,7 +23,7 @@ class FeatureStoreService {
       // In production, call actual feature store
       // const response = await axios.get(`${this.featureStoreUrl}/drivers/${driverId}/features`);
       // const features = response.data;
-      
+
       // Simulate features for now
       const features = {
         driverId,
@@ -46,7 +50,7 @@ class FeatureStoreService {
     await Promise.all(
       driverIds.map(async (driverId) => {
         features[driverId] = await this.getDriverFeatures(driverId);
-      })
+      }),
     );
     return features;
   }
@@ -54,10 +58,15 @@ class FeatureStoreService {
   async getDriverRating(driverId) {
     // In production, call Driver Service API
     try {
-      const driverServiceUrl = process.env.DRIVER_SERVICE_URL || 'http://cab_driver:3003';
-      const response = await axios.get(`${driverServiceUrl}/api/drivers/${driverId}`, {
-        timeout: 3000,
-      });
+      const driverServiceUrl =
+        process.env.DRIVER_SERVICE_URL || "http://cab_driver:3003";
+      const response = await axios.get(
+        `${driverServiceUrl}/api/drivers/${driverId}`,
+        {
+          timeout: 3000,
+          ...(httpsAgent ? { httpsAgent } : {}),
+        },
+      );
       return response.data.data?.rating || 5.0;
     } catch (error) {
       logger.warn(`Failed to get rating for ${driverId}, using default`);
@@ -79,10 +88,15 @@ class FeatureStoreService {
   async getDriverCompletedTrips(driverId) {
     // Simulate - in production, get from Driver Service
     try {
-      const driverServiceUrl = process.env.DRIVER_SERVICE_URL || 'http://cab_driver:3003';
-      const response = await axios.get(`${driverServiceUrl}/api/drivers/${driverId}`, {
-        timeout: 3000,
-      });
+      const driverServiceUrl =
+        process.env.DRIVER_SERVICE_URL || "http://cab_driver:3003";
+      const response = await axios.get(
+        `${driverServiceUrl}/api/drivers/${driverId}`,
+        {
+          timeout: 3000,
+          ...(httpsAgent ? { httpsAgent } : {}),
+        },
+      );
       return response.data.data?.totalTrips || 0;
     } catch (error) {
       return 0;
@@ -129,7 +143,7 @@ class FeatureStoreService {
 
   clearCache() {
     this.cache.clear();
-    logger.info('Feature store cache cleared');
+    logger.info("Feature store cache cleared");
   }
 }
 

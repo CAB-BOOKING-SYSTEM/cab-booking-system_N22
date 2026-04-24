@@ -1,17 +1,23 @@
 const express = require("express");
 const proxy = require("express-http-proxy");
-const cors = require("cors");  // ← THÊM DÒNG NÀY
+const cors = require("cors"); // ← THÊM DÒNG NÀY
 const authMiddleware = require("./middlewares/auth");
+const mtls = require("/shared/mtls.cjs");
+
+const gatewayAgent = mtls.createClientAgent();
+const useMtls = Boolean(gatewayAgent);
 
 const app = express();
 
 // ← THÊM CORS VÀO ĐÂY
-app.use(cors({
-  origin: '*',
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+app.use(
+  cors({
+    origin: "*",
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  }),
+);
 
 app.use(express.json());
 
@@ -25,61 +31,75 @@ const createProxy = (target, prefix) =>
       }
       return `${prefix}${path}`;
     },
+    proxyReqOptDecorator: (proxyReqOpts) => {
+      if (gatewayAgent) {
+        proxyReqOpts.agent = gatewayAgent;
+        proxyReqOpts.rejectUnauthorized = true;
+      }
+
+      return proxyReqOpts;
+    },
   });
 
-// Auth routes - no authentication required
-app.use("/auth", createProxy("http://auth-service:3001", "/api/auth"));
+const serviceUrl = (host, port) =>
+  useMtls ? `https://${host}:${port}` : `http://${host}:${port}`;
 
+// Auth routes - no authentication required
+app.use("/auth", createProxy(serviceUrl("auth-service", 3001), "/api/auth"));
 
 // Protected API routes - all require authentication
 app.use(
   "/api/v1/users",
   authMiddleware,
-  createProxy("http://user-service:3009", "/api/v1/users"),
+  createProxy(serviceUrl("user-service", 3009), "/api/v1/users"),
 );
 
 app.use(
   "/api/drivers",
   authMiddleware,
-  createProxy("http://driver-service:3003", "/api/drivers"),
+  createProxy(serviceUrl("driver-service", 3003), "/api/drivers"),
 );
 
 app.use(
   "/api/bookings",
   authMiddleware,
-  createProxy("http://booking-service:3002", "/api/bookings"),
+  createProxy(serviceUrl("booking-service", 3002), "/api/bookings"),
 );
 
 app.use(
   "/api/rides",
   authMiddleware,
-  createProxy("http://ride-service:3008", "/api/rides"),
+  createProxy(serviceUrl("ride-service", 3008), "/api/rides"),
 );
 
 app.use(
   "/api/pricing",
   authMiddleware,
-  createProxy("http://pricing-service:3006", "/api/v1"),
+  createProxy(serviceUrl("pricing-service", 3006), "/api/v1"),
 );
 
 app.use(
   "/api/payments",
   authMiddleware,
-  createProxy("http://payment-service:3005", "/api/payments"),
+  createProxy(serviceUrl("payment-service", 3005), "/api/payments"),
 );
 
 app.use(
   "/api/notifications",
   authMiddleware,
-  createProxy("http://notification-service:3004", "/api/notifications"),
+  createProxy(serviceUrl("notification-service", 3004), "/api/notifications"),
 );
 
 app.use(
   "/reviews",
   authMiddleware,
-  proxy("http://review-service:3007", {
+  proxy(serviceUrl("review-service", 3007), {
     proxyReqPathResolver: (req) => `/api/v1/reviews${req.url}`,
     proxyReqOptDecorator: (proxyReqOpts) => {
+      if (gatewayAgent) {
+        proxyReqOpts.agent = gatewayAgent;
+        proxyReqOpts.rejectUnauthorized = true;
+      }
       proxyReqOpts.headers["x-gateway-proxy"] = "true";
       return proxyReqOpts;
     },
@@ -90,9 +110,13 @@ app.use(
 app.use(
   "/api/reviews",
   authMiddleware,
-  proxy("http://review-service:3007", {
+  proxy(serviceUrl("review-service", 3007), {
     proxyReqPathResolver: (req) => `/api/v1/reviews${req.url}`,
     proxyReqOptDecorator: (proxyReqOpts) => {
+      if (gatewayAgent) {
+        proxyReqOpts.agent = gatewayAgent;
+        proxyReqOpts.rejectUnauthorized = true;
+      }
       proxyReqOpts.headers["x-gateway-proxy"] = "true";
       return proxyReqOpts;
     },
@@ -102,7 +126,7 @@ app.use(
 app.use(
   "/api/matching",
   authMiddleware,
-  createProxy("http://matching-service:3010", "/api/matching"),
+  createProxy(serviceUrl("matching-service", 3010), "/api/matching"),
 );
 
 module.exports = app;
