@@ -6,6 +6,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 
 import apiRoutes from './api/api.js';        // ← Import từ file gom
+import { apiLimiter } from './middleware/rateLimiter.js';
 import redisClient from './core/redis.js';
 
 const app = express();
@@ -18,6 +19,9 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(cookieParser());
+
+// Rate limiting chung cho toàn bộ API
+app.use(apiLimiter);
 
 // ====================== ROUTES ======================
 app.use('/api', apiRoutes);        // ← Dùng /api làm prefix chung
@@ -32,7 +36,7 @@ app.use((err, req, res, next) => {
 });
 
 // ====================== START SERVER ======================
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3002;
 
 app.listen(PORT, () => {
   console.log(`🚀 Auth Service is running on http://localhost:${PORT}`);
