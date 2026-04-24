@@ -1,8 +1,9 @@
+// controllers/auth.js
 import bcrypt from "bcryptjs";
-import { randomUUID } from "crypto";
 import jwt from "jsonwebtoken";
 import redisClient from "../core/redis.js";
 import User from "../models/userModel.js";
+import UserOtp from "../models/userOTP.js";
 import axios from "axios";
 
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -10,89 +11,64 @@ const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || JWT_SECRET;
 const ACCESS_EXPIRES = process.env.JWT_EXPIRES_IN || "15m";
 const REFRESH_EXPIRES = process.env.JWT_REFRESH_EXPIRES_IN || "7d";
 
-const generateAccessToken = (user) =>
-  jwt.sign(
+// Helper: Tạo Access Token
+const generateAccessToken = (user) => {
+  return jwt.sign(
     {
-      sub: String(user.id),
-      driver_id: user.driver_id || null,
+      sub: user.id,
       email: user.email,
       role: user.role,
       username: user.username,
     },
     JWT_SECRET,
-    {
-      expiresIn: ACCESS_EXPIRES,
-      issuer: "auth-service",
-      audience: "cab-booking-clients",
-      jwtid: randomUUID(),
-    },
+    { expiresIn: ACCESS_EXPIRES },
   );
+};
 
-const generateRefreshToken = (userId) =>
-  jwt.sign({ sub: String(userId) }, JWT_REFRESH_SECRET, {
+// Helper: Tạo Refresh Token
+const generateRefreshToken = (userId) => {
+  return jwt.sign({ sub: userId }, JWT_REFRESH_SECRET, {
     expiresIn: REFRESH_EXPIRES,
-    issuer: "auth-service",
-    audience: "cab-booking-refresh",
-    jwtid: randomUUID(),
   });
+};
 
+// Helper: Blacklist token
 const blacklistToken = async (token, expiresInSeconds) => {
   if (!token) return;
   await redisClient.set(`blacklist:${token}`, "1", { EX: expiresInSeconds });
 };
 
+// Helper: Kiểm tra token có bị blacklist không
 const isBlacklisted = async (token) => {
   const exists = await redisClient.exists(`blacklist:${token}`);
   return exists === 1;
 };
 
+// ====================== REGISTER ======================
 export const register = async (req, res) => {
   try {
-    const {
-      email,
-      username,
-      password,
-      role = "customer",
-      phone_number = null,
-      driver_status = null,
-    } = req.body;
-    let driver_id = req.body.driver_id || null;  // 🔥 SỬA: dùng let thay vì const
+    const { email, username, password, role = "customer" } = req.body;
 
     if (!email || !username || !password) {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
-    const normalizedRole = User.normalizeRole(role);
-    if (normalizedRole === "driver" && !driver_id) {
-      // Tự động tạo driver_id nếu chưa có
-      driver_id = `DRV_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-    }
-
-
-
-    const existingUser = await User.findByEmail(email);
+    // Kiểm tra email tồn tại
+    const existingUser = await User.findByEmail(email); // bạn cần implement method này
     if (existingUser) {
       return res.status(409).json({ message: "Email already exists" });
     }
 
-    if (driver_id) {
-      const existingDriver = await User.findByDriverId(driver_id);
-      if (existingDriver) {
-        return res.status(409).json({ message: "driver_id already exists" });
-      }
-    }
-
+    // Hash password
     const salt = await bcrypt.genSalt(12);
     const hashedPassword = await bcrypt.hash(password, salt);
 
+    // Tạo user (implement trong model)
     const newUser = await User.create({
       email,
       username,
-      phone_number,
       password: hashedPassword,
-      role: normalizedRole,
-      driver_id,
-      driver_status,
+      role: ["customer", "driver", "admin"].includes(role) ? role : "customer",
     });
     // 🔥 THÊM ĐOẠN NÀY: Tạo driver tự động nếu role = driver
     if (role === "driver") {
@@ -114,98 +90,68 @@ export const register = async (req, res) => {
       }
     }
 
-    return res.status(201).json({
-      message: "User registered successfully",
-      user: {
-        id: newUser.id,
-        email: newUser.email,
-        phone_number: newUser.phone_number,
-        username: newUser.username,
-        role: newUser.role,
-        status: newUser.status,
-        driver_id: newUser.driver_id,
-        driver_status: newUser.driver_status,
-      },
+    res.status(201).json({
+      message:
+        "User registered successfully. Please verify your email if needed.",
+      user: { id: newUser.id, email: newUser.email, role: newUser.role },
     });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ message: "Server error" });
+    res.status(500).json({ message: "Server error" });
   }
 };
 
+// ====================== LOGIN ======================
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
-    
-    if (!email || !password) {
-      return res.status(400).json({ message: "Email and password are required" });
-    }
 
     const user = await User.findByEmail(email);
     if (!user || !user.password) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    await User.unlockIfExpired(user.id);
-    const refreshedUser = await User.findById(user.id);
-
-    if (refreshedUser?.status === "LOCKED" && refreshedUser.locked_until) {
-      return res.status(423).json({
-        message: "Account temporarily locked due to failed login attempts",
-        locked_until: refreshedUser.locked_until,
-      });
-    }
-
-    if (refreshedUser && !refreshedUser.is_active) {
-      return res.status(403).json({ message: "Account is not active" });
-    }
-
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      await User.registerFailedLogin(user.id);
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    const loginUser = refreshedUser || user;
-    const accessToken = generateAccessToken(loginUser);
-    const refreshToken = generateRefreshToken(loginUser.id);
-    const decodedAccessToken = jwt.decode(accessToken);
+    // Tạo tokens
+    const accessToken = generateAccessToken(user);
+    const refreshToken = generateRefreshToken(user.id);
 
-    await redisClient.set(`refresh:${loginUser.id}`, refreshToken, {
-      EX: 7 * 24 * 60 * 60,
-    });
+    // Lưu refresh token vào Redis (để dễ quản lý rotation & revocation)
+    await redisClient.set(
+      `refresh:${user.id}`,
+      refreshToken,
+      { EX: 7 * 24 * 60 * 60 }, // 7 ngày
+    );
 
-    await User.updateSuccessfulLogin(loginUser.id);
-
+    // Set Refresh Token vào HttpOnly Cookie
     res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 ngày
     });
 
-    return res.status(200).json({
+    res.json({
       message: "Login successful",
-      access_token: accessToken,
-      token_type: "Bearer",
-      token_payload: decodedAccessToken,
+      accessToken,
       user: {
-        id: loginUser.id,
-        email: loginUser.email,
-        phone_number: loginUser.phone_number,
-        username: loginUser.username,
-        role: loginUser.role,
-        status: loginUser.status,
-        driver_id: loginUser.driver_id,
-        driver_status: loginUser.driver_status,
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        role: user.role,
       },
     });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ message: "Server error" });
+    res.status(500).json({ message: "Server error" });
   }
 };
 
+// ====================== REFRESH TOKEN (với Rotation) ======================
 export const refresh = async (req, res) => {
   try {
     const oldRefreshToken = req.cookies.refreshToken;
@@ -213,18 +159,18 @@ export const refresh = async (req, res) => {
       return res.status(401).json({ message: "No refresh token provided" });
     }
 
+    // Kiểm tra blacklist
     if (await isBlacklisted(oldRefreshToken)) {
       return res
         .status(401)
         .json({ message: "Refresh token has been revoked" });
     }
 
-    const decoded = jwt.verify(oldRefreshToken, JWT_REFRESH_SECRET, {
-      issuer: "auth-service",
-      audience: "cab-booking-refresh",
-    });
+    // Verify refresh token
+    const decoded = jwt.verify(oldRefreshToken, JWT_REFRESH_SECRET);
     const userId = decoded.sub;
 
+    // Lấy refresh token hiện tại từ Redis
     const currentRefreshInRedis = await redisClient.get(`refresh:${userId}`);
     if (!currentRefreshInRedis || currentRefreshInRedis !== oldRefreshToken) {
       return res
@@ -232,25 +178,30 @@ export const refresh = async (req, res) => {
         .json({ message: "Invalid or reused refresh token" });
     }
 
+    // Lấy thông tin user
     const user = await User.findById(userId);
-    if (!user || !user.is_active) {
-      return res.status(404).json({ message: "User not found or inactive" });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
     }
 
+    // === TOKEN ROTATION ===
+    // Blacklist refresh token cũ ngay lập tức
     const decodedOld = jwt.decode(oldRefreshToken);
     const ttl = Math.floor((decodedOld.exp * 1000 - Date.now()) / 1000);
     if (ttl > 0) {
       await blacklistToken(oldRefreshToken, ttl);
     }
 
+    // Tạo token mới
     const newAccessToken = generateAccessToken(user);
     const newRefreshToken = generateRefreshToken(user.id);
-    const decodedAccessToken = jwt.decode(newAccessToken);
 
+    // Cập nhật refresh token mới vào Redis
     await redisClient.set(`refresh:${user.id}`, newRefreshToken, {
       EX: 7 * 24 * 60 * 60,
     });
 
+    // Set cookie mới
     res.cookie("refreshToken", newRefreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
@@ -258,27 +209,27 @@ export const refresh = async (req, res) => {
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    return res.status(200).json({
+    res.json({
       message: "Token refreshed successfully",
-      access_token: newAccessToken,
-      token_type: "Bearer",
-      token_payload: decodedAccessToken,
+      accessToken: newAccessToken,
     });
   } catch (error) {
     if (error.name === "TokenExpiredError") {
       return res.status(401).json({ message: "Refresh token expired" });
     }
     console.error(error);
-    return res.status(401).json({ message: "Invalid refresh token" });
+    res.status(401).json({ message: "Invalid refresh token" });
   }
 };
 
+// ====================== LOGOUT ======================
 export const logout = async (req, res) => {
   try {
     const refreshToken = req.cookies.refreshToken;
     const authHeader = req.headers.authorization;
     const accessToken = authHeader && authHeader.split(" ")[1];
 
+    // Blacklist Access Token (nếu có)
     if (accessToken) {
       try {
         const decodedAccess = jwt.decode(accessToken);
@@ -286,35 +237,36 @@ export const logout = async (req, res) => {
         if (ttl > 0) {
           await blacklistToken(accessToken, ttl);
         }
-      } catch {}
+      } catch (e) {}
     }
 
+    // Blacklist & xóa Refresh Token
     if (refreshToken) {
       try {
         const decodedRefresh = jwt.decode(refreshToken);
-        const ttl = Math.floor(
-          (decodedRefresh.exp * 1000 - Date.now()) / 1000,
-        );
+        const ttl = Math.floor((decodedRefresh.exp * 1000 - Date.now()) / 1000);
         if (ttl > 0) {
           await blacklistToken(refreshToken, ttl);
         }
-      } catch {}
+      } catch (e) {}
 
+      // Xóa khỏi Redis
       const userId = jwt.decode(refreshToken)?.sub;
       if (userId) {
         await redisClient.del(`refresh:${userId}`);
       }
     }
 
+    // Xóa cookie
     res.clearCookie("refreshToken", {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
     });
 
-    return res.json({ message: "Logged out successfully" });
+    res.json({ message: "Logged out successfully" });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ message: "Logout failed" });
+    res.status(500).json({ message: "Logout failed" });
   }
 };

@@ -53,12 +53,36 @@ function parseMessageContent(message) {
   return JSON.parse(rawContent);
 }
 
+/**
+ * Defensive extraction: bóc tách object chứa dữ liệu thực sự của chuyến xe
+ * từ message có thể bị lồng nhiều tầng do lỗi thiết kế của booking-service.
+ *
+ * Thứ tự ưu tiên:
+ *   1. payload.data          — cấu trúc chuẩn { payload: { data: {...} } }
+ *   2. payload.payload?.data — bị wrap thêm một lớp ngoài
+ *   3. payload               — raw flat object fallback
+ *
+ * KHÔNG bao giờ trả về nguyên cục payload thô để tránh dump metaData lồng nhau.
+ */
 function getEventData(payload = {}) {
-  if (payload && typeof payload.data === "object") {
-    return payload.data || {};
+  // Ưu tiên 1: payload.payload.data (booking-service bắn message bị wrap thêm lớp)
+  if (
+    payload.payload &&
+    typeof payload.payload === "object" &&
+    payload.payload.data &&
+    typeof payload.payload.data === "object"
+  ) {
+    return payload.payload.data;
   }
 
-  return payload || {};
+  // Ưu tiên 2: payload.data (cấu trúc chuẩn)
+  if (payload.data && typeof payload.data === "object") {
+    return payload.data;
+  }
+
+  // Fallback: trả về payload nhưng loại bỏ các trường envelope rác
+  const { metaData, payload: _innerPayload, eventId, eventType, eventName, type, source, sourceService, timestamp, ...rest } = payload;
+  return rest;
 }
 
 function extractRecipientId(payload = {}) {
@@ -126,230 +150,116 @@ function buildNotificationPayload(routingKey, payload = {}) {
     null;
   const moneyText = formatCurrency(eventData.amount, eventData.currency);
 
+  // Template chung cho mỗi event — KHÔNG có trường metaData rác
+  // eventId/eventType sẽ được downstream map vào sourceEventId của Notification model
+  const baseEnvelope = {
+    eventId,
+    eventType,
+    timestamp,
+    source,
+    routingKey,
+    userId: recipientId,
+    userRole,
+    // bookingData: object thuần chứa thông tin chuyến xe đã được bóc tách sạch
+    bookingData: eventData,
+  };
+
   switch (routingKey) {
     case "user.registered":
       return {
-        eventId,
-        eventType,
-        timestamp,
-        source,
-        routingKey,
-        userId: recipientId,
-        userRole,
+        ...baseEnvelope,
         title: "Chào mừng bạn đến với Cab Booking",
         body: `Tài khoản của bạn đã được tạo thành công${eventData.fullName ? `, ${eventData.fullName}` : ""}.`,
-        data: eventData,
-        metaData: payload,
       };
     case "user.profile_updated":
       return {
-        eventId,
-        eventType,
-        timestamp,
-        source,
-        routingKey,
-        userId: recipientId,
-        userRole,
+        ...baseEnvelope,
         title: "Hồ sơ đã được cập nhật",
         body: `Thông tin hồ sơ của bạn vừa được cập nhật${eventData.updatedFields ? `: ${Array.isArray(eventData.updatedFields) ? eventData.updatedFields.join(", ") : eventData.updatedFields}` : ""}.`,
-        data: eventData,
-        metaData: payload,
       };
     case "user.account_banned":
       return {
-        eventId,
-        eventType,
-        timestamp,
-        source,
-        routingKey,
-        userId: recipientId,
-        userRole,
+        ...baseEnvelope,
         title: "Tài khoản đã bị tạm khóa",
         body: `Tài khoản của bạn đã bị tạm khóa${eventData.reason ? ` vì: ${eventData.reason}` : ""}.`,
-        data: eventData,
-        metaData: payload,
       };
     case "booking.created":
       return {
-        eventId,
-        eventType,
-        timestamp,
-        source,
-        routingKey,
-        userId: recipientId,
-        userRole,
+        ...baseEnvelope,
         title: "Đơn đặt xe đã được tạo",
         body: `Đơn đặt xe${bookingRef ? ` #${bookingRef}` : ""} của bạn đã được ghi nhận thành công.`,
-        data: eventData,
-        metaData: payload,
       };
     case "booking.accepted":
       return {
-        eventId,
-        eventType,
-        timestamp,
-        source,
-        routingKey,
-        userId: recipientId,
-        userRole,
+        ...baseEnvelope,
         title: "Đơn đặt xe đã được xác nhận",
         body: `Đơn đặt xe${bookingRef ? ` #${bookingRef}` : ""} đã được tài xế xác nhận${eventData.driverName ? ` bởi ${eventData.driverName}` : ""}.`,
-        data: eventData,
-        metaData: payload,
       };
     case "booking.cancelled":
       return {
-        eventId,
-        eventType,
-        timestamp,
-        source,
-        routingKey,
-        userId: recipientId,
-        userRole,
+        ...baseEnvelope,
         title: "Đơn đặt xe đã bị hủy",
         body: `Đơn đặt xe${bookingRef ? ` #${bookingRef}` : ""} đã bị hủy${eventData.reason ? ` vì: ${eventData.reason}` : ""}.`,
-        data: eventData,
-        metaData: payload,
       };
     case "ride.arrived":
       return {
-        eventId,
-        eventType,
-        timestamp,
-        source,
-        routingKey,
-        userId: recipientId,
-        userRole,
+        ...baseEnvelope,
         title: "Tài xế đã đến điểm đón",
         body: `Tài xế${eventData.driverName ? ` ${eventData.driverName}` : ""} đã đến điểm đón${eventData.rideId ? ` cho chuyến #${eventData.rideId}` : ""}.`,
-        data: eventData,
-        metaData: payload,
       };
     case "ride.started":
       return {
-        eventId,
-        eventType,
-        timestamp,
-        source,
-        routingKey,
-        userId: recipientId,
-        userRole,
+        ...baseEnvelope,
         title: "Chuyến đi đã bắt đầu",
         body: `Chuyến đi${eventData.rideId ? ` #${eventData.rideId}` : ""} đã bắt đầu.`,
-        data: eventData,
-        metaData: payload,
       };
     case "ride.completed":
       return {
-        eventId,
-        eventType,
-        timestamp,
-        source,
-        routingKey,
-        userId: recipientId,
-        userRole,
+        ...baseEnvelope,
         title: "Chuyến đi đã hoàn thành",
         body: `Chuyến đi${eventData.rideId ? ` #${eventData.rideId}` : ""} đã hoàn thành. Cảm ơn bạn đã đồng hành cùng Cab Booking.`,
-        data: eventData,
-        metaData: payload,
       };
     case "driver.ride.completed":
       return {
-        eventId,
-        eventType,
-        timestamp,
-        source,
-        routingKey,
-        userId: recipientId,
-        userRole,
+        ...baseEnvelope,
         title: "Chuyến đi đã hoàn thành",
         body: `Cảm ơn bạn đã hoàn thành chuyến đi${eventData.rideId ? ` #${eventData.rideId}` : ""}.`,
-        data: eventData,
-        metaData: payload,
       };
     case "payment.completed":
       return {
-        eventId,
-        eventType,
-        timestamp,
-        source,
-        routingKey,
-        userId: recipientId,
-        userRole,
+        ...baseEnvelope,
         title: "Thanh toán thành công ✅",
         body: `Chuyến đi${eventData.rideId ? ` #${eventData.rideId}` : ""} đã được thanh toán thành công${moneyText ? ` với số tiền ${moneyText}` : ""}${eventData.paymentMethod ? ` qua ${eventData.paymentMethod}` : ""}.`,
-        data: eventData,
-        metaData: payload,
       };
     case "payment.failed":
       return {
-        eventId,
-        eventType,
-        timestamp,
-        source,
-        routingKey,
-        userId: recipientId,
-        userRole,
+        ...baseEnvelope,
         title: "Thanh toán thất bại ❌",
         body: `Không thể thanh toán cho chuyến đi${eventData.rideId ? ` #${eventData.rideId}` : ""}${moneyText ? ` (${moneyText})` : ""}${eventData.reason ? `: ${eventData.reason}` : ""}.`,
-        data: eventData,
-        metaData: payload,
       };
     case "pricing.estimate.calculated":
       return {
-        eventId,
-        eventType,
-        timestamp,
-        source,
-        routingKey,
-        userId: recipientId,
-        userRole,
+        ...baseEnvelope,
         title: "Đã có ước tính giá cước",
         body: `Giá ước tính cho hành trình${eventData.rideId ? ` #${eventData.rideId}` : ""}${formatCurrency(eventData.estimatedPrice, eventData.currency) ? ` là ${formatCurrency(eventData.estimatedPrice, eventData.currency)}` : ""}.`,
-        data: eventData,
-        metaData: payload,
       };
     case "pricing.promotion.applied":
       return {
-        eventId,
-        eventType,
-        timestamp,
-        source,
-        routingKey,
-        userId: recipientId,
-        userRole,
+        ...baseEnvelope,
         title: "Khuyến mãi đã được áp dụng",
         body: `Ưu đãi${eventData.promotionCode ? ` ${eventData.promotionCode}` : ""} đã được áp dụng${formatCurrency(eventData.discountAmount, eventData.currency) ? `, giảm ${formatCurrency(eventData.discountAmount, eventData.currency)}` : ""}.`,
-        data: eventData,
-        metaData: payload,
       };
     case "review.created":
       return {
-        eventId,
-        eventType,
-        timestamp,
-        source,
-        routingKey,
-        userId: recipientId,
-        userRole,
+        ...baseEnvelope,
         title: "Bạn vừa có một đánh giá mới",
         body: `Có một đánh giá mới liên quan đến chuyến đi${eventData.rideId ? ` #${eventData.rideId}` : ""}${eventData.rating ? ` với số sao ${eventData.rating}` : ""}.`,
-        data: eventData,
-        metaData: payload,
       };
     default:
       return {
-        eventId,
-        eventType,
-        timestamp,
-        source,
-        routingKey,
-        userId: recipientId,
-        userRole,
+        ...baseEnvelope,
         title: payload.title || "Thông báo mới",
         body: payload.body || `Bạn vừa có một thông báo mới (${routingKey}).`,
-        data: eventData,
-        metaData: payload,
       };
   }
 }
