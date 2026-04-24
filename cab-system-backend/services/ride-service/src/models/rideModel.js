@@ -8,11 +8,11 @@ const Ride = sequelize.define("Ride", {
     primaryKey: true,
   },
   userId: {
-    type: DataTypes.UUID,
+    type: DataTypes.STRING,
     allowNull: false,
   },
   driverId: {
-    type: DataTypes.UUID,
+    type: DataTypes.STRING,
     allowNull: true,
   },
   pickupLocation: {

@@ -1,6 +1,10 @@
 const express = require("express");
 const router = express.Router();
 const rideController = require("../controllers/rideController");
+const authMiddleware = require("../middleware/auth");
+
+// Apply authentication to all ride routes
+router.use(authMiddleware);
 
 router.post("/", (req, res) => rideController.createRide(req, res));
 router.get("/", (req, res) => rideController.getAllRides(req, res));
