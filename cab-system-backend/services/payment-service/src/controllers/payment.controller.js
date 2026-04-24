@@ -1,37 +1,39 @@
+const vnpay = require("../services/vnpay.service");
 const paymentService = require("../services/payment.service");
-const { createPaymentUrl } = require("../services/vnpay.service");
+const repo = require("../repositories/payment.repo");
 
 class PaymentController {
-
-  // tạo link VNPay
   async createVNPay(req, res) {
-    const { rideId, amount } = req.query;
-
-    const url = createPaymentUrl({
-      ride_id: rideId,
-      amount: Number(amount)
-    });
-
-    return res.json({ url });
-  }
-
-  // 🔥 RETURN = xử lý chính luôn
-  async vnpayReturn(req, res) {
     try {
-      const result = await paymentService.handleVNPayReturn(req.query);
+      const { bookingId } = req.body;
 
-      return res.json({
-        success: result.success,
-        rideId: req.query.vnp_TxnRef
+      const payment = await repo.findByBookingId(bookingId);
+      if (!payment) {
+        return res.status(404).json({ message: "Payment not found" });
+      }
+
+      const url = vnpay.createPaymentUrl({
+        ride_id: bookingId,
+        amount: payment.amount,
       });
 
+      res.json({ success: true, paymentUrl: url });
     } catch (err) {
-      console.error(err);
-      return res.status(500).json({ error: err.message });
+      res.status(500).json({ message: "Error" });
     }
   }
 
-  
+  async vnpayReturn(req, res) {
+    const result = await paymentService.handleVNPayReturn(req.query);
+
+    if (result.success) return res.send("✅ SUCCESS");
+    return res.send("❌ FAILED");
+  }
+
+  async getPayment(req, res) {
+    const payment = await repo.findByBookingId(req.params.bookingId);
+    res.json(payment);
+  }
 }
 
 module.exports = new PaymentController();
