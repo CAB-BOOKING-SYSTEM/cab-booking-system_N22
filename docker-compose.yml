@@ -3,6 +3,7 @@ services:
     build:
       context: ./gateway # Đường dẫn tương ứng với thư mục gateway trong ảnh
     container_name: cab_gateway
+    env_file: .env
     ports:
       - "${GATEWAY_PORT}:3000" # Giả sử gateway chạy port 3000
     depends_on:
@@ -120,6 +121,7 @@ services:
       args:
         - PORT=${AUTH_PORT}
     container_name: cab_auth
+    env_file: .env
     environment:
       - PORT=${AUTH_PORT}
       - DB_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/auth_db
@@ -145,6 +147,7 @@ services:
       context: ./cab-system-backend/services/booking-service
       dockerfile: Dockerfile
     container_name: cab_booking
+    env_file: .env
     environment:
       - PORT=3002
       - NODE_ENV=development
@@ -173,6 +176,7 @@ services:
       args:
         - PORT=${DRIVER_PORT}
     container_name: cab_driver
+    env_file: .env
     environment:
       - PORT=${DRIVER_PORT}
       - DB_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/driver_db
@@ -197,6 +201,7 @@ services:
       context: cab-system-backend/services/notification-service
       target: development
     container_name: cab_notification
+    env_file: .env
     environment:
       - PORT=3004
       - DB_URL=mongodb+srv://hle26625_db_user:aEuxe83lA4lX9OEk@notification.jrxenun.mongodb.net/?appName=Notification
@@ -220,6 +225,7 @@ services:
       args:
         - PORT=${PAYMENT_PORT}
     container_name: cab_payment
+    env_file: .env
     environment:
       - PORT=${PAYMENT_PORT}
       - DB_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/payment_db
@@ -244,6 +250,7 @@ services:
       args:
         - PORT=${PRICING_PORT}
     container_name: cab_pricing
+    env_file: .env
     environment:
       - PORT=${PRICING_PORT}
       - DB_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/pricing_db
@@ -268,6 +275,7 @@ services:
       args:
         - PORT=${REVIEW_PORT}
     container_name: rb_preview
+    env_file: .env
     environment:
       - PORT=${REVIEW_PORT}
       - DB_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/review_db
@@ -295,6 +303,7 @@ services:
       args:
         - PORT=${RIDE_PORT}
     container_name: cab_ride
+    env_file: .env
     environment:
       - PORT=${RIDE_PORT}
       - DB_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/ride_db
@@ -322,6 +331,7 @@ services:
       args:
         - PORT=${USER_PORT}
     container_name: cab_user
+    env_file: .env
     environment:
       - PORT=${USER_PORT}
       - DB_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/user_db
@@ -342,6 +352,7 @@ services:
       context: cab-system-backend/services/matching-service
       target: development
     container_name: cab_matching
+    env_file: .env
     environment:
       - PORT=${MATCHING_PORT}
       - NODE_ENV=development
