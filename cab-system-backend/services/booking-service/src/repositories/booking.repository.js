@@ -16,6 +16,16 @@ class BookingRepository {
     return booking;
   }
   
+  // 🔥 THÊM METHOD NÀY
+  async delete(id) {
+    const booking = await Booking.findByIdAndDelete(id);
+    if (!booking) {
+      throw new NotFoundError('Booking', id);
+    }
+    console.log(`🗑️ Booking deleted: ${id}`);
+    return booking;
+  }
+  
   async findByCustomerId(customerId, page = 1, limit = 10) {
     const skip = (page - 1) * limit;
     
@@ -61,19 +71,16 @@ class BookingRepository {
   async updateStatus(id, status, additionalData = {}) {
     const booking = await this.findById(id);
     
-    // Validate status transition
     this.validateStatusTransition(booking.status, status);
     
     booking.status = status;
     
-    // Update timestamps based on status
     if (status === 'in_progress') {
       booking.startTime = new Date();
     } else if (status === 'completed') {
       booking.endTime = new Date();
     }
     
-    // Apply additional updates
     Object.assign(booking, additionalData);
     
     await booking.save();
@@ -127,7 +134,6 @@ class BookingRepository {
       timestamp: new Date()
     });
     
-    // Keep only last 100 points
     if (booking.trackingPath.length > 100) {
       booking.trackingPath = booking.trackingPath.slice(-100);
     }

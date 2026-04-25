@@ -172,6 +172,61 @@ const maskEmail = (email) => {
   return name[0] + "***@" + domain;
 };
 
+// ============================================================
+// 🔥 INTERNAL ENDPOINT CHO AUTH SERVICE SYNC USER
+// ============================================================
+const INTERNAL_SECRET = process.env.INTERNAL_SECRET || "cab-internal-2024";
+
+app.post("/internal/users", async (req, res) => {
+  try {
+    const { full_name, phone_number, email, role } = req.body;
+    
+    // Kiểm tra secret key (bảo mật)
+    const internalSecret = req.headers["x-internal-secret"];
+    if (internalSecret !== INTERNAL_SECRET) {
+      console.warn(`❌ Internal auth failed: invalid secret`);
+      return res.status(403).json({ success: false, error: "Unauthorized" });
+    }
+
+    // Validate required fields
+    if (!full_name || !email) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "full_name and email are required" 
+      });
+    }
+
+    // Kiểm tra user đã tồn tại chưa
+    const existingUser = await pool.query(
+      "SELECT id FROM users WHERE email = $1",
+      [email]
+    );
+    
+    if (existingUser.rows.length > 0) {
+      console.log(`📝 User already exists in User Service: ${email}`);
+      return res.status(200).json({ 
+        success: true, 
+        message: "User already exists", 
+        data: existingUser.rows[0] 
+      });
+    }
+
+    // Tạo user mới
+    const result = await pool.query(
+      `INSERT INTO users (full_name, phone_number, email, role, status) 
+       VALUES ($1, $2, $3, $4, 'ACTIVE') 
+       RETURNING id, full_name, phone_number, email, role`,
+      [full_name, phone_number || `090000000${Date.now() % 100000}`, email, role || "RIDER"]
+    );
+    
+    console.log(`✅ Internal: User created in User Service: ${email} (${role})`);
+    res.status(201).json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error("Internal create user error:", error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // ========== API 1: TẠO MỚI USER ==========
 app.post("/api/v1/users", async (req, res) => {
   try {
@@ -578,6 +633,7 @@ const startServer = async () => {
       console.log(`📡 API Base URL: ${protocol}://localhost:${PORT}/api/v1`);
       console.log(`🔗 Gateway Proxy: ${protocol}://gateway:3000/api/v1/users`);
       console.log(`🏥 Health Check: ${protocol}://localhost:${PORT}/health`);
+      console.log(`🔐 Internal endpoint: ${protocol}://localhost:${PORT}/internal/users`);
     });
   } catch (error) {
     console.error("❌ Failed to start server:", error.message);
