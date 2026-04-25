@@ -1,25 +1,28 @@
-require('dotenv').config();
+require("dotenv").config();
 
 const express = require("express");
 const { Pool } = require("pg");
 const cors = require("cors");
 const fs = require("fs");
 const path = require("path");
+const mtls = require("../../../shared/mtls.cjs");
 
 const app = express();
 
 // Middleware - CORS Configuration for Gateway
 const corsOptions = {
   origin: [
-    'http://localhost:3000',
-    'http://gateway:3000',
-    'http://localhost:3009',
-    'http://user-service:3009'
+    "http://localhost:3000",
+    "https://localhost:3000",
+    "http://gateway:3000",
+    "https://gateway:3000",
+    "http://localhost:3009",
+    "http://user-service:3009",
   ],
   credentials: true,
   optionsSuccessStatus: 200,
-  methods: ['GET', 'POST', 'PATCH', 'DELETE', 'PUT', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  methods: ["GET", "POST", "PATCH", "DELETE", "PUT", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
 };
 
 app.use(cors(corsOptions));
@@ -27,20 +30,24 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // ========== BẮT LỖI TOÀN CỤC ==========
-process.on('uncaughtException', (err) => {
-  console.error('❌ Uncaught Exception:', err.message);
+process.on("uncaughtException", (err) => {
+  console.error("❌ Uncaught Exception:", err.message);
 });
 
-process.on('unhandledRejection', (reason) => {
-  console.error('❌ Unhandled Rejection:', reason);
+process.on("unhandledRejection", (reason) => {
+  console.error("❌ Unhandled Rejection:", reason);
 });
 
 // ========== CẤU HÌNH DATABASE ==========
 const dbUrl = process.env.DB_URL;
-console.log('🔍 DB_URL from env:', dbUrl ? '✅ Loaded' : '❌ NOT FOUND, using default');
+console.log(
+  "🔍 DB_URL from env:",
+  dbUrl ? "✅ Loaded" : "❌ NOT FOUND, using default",
+);
 
 const pool = new Pool({
-  connectionString: dbUrl || "postgresql://admin:password123@postgres:5432/user_db",
+  connectionString:
+    dbUrl || "postgresql://admin:password123@postgres:5432/user_db",
   max: 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 2000,
@@ -51,17 +58,23 @@ const testConnection = async (maxRetries = 20, delay = 3000) => {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const client = await pool.connect();
-      console.log('✅ Database connected successfully');
+      console.log("✅ Database connected successfully");
       client.release();
       return true;
     } catch (error) {
       if (attempt === maxRetries) {
-        console.error('❌ Database connection failed after', maxRetries, 'attempts');
+        console.error(
+          "❌ Database connection failed after",
+          maxRetries,
+          "attempts",
+        );
         return false;
       }
-      console.warn(`⏳ Attempt ${attempt}/${maxRetries} failed, retrying in ${delay/1000}s...`);
+      console.warn(
+        `⏳ Attempt ${attempt}/${maxRetries} failed, retrying in ${delay / 1000}s...`,
+      );
       console.warn(`   Error: ${error.message}`);
-      await new Promise(resolve => setTimeout(resolve, delay));
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
 };
@@ -72,7 +85,7 @@ const initDatabase = async (maxRetries = 20, delay = 3000) => {
     let client;
     try {
       client = await pool.connect();
-      
+
       // Tạo bảng users
       await client.query(`
         CREATE TABLE IF NOT EXISTS users (
@@ -111,16 +124,18 @@ const initDatabase = async (maxRetries = 20, delay = 3000) => {
         CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
         CREATE INDEX IF NOT EXISTS idx_locations_user_id ON saved_locations(user_id);
       `);
-      console.log('✅ Indexes created/verified');
+      console.log("✅ Indexes created/verified");
       return true;
     } catch (error) {
       if (attempt === maxRetries) {
-        console.error('❌ Init database failed after', maxRetries, 'attempts');
+        console.error("❌ Init database failed after", maxRetries, "attempts");
         return false;
       }
-      console.warn(`⏳ DB Init attempt ${attempt}/${maxRetries} failed, retrying in ${delay/1000}s...`);
+      console.warn(
+        `⏳ DB Init attempt ${attempt}/${maxRetries} failed, retrying in ${delay / 1000}s...`,
+      );
       console.warn(`   Error: ${error.message}`);
-      await new Promise(resolve => setTimeout(resolve, delay));
+      await new Promise((resolve) => setTimeout(resolve, delay));
     } finally {
       if (client) client.release();
     }
@@ -129,19 +144,19 @@ const initDatabase = async (maxRetries = 20, delay = 3000) => {
 
 // ========== HEALTH CHECK ==========
 app.get("/health", (req, res) => {
-  res.json({ 
-    service: 'user-service', 
-    status: 'UP',
-    timestamp: new Date().toISOString()
+  res.json({
+    service: "user-service",
+    status: "UP",
+    timestamp: new Date().toISOString(),
   });
 });
 
 // ========== GATEWAY HEALTH CHECK ==========
 app.get("/api/v1/health", (req, res) => {
-  res.json({ 
-    service: 'user-service', 
-    status: 'UP',
-    timestamp: new Date().toISOString()
+  res.json({
+    service: "user-service",
+    status: "UP",
+    timestamp: new Date().toISOString(),
   });
 });
 
@@ -187,6 +202,61 @@ const maskEmail = (email) => {
   return name[0] + "***@" + domain;
 };
 
+// ============================================================
+// 🔥 INTERNAL ENDPOINT CHO AUTH SERVICE SYNC USER
+// ============================================================
+const INTERNAL_SECRET = process.env.INTERNAL_SECRET || "cab-internal-2024";
+
+app.post("/internal/users", async (req, res) => {
+  try {
+    const { full_name, phone_number, email, role } = req.body;
+    
+    // Kiểm tra secret key (bảo mật)
+    const internalSecret = req.headers["x-internal-secret"];
+    if (internalSecret !== INTERNAL_SECRET) {
+      console.warn(`❌ Internal auth failed: invalid secret`);
+      return res.status(403).json({ success: false, error: "Unauthorized" });
+    }
+
+    // Validate required fields
+    if (!full_name || !email) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "full_name and email are required" 
+      });
+    }
+
+    // Kiểm tra user đã tồn tại chưa
+    const existingUser = await pool.query(
+      "SELECT id FROM users WHERE email = $1",
+      [email]
+    );
+    
+    if (existingUser.rows.length > 0) {
+      console.log(`📝 User already exists in User Service: ${email}`);
+      return res.status(200).json({ 
+        success: true, 
+        message: "User already exists", 
+        data: existingUser.rows[0] 
+      });
+    }
+
+    // Tạo user mới
+    const result = await pool.query(
+      `INSERT INTO users (full_name, phone_number, email, role, status) 
+       VALUES ($1, $2, $3, $4, 'ACTIVE') 
+       RETURNING id, full_name, phone_number, email, role`,
+      [full_name, phone_number || `090000000${Date.now() % 100000}`, email, role || "RIDER"]
+    );
+    
+    console.log(`✅ Internal: User created in User Service: ${email} (${role})`);
+    res.status(201).json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error("Internal create user error:", error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // ========== API 1: TẠO MỚI USER ==========
 app.post("/api/v1/users", async (req, res) => {
   try {
@@ -194,9 +264,9 @@ app.post("/api/v1/users", async (req, res) => {
 
     // Validation
     if (!full_name || !phone_number) {
-      return res.status(400).json({ 
-        success: false, 
-        error: "full_name and phone_number are required" 
+      return res.status(400).json({
+        success: false,
+        error: "full_name and phone_number are required",
       });
     }
 
@@ -231,17 +301,20 @@ app.post("/api/v1/users", async (req, res) => {
       "INSERT INTO users (full_name, phone_number, email, role) VALUES ($1, $2, $3, $4) RETURNING id, full_name, phone_number, email, role, status, created_at",
       [sanitizedName, sanitizedPhone, sanitizedEmail, role || "RIDER"],
     );
-    res.status(201).json({ 
-      success: true, 
-      data: result.rows[0] 
+    res.status(201).json({
+      success: true,
+      data: result.rows[0],
     });
   } catch (error) {
-    console.error('Create user error:', error.message);
-    const statusCode = error.code === '23505' ? 409 : 500;
-    const message = error.code === '23505' ? 'Phone number or email already exists' : error.message;
-    res.status(statusCode).json({ 
-      success: false, 
-      error: message 
+    console.error("Create user error:", error.message);
+    const statusCode = error.code === "23505" ? 409 : 500;
+    const message =
+      error.code === "23505"
+        ? "Phone number or email already exists"
+        : error.message;
+    res.status(statusCode).json({
+      success: false,
+      error: message,
     });
   }
 });
@@ -253,18 +326,18 @@ app.get("/api/v1/users/:id", async (req, res) => {
 
     // Validation
     if (isNaN(id)) {
-      return res.status(400).json({ 
-        success: false, 
-        error: "Invalid user ID" 
+      return res.status(400).json({
+        success: false,
+        error: "Invalid user ID",
       });
     }
 
     const result = await pool.query("SELECT * FROM users WHERE id = $1", [id]);
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        message: "User not found" 
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
       });
     }
 
@@ -274,7 +347,7 @@ app.get("/api/v1/users/:id", async (req, res) => {
 
     res.status(200).json({ success: true, data: user });
   } catch (error) {
-    console.error('Get user error:', error.message);
+    console.error("Get user error:", error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -287,15 +360,19 @@ app.patch("/api/v1/users/:id", async (req, res) => {
 
     // Validation
     if (isNaN(id)) {
-      return res.status(400).json({ 
-        success: false, 
-        error: "Invalid user ID" 
+      return res.status(400).json({
+        success: false,
+        error: "Invalid user ID",
       });
     }
 
-    const oldResult = await pool.query("SELECT * FROM users WHERE id = $1", [id]);
+    const oldResult = await pool.query("SELECT * FROM users WHERE id = $1", [
+      id,
+    ]);
     if (oldResult.rows.length === 0) {
-      return res.status(404).json({ success: false, message: "User not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
     }
 
     const oldUser = oldResult.rows[0];
@@ -316,7 +393,9 @@ app.patch("/api/v1/users/:id", async (req, res) => {
     }
 
     if (updateFields.length === 0) {
-      return res.status(400).json({ success: false, message: "No fields to update" });
+      return res
+        .status(400)
+        .json({ success: false, message: "No fields to update" });
     }
 
     updateValues.push(id);
@@ -333,9 +412,10 @@ app.patch("/api/v1/users/:id", async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Update user error:', error.message);
-    const statusCode = error.code === '23505' ? 409 : 500;
-    const message = error.code === '23505' ? 'Email already exists' : error.message;
+    console.error("Update user error:", error.message);
+    const statusCode = error.code === "23505" ? 409 : 500;
+    const message =
+      error.code === "23505" ? "Email already exists" : error.message;
     res.status(statusCode).json({ success: false, error: message });
   }
 });
@@ -348,25 +428,27 @@ app.post("/api/v1/users/:id/locations", async (req, res) => {
 
     // Validation
     if (isNaN(id)) {
-      return res.status(400).json({ 
-        success: false, 
-        error: "Invalid user ID" 
+      return res.status(400).json({
+        success: false,
+        error: "Invalid user ID",
       });
     }
 
     if (!label || !address) {
-      return res.status(400).json({ 
-        success: false, 
-        error: "label and address are required" 
+      return res.status(400).json({
+        success: false,
+        error: "label and address are required",
       });
     }
 
     // Check if user exists
-    const userExists = await pool.query("SELECT id FROM users WHERE id = $1", [id]);
+    const userExists = await pool.query("SELECT id FROM users WHERE id = $1", [
+      id,
+    ]);
     if (userExists.rows.length === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        message: "User not found" 
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
       });
     }
 
@@ -376,7 +458,7 @@ app.post("/api/v1/users/:id/locations", async (req, res) => {
     );
     res.status(201).json({ success: true, data: result.rows[0] });
   } catch (error) {
-    console.error('Create location error:', error.message);
+    console.error("Create location error:", error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -388,9 +470,9 @@ app.get("/api/v1/users/:id/locations", async (req, res) => {
 
     // Validation
     if (isNaN(id)) {
-      return res.status(400).json({ 
-        success: false, 
-        error: "Invalid user ID" 
+      return res.status(400).json({
+        success: false,
+        error: "Invalid user ID",
       });
     }
 
@@ -398,13 +480,13 @@ app.get("/api/v1/users/:id/locations", async (req, res) => {
       "SELECT * FROM saved_locations WHERE user_id = $1 ORDER BY created_at DESC",
       [id],
     );
-    res.status(200).json({ 
-      success: true, 
-      data: result.rows, 
-      count: result.rows.length 
+    res.status(200).json({
+      success: true,
+      data: result.rows,
+      count: result.rows.length,
     });
   } catch (error) {
-    console.error('Get locations error:', error.message);
+    console.error("Get locations error:", error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -416,9 +498,9 @@ app.delete("/api/v1/users/:id/locations/:locationId", async (req, res) => {
 
     // Validation
     if (isNaN(id) || isNaN(locationId)) {
-      return res.status(400).json({ 
-        success: false, 
-        error: "Invalid user ID or location ID" 
+      return res.status(400).json({
+        success: false,
+        error: "Invalid user ID or location ID",
       });
     }
 
@@ -428,16 +510,18 @@ app.delete("/api/v1/users/:id/locations/:locationId", async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, message: "Location not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Location not found" });
     }
 
-    res.status(200).json({ 
-      success: true, 
-      message: "Location deleted", 
-      data: result.rows[0] 
+    res.status(200).json({
+      success: true,
+      message: "Location deleted",
+      data: result.rows[0],
     });
   } catch (error) {
-    console.error('Delete location error:', error.message);
+    console.error("Delete location error:", error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -450,9 +534,9 @@ app.patch("/api/v1/users/:id/ban", async (req, res) => {
 
     // Validation
     if (isNaN(id)) {
-      return res.status(400).json({ 
-        success: false, 
-        error: "Invalid user ID" 
+      return res.status(400).json({
+        success: false,
+        error: "Invalid user ID",
       });
     }
 
@@ -463,15 +547,19 @@ app.patch("/api/v1/users/:id/ban", async (req, res) => {
       });
     }
 
-    const oldResult = await pool.query("SELECT * FROM users WHERE id = $1", [id]);
+    const oldResult = await pool.query("SELECT * FROM users WHERE id = $1", [
+      id,
+    ]);
     if (oldResult.rows.length === 0) {
-      return res.status(404).json({ success: false, message: "User not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
     }
 
     const oldUser = oldResult.rows[0];
     const result = await pool.query(
-      "UPDATE users SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *", 
-      [status, id]
+      "UPDATE users SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *",
+      [status, id],
     );
     const newUser = result.rows[0];
 
@@ -489,7 +577,8 @@ app.patch("/api/v1/users/:id/ban", async (req, res) => {
           email: newUser.email,
           role: newUser.role,
           banReason: reason || "ADMIN_ACTION",
-          banReasonDescription: reasonDescription || "Tài khoản đã bị khóa bởi quản trị viên",
+          banReasonDescription:
+            reasonDescription || "Tài khoản đã bị khóa bởi quản trị viên",
           bannedAt: new Date().toISOString(),
           previousStatus: oldUser.status,
           newStatus: status,
@@ -501,10 +590,11 @@ app.patch("/api/v1/users/:id/ban", async (req, res) => {
     res.status(200).json({
       success: true,
       data: newUser,
-      message: status === "BANNED" ? "User account banned" : "User account restored",
+      message:
+        status === "BANNED" ? "User account banned" : "User account restored",
     });
   } catch (error) {
-    console.error('Ban user error:', error.message);
+    console.error("Ban user error:", error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -519,14 +609,15 @@ app.get("/api/v1/users", async (req, res) => {
 
     // Validation
     if (page < 1 || limit < 1) {
-      return res.status(400).json({ 
-        success: false, 
-        error: "Page and limit must be positive integers" 
+      return res.status(400).json({
+        success: false,
+        error: "Page and limit must be positive integers",
       });
     }
 
     const offset = (page - 1) * limit;
-    let query = "SELECT id, full_name, phone_number, email, role, status, created_at FROM users WHERE 1=1";
+    let query =
+      "SELECT id, full_name, phone_number, email, role, status, created_at FROM users WHERE 1=1";
     let countQuery = "SELECT COUNT(*) FROM users WHERE 1=1";
     const queryParams = [];
     let paramIndex = 1;
@@ -567,7 +658,7 @@ app.get("/api/v1/users", async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Get users error:', error.message);
+    console.error("Get users error:", error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -579,26 +670,30 @@ const startServer = async () => {
   try {
     const connected = await testConnection();
     if (!connected) {
-      console.error('❌ Failed to connect to database, exiting...');
+      console.error("❌ Failed to connect to database, exiting...");
       process.exit(1);
     }
-    
+
     const initialized = await initDatabase();
     if (!initialized) {
-      console.error('❌ Failed to initialize database, exiting...');
+      console.error("❌ Failed to initialize database, exiting...");
       process.exit(1);
     }
-    
-    console.log('✅ Database fully initialized, starting server...');
-    
-    app.listen(PORT, () => {
-      console.log(`✅ User Service is running on port ${PORT}`);
-      console.log(`📡 API Base URL: http://localhost:${PORT}/api/v1`);
-      console.log(`🔗 Gateway Proxy: http://gateway:3000/api/v1/users`);
-      console.log(`🏥 Health Check: http://localhost:${PORT}/health`);
+
+    console.log("✅ Database fully initialized, starting server...");
+
+    const server = mtls.createServer(app);
+    const protocol = mtls.getProtocol();
+
+    server.listen(PORT, () => {
+      console.log(`✅ User Service is running on ${protocol}://localhost:${PORT}`);
+      console.log(`📡 API Base URL: ${protocol}://localhost:${PORT}/api/v1`);
+      console.log(`🔗 Gateway Proxy: ${protocol}://gateway:3000/api/v1/users`);
+      console.log(`🏥 Health Check: ${protocol}://localhost:${PORT}/health`);
+      console.log(`🔐 Internal endpoint: ${protocol}://localhost:${PORT}/internal/users`);
     });
   } catch (error) {
-    console.error('❌ Failed to start server:', error.message);
+    console.error("❌ Failed to start server:", error.message);
     process.exit(1);
   }
 };
@@ -607,10 +702,10 @@ startServer();
 
 // ========== ERROR HANDLING MIDDLEWARE ==========
 app.use((err, req, res, next) => {
-  console.error('❌ Unhandled error:', err);
+  console.error("❌ Unhandled error:", err);
   res.status(err.status || 500).json({
     success: false,
-    error: err.message || 'Internal Server Error'
+    error: err.message || "Internal Server Error",
   });
 });
 
@@ -618,8 +713,8 @@ app.use((err, req, res, next) => {
 app.use((req, res) => {
   res.status(404).json({
     success: false,
-    error: 'Endpoint not found',
+    error: "Endpoint not found",
     path: req.path,
-    method: req.method
+    method: req.method,
   });
 });

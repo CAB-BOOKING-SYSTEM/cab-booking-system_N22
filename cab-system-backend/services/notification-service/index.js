@@ -2,7 +2,6 @@
 
 require("dotenv").config();
 
-const http = require("http");
 const express = require("express");
 const cors = require("cors");
 const morgan = require("morgan");
@@ -14,9 +13,10 @@ const {
   metricsHandler,
   socketOnlineUsersGauge,
 } = require("./src/metrics/prometheus");
+const mtls = require("../../../shared/mtls.cjs");
 
 const app = express();
-const server = http.createServer(app);
+const server = mtls.createServer(app);
 const PORT = process.env.PORT || 3004;
 const DB_URL = process.env.DB_URL;
 const NODE_ENV = process.env.NODE_ENV || "development";
@@ -59,10 +59,13 @@ app.get("/metrics", (req, res) => {
 });
 
 // REST API — Notification CRUD (Frontend gọi để lấy lịch sử, đánh dấu đã đọc)
+// Keep legacy path and add gateway-aligned path.
 app.use("/notifications", notificationRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 // ─── Bootstrap ────────────────────────────────────────────────────────────────
 const start = async () => {
+  console.log("Version0.0 - 24 -04 : Starting Notification Service...");
   // 1. Kết nối MongoDB
   if (!DB_URL) {
     console.error(
@@ -70,7 +73,7 @@ const start = async () => {
     );
     process.exit(1);
   }
-
+  console.log("Version0.0 - 24 -04 : Starting Notification Service...");
   console.log("⏳ [MongoDB] Đang kết nối tới database..."); // Thêm dòng này để biết nó đang chạy
   await mongoose.connect(DB_URL, {
     serverSelectionTimeoutMS: 5000, // Nếu sau 5 giây không kết nối được thì báo lỗi ngay, không treo máy
@@ -94,11 +97,14 @@ const start = async () => {
   }
 
   // 4. Khởi động HTTP server (Socket.IO dùng chung server này)
+  const protocol = mtls.getProtocol();
   server.listen(PORT, () => {
     console.log(
-      `🚀 Notification Service đang chạy tại cổng ${PORT} [${NODE_ENV}]`,
+      `🚀 Notification Service đang chạy tại ${protocol}://localhost:${PORT} [${NODE_ENV}]`,
     );
-    console.log(`🔌 Socket.IO đang lắng nghe tại ws://localhost:${PORT}`);
+    console.log(
+      `🔌 Socket.IO đang lắng nghe tại ${protocol === "https" ? "wss" : "ws"}://localhost:${PORT}`,
+    );
   });
 
   // ─── Graceful Shutdown ──────────────────────────────────────────────────────

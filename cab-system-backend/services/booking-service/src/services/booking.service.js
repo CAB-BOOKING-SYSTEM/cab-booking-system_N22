@@ -1,4 +1,3 @@
-
 // src/services/booking.service.js
 const { v4: uuidv4 } = require('uuid');
 const { BookingStatus } = require('../models/Booking');
@@ -14,45 +13,71 @@ class BookingService {
   async createBooking(customerId, data) {
     console.log(`📝 Creating booking for customer: ${customerId}`);
     
-    // 1. Get price from Pricing Service
-    const estimatedPrice = await this.pricingClient.estimatePrice({
-      distance: data.distance,
-      duration: data.duration || 0,
-      vehicleType: data.vehicleType,
-      pickupLocation: data.pickupLocation,
-      dropoffLocation: data.dropoffLocation
-    });
+    let booking = null;
     
-    // 2. Create booking
-    const booking = await this.bookingRepository.create({
-      customerId,
-      pickupLocation: data.pickupLocation,
-      dropoffLocation: data.dropoffLocation,
-      waypoints: data.waypoints || [],
-      vehicleType: data.vehicleType,
-      paymentMethod: data.paymentMethod || 'cash',
-      distance: data.distance,
-      duration: data.duration,
-      estimatedPrice,
-      status: BookingStatus.PENDING,
-      trackingPath: []
-    });
-    
-    // 3. Publish event for Matching Service
-    await this.rabbitMQService.publish('booking.created', {
-      bookingId: booking._id.toString(),
-      customerId,
-      pickupLocation: data.pickupLocation,
-      dropoffLocation: data.dropoffLocation,
-      vehicleType: data.vehicleType,
-      estimatedPrice,
-      paymentMethod: data.paymentMethod || 'cash',
-      distance: data.distance,
-      timestamp: new Date().toISOString()
-    });
-    
-    console.log(`✅ Booking created: ${booking._id}`);
-    return this.mapToResponse(booking);
+    try {
+      // 1. Get price from Pricing Service
+      const estimatedPrice = await this.pricingClient.estimatePrice({
+        distance: data.distance,
+        duration: data.duration || 0,
+        vehicleType: data.vehicleType,
+        pickupLocation: data.pickupLocation,
+        dropoffLocation: data.dropoffLocation
+      });
+      
+      // 2. Create booking
+      booking = await this.bookingRepository.create({
+        customerId,
+        pickupLocation: data.pickupLocation,
+        dropoffLocation: data.dropoffLocation,
+        waypoints: data.waypoints || [],
+        vehicleType: data.vehicleType,
+        paymentMethod: data.paymentMethod || 'cash',
+        distance: data.distance,
+        duration: data.duration,
+        estimatedPrice,
+        status: BookingStatus.PENDING,
+        trackingPath: []
+      });
+      
+      console.log(`✅ Booking created: ${booking._id}`);
+      
+      // 3. Publish event for Matching Service
+      const published = await this.rabbitMQService.publish('booking.created', {
+        bookingId: booking._id.toString(),
+        customerId,
+        pickupLocation: data.pickupLocation,
+        dropoffLocation: data.dropoffLocation,
+        vehicleType: data.vehicleType,
+        estimatedPrice,
+        paymentMethod: data.paymentMethod || 'cash',
+        distance: data.distance,
+        timestamp: new Date().toISOString()
+      });
+      
+      // 🔥 Nếu publish event thất bại → ROLLBACK: xóa booking vừa tạo
+      if (!published) {
+        console.error(`❌ Failed to publish event, rolling back booking ${booking._id}`);
+        await this.bookingRepository.delete(booking._id);
+        throw new Error("Failed to publish booking event, transaction rolled back");
+      }
+      
+      console.log(`✅ Booking created and event published: ${booking._id}`);
+      return this.mapToResponse(booking);
+      
+    } catch (error) {
+      // 🔥 Nếu có lỗi và booking đã được tạo → ROLLBACK: xóa booking
+      if (booking && booking._id) {
+        console.error(`❌ Error occurred, rolling back booking ${booking._id}`);
+        try {
+          await this.bookingRepository.delete(booking._id);
+          console.log(`🗑️ Booking ${booking._id} deleted during rollback`);
+        } catch (deleteError) {
+          console.error(`❌ Failed to delete booking during rollback:`, deleteError.message);
+        }
+      }
+      throw error;
+    }
   }
   
   async getBooking(bookingId, userId, role) {
