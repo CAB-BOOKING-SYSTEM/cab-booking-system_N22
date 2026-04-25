@@ -202,6 +202,43 @@ const maskEmail = (email) => {
   return name[0] + "***@" + domain;
 };
 
+// ========== MIDDLEWARE: REQUIRE ADMIN ROLE ==========
+const requireAdmin = (req, res, next) => {
+  try {
+    // Check if user is authenticated via x-user-role header (from gateway)
+    const userRole = req.headers['x-user-role'];
+    const userId = req.headers['x-user-id'];
+
+    if (!userId || !userRole) {
+      return res.status(401).json({
+        success: false,
+        code: "UNAUTHORIZED",
+        message: "Authentication required. User ID or role header missing."
+      });
+    }
+
+    // Check if user has ADMIN role
+    if (userRole !== 'ADMIN') {
+      return res.status(403).json({
+        success: false,
+        code: "FORBIDDEN",
+        message: "Admin access required. Your role does not have permission to access this resource."
+      });
+    }
+
+    // Attach user info to request for logging
+    req.adminUser = { id: userId, role: userRole };
+    next();
+  } catch (error) {
+    console.error("Admin middleware error:", error.message);
+    res.status(500).json({
+      success: false,
+      code: "SERVER_ERROR",
+      message: "Internal server error during authorization check"
+    });
+  }
+};
+
 // ============================================================
 // 🔥 INTERNAL ENDPOINT CHO AUTH SERVICE SYNC USER
 // ============================================================
@@ -526,8 +563,8 @@ app.delete("/api/v1/users/:id/locations/:locationId", async (req, res) => {
   }
 });
 
-// ========== API 4: BAN/UNBAN USER ==========
-app.patch("/api/v1/users/:id/ban", async (req, res) => {
+// ========== API 4: BAN/UNBAN USER (ADMIN ONLY) ==========
+app.patch("/api/v1/users/:id/ban", requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { status, reason, reasonDescription } = req.body;
@@ -582,6 +619,7 @@ app.patch("/api/v1/users/:id/ban", async (req, res) => {
           bannedAt: new Date().toISOString(),
           previousStatus: oldUser.status,
           newStatus: status,
+          bannedByAdmin: req.adminUser.id,
         },
       };
       console.log("Event user.account_banned:", event);
@@ -592,6 +630,12 @@ app.patch("/api/v1/users/:id/ban", async (req, res) => {
       data: newUser,
       message:
         status === "BANNED" ? "User account banned" : "User account restored",
+      auditLog: {
+        action: status === "BANNED" ? "USER_BANNED" : "USER_RESTORED",
+        adminId: req.adminUser.id,
+        targetUserId: id,
+        timestamp: new Date().toISOString()
+      }
     });
   } catch (error) {
     console.error("Ban user error:", error.message);
@@ -599,8 +643,8 @@ app.patch("/api/v1/users/:id/ban", async (req, res) => {
   }
 });
 
-// ========== API 5: ADMIN LẤY DANH SÁCH USER ==========
-app.get("/api/v1/users", async (req, res) => {
+// ========== API 5: ADMIN LẤY DANH SÁCH USER (ADMIN ONLY) ==========
+app.get("/api/v1/users", requireAdmin, async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
@@ -656,6 +700,12 @@ app.get("/api/v1/users", async (req, res) => {
         current_page: page,
         limit: limit,
       },
+      auditLog: {
+        action: "ADMIN_LIST_USERS",
+        adminId: req.adminUser.id,
+        filters: { status, role },
+        timestamp: new Date().toISOString()
+      }
     });
   } catch (error) {
     console.error("Get users error:", error.message);
