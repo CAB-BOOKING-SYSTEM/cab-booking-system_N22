@@ -31,10 +31,15 @@ const createProxy = (target, prefix) =>
       }
       return `${prefix}${path}`;
     },
-    proxyReqOptDecorator: (proxyReqOpts) => {
+    proxyReqOptDecorator: (proxyReqOpts, srcReq) => {
       if (gatewayAgent) {
         proxyReqOpts.agent = gatewayAgent;
         proxyReqOpts.rejectUnauthorized = true;
+      }
+      
+      if (srcReq.user) {
+        proxyReqOpts.headers['x-user-id'] = srcReq.user.sub || srcReq.user.id || srcReq.user._id || srcReq.user.userId || '';
+        proxyReqOpts.headers['x-user-role'] = srcReq.user.role || srcReq.user.roles || '';
       }
 
       return proxyReqOpts;
@@ -95,12 +100,16 @@ app.use(
   authMiddleware,
   proxy(serviceUrl("review-service", 3007), {
     proxyReqPathResolver: (req) => `/api/v1/reviews${req.url}`,
-    proxyReqOptDecorator: (proxyReqOpts) => {
+    proxyReqOptDecorator: (proxyReqOpts, srcReq) => {
       if (gatewayAgent) {
         proxyReqOpts.agent = gatewayAgent;
         proxyReqOpts.rejectUnauthorized = true;
       }
       proxyReqOpts.headers["x-gateway-proxy"] = "true";
+      if (srcReq.user) {
+        proxyReqOpts.headers['x-user-id'] = srcReq.user.sub || srcReq.user.id || srcReq.user._id || srcReq.user.userId || '';
+        proxyReqOpts.headers['x-user-role'] = srcReq.user.role || srcReq.user.roles || '';
+      }
       return proxyReqOpts;
     },
   }),
@@ -112,12 +121,16 @@ app.use(
   authMiddleware,
   proxy(serviceUrl("review-service", 3007), {
     proxyReqPathResolver: (req) => `/api/v1/reviews${req.url}`,
-    proxyReqOptDecorator: (proxyReqOpts) => {
+    proxyReqOptDecorator: (proxyReqOpts, srcReq) => {
       if (gatewayAgent) {
         proxyReqOpts.agent = gatewayAgent;
         proxyReqOpts.rejectUnauthorized = true;
       }
       proxyReqOpts.headers["x-gateway-proxy"] = "true";
+      if (srcReq.user) {
+        proxyReqOpts.headers['x-user-id'] = srcReq.user.sub || srcReq.user.id || srcReq.user._id || srcReq.user.userId || '';
+        proxyReqOpts.headers['x-user-role'] = srcReq.user.role || srcReq.user.roles || '';
+      }
       return proxyReqOpts;
     },
   }),

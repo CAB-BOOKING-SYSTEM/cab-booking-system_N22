@@ -1,8 +1,6 @@
-const jwt = require("jsonwebtoken");
-
 /**
  * Zero Trust local auth middleware for review-service.
- * Requires Bearer JWT and validates with JWT_SECRET.
+ * Reads user context from headers passed by API Gateway.
  */
 module.exports = (req, res, next) => {
   try {
@@ -12,28 +10,25 @@ module.exports = (req, res, next) => {
       });
     }
 
-    const authHeader = req.headers.authorization;
+    const userId = req.headers['x-user-id'];
+    const userRole = req.headers['x-user-role'];
 
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    if (!userId) {
       return res.status(401).json({
-        message: "Unauthorized: No token provided",
+        message: "Unauthorized: Missing user identity",
       });
     }
 
-    const token = authHeader.split(" ")[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-    req.user = decoded;
+    req.user = {
+      id: userId,
+      userId: userId,
+      role: userRole,
+    };
+    
     return next();
   } catch (error) {
-    if (error.name === "TokenExpiredError") {
-      return res.status(401).json({
-        message: "Unauthorized: Token expired",
-      });
-    }
-
-    return res.status(403).json({
-      message: "Forbidden: Invalid token",
+    return res.status(500).json({
+      message: "Internal server error during authentication",
     });
   }
 };
