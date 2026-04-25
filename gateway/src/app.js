@@ -1,7 +1,8 @@
 const express = require("express");
 const proxy = require("express-http-proxy");
-const cors = require("cors"); // ← THÊM DÒNG NÀY
+const cors = require("cors");
 const authMiddleware = require("./middlewares/auth");
+const { globalLimiter, authLimiter, refreshLimiter, bookingLimiter } = require("./middlewares/rateLimiter");
 const mtls = require("/shared/mtls.cjs");
 
 const gatewayAgent = mtls.createClientAgent();
@@ -9,7 +10,7 @@ const useMtls = Boolean(gatewayAgent);
 
 const app = express();
 
-// ← THÊM CORS VÀO ĐÂY
+// Apply CORS
 app.use(
   cors({
     origin: "*",
@@ -18,6 +19,9 @@ app.use(
     allowedHeaders: ["Content-Type", "Authorization"],
   }),
 );
+
+// Apply global rate limiter to all requests
+app.use(globalLimiter);
 
 app.use(express.json());
 
@@ -49,8 +53,8 @@ const createProxy = (target, prefix) =>
 const serviceUrl = (host, port) =>
   useMtls ? `https://${host}:${port}` : `http://${host}:${port}`;
 
-// Auth routes - no authentication required
-app.use("/auth", createProxy(serviceUrl("auth-service", 3001), "/api/auth"));
+// Auth routes - no authentication required, with stricter rate limit
+app.use("/auth", authLimiter, createProxy(serviceUrl("auth-service", 3001), "/api/auth"));
 
 // Protected API routes - all require authentication
 app.use(
@@ -68,6 +72,7 @@ app.use(
 app.use(
   "/api/bookings",
   authMiddleware,
+  bookingLimiter,
   createProxy(serviceUrl("booking-service", 3002), "/api/bookings"),
 );
 
@@ -141,5 +146,38 @@ app.use(
   authMiddleware,
   createProxy(serviceUrl("matching-service", 3010), "/api/matching"),
 );
+
+// Health check endpoint (no rate limit)
+app.get('/health', (req, res) => {
+  res.json({ status: 'OK', timestamp: new Date().toISOString() });
+});
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({
+    message: 'Route not found',
+    path: req.path,
+    method: req.method
+  });
+});
+
+// Global error handler middleware (MUST be last)
+app.use((err, req, res, next) => {
+  console.error('Gateway Error:', err.message);
+  
+  // Rate limit error
+  if (err.status === 429) {
+    return res.status(429).json({
+      message: err.message || 'Too many requests',
+      retryAfter: err.retryAfter
+    });
+  }
+
+  // Default error response
+  res.status(err.status || 500).json({
+    message: err.message || 'Internal Server Error',
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+  });
+});
 
 module.exports = app;
