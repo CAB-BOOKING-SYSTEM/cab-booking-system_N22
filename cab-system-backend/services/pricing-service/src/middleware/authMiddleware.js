@@ -1,24 +1,35 @@
-// Middleware xác thực JWT (nếu cần)
+// Middleware xác thực (Zero Trust - đọc từ Header do Gateway truyền)
 const verifyToken = (req, res, next) => {
-  const authHeader = req.headers.authorization;
+  const userId = req.headers['x-user-id'];
+  const userRole = req.headers['x-user-role'];
   
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  if (!userId) {
     return res.status(401).json({
       success: false,
-      message: 'No token provided'
+      message: 'Unauthorized: Missing user identity'
     });
   }
   
-  const token = authHeader.split(' ')[1];
-  
-  // TODO: Verify JWT token
-  // Tạm thời bỏ qua xác thực cho development
+  req.user = {
+    id: userId,
+    userId: userId,
+    role: userRole
+  };
+
   next();
 };
 
 // Middleware kiểm tra quyền admin
 const verifyAdmin = (req, res, next) => {
-  // TODO: Check if user has admin role
+  const userRole = req.headers['x-user-role'];
+
+  if (userRole !== 'admin') {
+    return res.status(403).json({
+      success: false,
+      message: 'Forbidden: Admin role required'
+    });
+  }
+
   next();
 };
 

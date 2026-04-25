@@ -1,20 +1,18 @@
-const jwt = require("jsonwebtoken");
-const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
-
 const authMiddleware = (req, res, next) => {
-  const token = req.headers.authorization?.split(" ")[1];
+  const userId = req.headers['x-user-id'];
+  const userRole = req.headers['x-user-role'];
 
-  if (!token) {
-    return res.status(401).json({ error: "Unauthorized: No token provided" });
+  if (!userId) {
+    return res.status(401).json({ error: "Unauthorized: Missing user identity" });
   }
 
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = decoded; // Contains id, email, role, etc.
-    next();
-  } catch (error) {
-    return res.status(401).json({ error: "Invalid or expired token" });
-  }
+  req.user = {
+    id: userId,
+    userId: userId,
+    role: userRole,
+  };
+  
+  next();
 };
 
 module.exports = authMiddleware;

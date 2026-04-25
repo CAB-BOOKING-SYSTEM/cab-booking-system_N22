@@ -1,65 +1,33 @@
 // middleware/auth.js
-const jwt = require('jsonwebtoken');
 const logger = require('../utils/logger');
-
-// 🔥 Lấy JWT_SECRET từ env (phải giống với Auth Service)
-const JWT_SECRET = process.env.JWT_SECRET || 'supersecret';
 
 module.exports = async (req, res, next) => {
   try {
-    // Lấy token từ Authorization header
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    // 1. Lấy thông tin user từ header (do Gateway truyền vào)
+    const userId = req.headers['x-user-id'];
+    const userRole = req.headers['x-user-role'];
+
+    // 2. Kiểm tra xem user đã đăng nhập chưa
+    if (!userId || !userRole) {
       return res.status(401).json({
         success: false,
-        message: 'Unauthorized: No token provided',
+        message: 'Unauthorized: Missing user identity headers',
       });
     }
 
-    const token = authHeader.split(' ')[1];
-
-    // Verify JWT với secret (giống Auth Service)
-    let decoded;
-    try {
-      decoded = jwt.verify(token, JWT_SECRET);
-    } catch (err) {
-      if (err.name === 'TokenExpiredError') {
-        return res.status(401).json({
-          success: false,
-          message: 'Token expired',
-        });
-      }
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid token',
-      });
-    }
-
-    // 🔥 LẤY driverId TỪ TOKEN
-    // Auth Service trả về JWT với payload: { sub: driverId, role: 'driver', ... }
-    const driverId = decoded.sub || decoded.driverId || decoded.id;
-    
-    if (!driverId) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid token: missing driverId',
-      });
-    }
-
-    // Kiểm tra role (chỉ driver mới được gọi driver API)
-    if (decoded.role !== 'driver' && decoded.role !== 'admin') {
+    // 3. Phân quyền (RBAC): Chỉ driver hoặc admin mới được dùng API của Driver Service
+    if (userRole !== 'driver' && userRole !== 'admin') {
       return res.status(403).json({
         success: false,
         message: 'Forbidden: Driver role required',
       });
     }
 
-    // Gắn thông tin vào req
+    // 4. Gắn thông tin vào req.user để các controller sử dụng
     req.user = {
-      driverId: driverId,
-      email: decoded.email,
-      role: decoded.role,
-      ...decoded
+      id: userId,
+      driverId: userId, // Tương thích ngược với các controller cũ đang dùng driverId
+      role: userRole,
     };
     
     next();

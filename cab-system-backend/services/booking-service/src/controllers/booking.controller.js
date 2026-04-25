@@ -1,5 +1,4 @@
 // src/controllers/booking.controller.js
-const jwt = require("jsonwebtoken");
 const {
   validate,
   createBookingSchema,
@@ -12,24 +11,9 @@ class BookingController {
     this.bookingService = bookingService;
   }
 
-  // Hàm giải mã token lấy user id (sub)
+  // Lấy user id từ header (được API Gateway truyền sang)
   getUserIdFromToken(req) {
-    try {
-      const token = req.headers.authorization?.split(" ")[1];
-      if (!token) {
-        console.log("No token provided");
-        return null;
-      }
-      const decoded = jwt.verify(
-        token,
-        process.env.JWT_SECRET || "supersecret",
-      );
-      console.log("Decoded token - sub:", decoded.sub);
-      return decoded.sub;
-    } catch (error) {
-      console.error("Token decode error:", error.message);
-      return null;
-    }
+    return req.headers['x-user-id'] || null;
   }
 
   createBooking = async (req, res, next) => {
@@ -73,7 +57,7 @@ class BookingController {
         });
       }
 
-      const role = req.user?.role || "customer";
+      const role = req.headers['x-user-role'] || "customer";
       const booking = await this.bookingService.getBooking(
         id,
         String(userId),
@@ -101,7 +85,7 @@ class BookingController {
         });
       }
 
-      const role = req.user?.role || "customer";
+      const role = req.headers['x-user-role'] || "customer";
 
       let result;
       if (role === "driver") {
@@ -140,7 +124,7 @@ class BookingController {
         });
       }
 
-      const role = req.user?.role || "customer";
+      const role = req.headers['x-user-role'] || "customer";
       const booking = await this.bookingService.cancelBooking(
         id,
         String(userId),
