@@ -17,6 +17,7 @@
     "cors": "^2.8.6",
     "dotenv": "^16.6.1",
     "express": "^4.22.1",
+    "express-rate-limit": "^8.4.1",
     "node-cron": "^4.2.1",
     "pg": "^8.20.0",
     "redis": "^5.11.0",
