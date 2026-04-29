@@ -23,10 +23,14 @@ module.exports = async (req, res, next) => {
       });
     }
 
-    // 4. Gắn thông tin vào req.user để các controller sử dụng
+    // 4. Lấy driver_id từ header (nếu có) hoặc dùng user_id
+    // Gateway should send x-driver-id header nếu có
+    const driverId = req.headers['x-driver-id'] || req.headers['x-user-id'];
+    
+    // 5. Gắn thông tin vào req.user để các controller sử dụng
     req.user = {
       id: userId,
-      driverId: userId, // Tương thích ngược với các controller cũ đang dùng driverId
+      driverId: driverId, // Driver ID hoặc User ID
       role: userRole,
     };
     

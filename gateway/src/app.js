@@ -44,6 +44,9 @@ const createProxy = (target, prefix) =>
       if (srcReq.user) {
         proxyReqOpts.headers['x-user-id'] = srcReq.user.sub || srcReq.user.id || srcReq.user._id || srcReq.user.userId || '';
         proxyReqOpts.headers['x-user-role'] = srcReq.user.role || srcReq.user.roles || '';
+        if (srcReq.user.driver_id) {
+          proxyReqOpts.headers['x-driver-id'] = srcReq.user.driver_id;
+        }
       }
 
       return proxyReqOpts;

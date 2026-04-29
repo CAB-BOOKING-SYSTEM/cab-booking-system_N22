@@ -12,8 +12,6 @@ router.get('/online/list', [
   query('lng').optional().isFloat(),
 ], driverController.getOnlineDrivers);
 
-router.get('/:driverId', driverController.getDriverInfo);
-
 // 🔥 THÊM INTERNAL ROUTE NÀY (cho Auth Service gọi)
 router.post('/internal/create', [
   body('driverId').notEmpty(),
@@ -122,5 +120,21 @@ router.get('/wallet/transactions',
   ],
   driverController.getTransactionHistory
 );
+
+router.get('/wallet/ledger',
+  authMiddleware,
+  [
+    query('page').optional().isInt({ min: 1 }),
+    query('limit').optional().isInt({ min: 1, max: 100 }),
+    query('transactionType').optional().isIn(['earn', 'withdraw', 'refund', 'bonus', 'adjustment']),
+    query('status').optional().isIn(['pending', 'completed', 'failed', 'reversed']),
+    query('startDate').optional().isISO8601(),
+    query('endDate').optional().isISO8601(),
+  ],
+  driverController.getLedgerHistory
+);
+
+// ⚠️ Keep this LAST — wildcard must not shadow named routes above
+router.get('/:driverId', driverController.getDriverInfo);
 
 module.exports = router;
