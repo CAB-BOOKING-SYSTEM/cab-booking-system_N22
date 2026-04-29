@@ -24,13 +24,13 @@ const cancellationSchema = new mongoose.Schema({
 }, { _id: false });
 
 const BookingStatus = {
-  PENDING: 'pending',
-  CONFIRMED: 'confirmed',
-  PICKING_UP: 'picking_up',
-  IN_PROGRESS: 'in_progress',
-  COMPLETED: 'completed',
-  CANCELLED: 'cancelled',
-  NO_DRIVER: 'no_driver'
+  REQUESTED: 'REQUESTED',          // ✅ Mới
+  DRIVER_ASSIGNED: 'DRIVER_ASSIGNED', // ✅ Mới
+  PICKING_UP: 'PICKING_UP',
+  IN_PROGRESS: 'IN_PROGRESS',
+  COMPLETED: 'COMPLETED',
+  CANCELLED: 'CANCELLED',
+  NO_DRIVER: 'NO_DRIVER'
 };
 
 const VehicleType = {
@@ -54,7 +54,7 @@ const bookingSchema = new mongoose.Schema({
   status: { 
     type: String, 
     enum: Object.values(BookingStatus),
-    default: BookingStatus.PENDING,
+    default: BookingStatus.REQUESTED,  // ✅ Default là REQUESTED
     index: true
   },
   vehicleType: { type: String, enum: Object.values(VehicleType), required: true },
@@ -90,15 +90,15 @@ bookingSchema.virtual('formattedPrice').get(function() {
 
 // Methods
 bookingSchema.methods.canCancel = function() {
-  return [BookingStatus.PENDING, BookingStatus.CONFIRMED].includes(this.status);
+  return [BookingStatus.REQUESTED, BookingStatus.DRIVER_ASSIGNED].includes(this.status);
 };
 
 bookingSchema.methods.canAccept = function() {
-  return this.status === BookingStatus.PENDING;
+  return this.status === BookingStatus.REQUESTED;
 };
 
 bookingSchema.methods.canStart = function() {
-  return this.status === BookingStatus.CONFIRMED;
+  return this.status === BookingStatus.DRIVER_ASSIGNED;
 };
 
 bookingSchema.methods.canComplete = function() {

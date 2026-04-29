@@ -45,7 +45,7 @@ const pool = new Pool({
   connectionTimeoutMillis: 2000,
 });
 
-// Hàm tự động tạo bảng (giống Driver Service)
+// Hàm tự động tạo bảng
 const initTables = async () => {
   const client = await pool.connect();
   try {
@@ -71,54 +71,6 @@ const initTables = async () => {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
-    `);
-    
-    // Tạo bảng promotions
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS promotions (
-        id SERIAL PRIMARY KEY,
-        code VARCHAR(50) NOT NULL UNIQUE,
-        type VARCHAR(20) NOT NULL CHECK (type IN ('fixed', 'percentage')),
-        value DECIMAL(10,2) NOT NULL,
-        min_trip_value DECIMAL(10,2) DEFAULT 0,
-        max_discount DECIMAL(10,2),
-        valid_from TIMESTAMP NOT NULL,
-        valid_to TIMESTAMP NOT NULL,
-        usage_limit INTEGER,
-        used_count INTEGER DEFAULT 0,
-        applicable_vehicle_types TEXT[],
-        applicable_zones TEXT[],
-        is_active BOOLEAN DEFAULT true,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
-    
-    // Tạo bảng historical_estimates
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS historical_estimates (
-        id SERIAL PRIMARY KEY,
-        request_id VARCHAR(100) NOT NULL,
-        vehicle_type VARCHAR(50) NOT NULL,
-        distance DECIMAL(10,2) NOT NULL,
-        duration INTEGER NOT NULL,
-        zone VARCHAR(100) NOT NULL,
-        base_fare DECIMAL(10,2) NOT NULL,
-        per_km_rate DECIMAL(10,2) NOT NULL,
-        per_minute_rate DECIMAL(10,2) NOT NULL,
-        surge_multiplier DECIMAL(5,2) DEFAULT 1.0,
-        estimated_fare DECIMAL(10,2) NOT NULL,
-        promotion_code VARCHAR(50),
-        final_fare DECIMAL(10,2),
-        user_id VARCHAR(100),
-        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
-    
-    // Tạo indexes
-    await client.query(`
-      CREATE INDEX IF NOT EXISTS idx_promotions_code ON promotions(code);
-      CREATE INDEX IF NOT EXISTS idx_historical_timestamp ON historical_estimates(timestamp);
     `);
     
     // Insert dữ liệu mẫu
