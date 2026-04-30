@@ -1,5 +1,11 @@
 "use strict";
 
+// ─── FIX LỖI "crypto is not defined" CHO NODE.JS 18 + MONGOOSE 9 ──────────
+if (typeof crypto === "undefined") {
+  global.crypto = require("crypto");
+}
+// ──────────────────────────────────────────────────────────────────────────
+
 require("dotenv").config();
 
 const express = require("express");
@@ -17,6 +23,18 @@ const mtls = require("../../../shared/mtls.cjs");
 
 const app = express();
 const server = mtls.createServer(app);
+
+// ─── THÊM BỘ LỌC NÀY ĐỂ LÁCH API GATEWAY ─────────────────────────────────────
+const originalEmit = server.emit;
+server.emit = function (type, req, ...args) {
+  // Bắt các request HTTP Polling bị Gateway cắt mất path và gắn lại cho đúng
+  if (type === "request" && req.url && req.url.startsWith("/?EIO=")) {
+    req.url = "/socket.io" + req.url.substring(1); 
+  }
+  return originalEmit.apply(this, [type, req, ...args]);
+};
+// ──────────────────────────────────────────────────────────────────────────────
+
 const PORT = process.env.PORT || 3004;
 const DB_URL = process.env.DB_URL;
 const NODE_ENV = process.env.NODE_ENV || "development";
@@ -73,12 +91,13 @@ const start = async () => {
     );
     process.exit(1);
   }
-  console.log("Version0.0 - 24 -04 : Starting Notification Service...");
-  console.log("⏳ [MongoDB] Đang kết nối tới database..."); // Thêm dòng này để biết nó đang chạy
+
+  console.log("⏳ [MongoDB] Đang kết nối tới database...");
   await mongoose.connect(DB_URL, {
     serverSelectionTimeoutMS: 5000, // Nếu sau 5 giây không kết nối được thì báo lỗi ngay, không treo máy
   });
   console.log("✅ [MongoDB] Kết nối thành công tới database");
+  
   // 2. Khởi tạo Socket.IO (phải trước runConsumer vì consumer gọi sendNotificationToUser)
   initSocket(server);
 

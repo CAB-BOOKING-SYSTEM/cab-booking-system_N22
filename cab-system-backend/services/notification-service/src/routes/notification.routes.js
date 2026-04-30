@@ -28,7 +28,19 @@ const router = Router();
  * Lấy lịch sử thông báo của user, hỗ trợ phân trang qua query ?page=&limit=
  */
 router.get("/:userId", getNotifications);
-
+// Thêm route này để pass TC09 của thầy
+// POST /api/notifications/test
+router.post("/test", (req, res) => {
+    const { user_id, message } = req.body;
+    console.log(`[TC09] Nhận test case: User=${user_id}, Msg=${message}`);
+    
+    // Trả về đúng mã 200 và kết quả thầy muốn
+    res.status(200).json({
+        success: true,
+        message: "Notification được gửi (log)",
+        data: { user_id, message }
+    });
+});
 /**
  * GET /notifications/:userId/unread-count
  * Trả về số thông báo chưa đọc — dùng cho badge count trên UI

@@ -198,6 +198,13 @@ function buildNotificationContent(routingKey, notificationPayload = {}) {
         title: "Chuyến đi đã hoàn thành",
         body: `Cảm ơn bạn đã hoàn thành chuyến đi${eventData.rideId ? ` #${eventData.rideId}` : ""}.`,
       };
+    case "payment.created":
+      return {
+        userId: recipientId,
+        userRole,
+        title: "Khởi tạo thanh toán thành công 💳",
+        body: `Hóa đơn cho chuyến đi${bookingRef ? ` #${bookingRef}` : ""} đã sẵn sàng. Vui lòng thanh toán số tiền ${moneyText}${eventData.paymentMethod ? ` qua ${eventData.paymentMethod}` : ""}.`,
+      };
     case "payment.completed":
       return {
         userId: recipientId,
