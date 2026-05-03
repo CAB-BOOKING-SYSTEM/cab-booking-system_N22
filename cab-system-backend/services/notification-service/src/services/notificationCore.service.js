@@ -2,7 +2,8 @@
 
 const Notification = require("../models/notification.model");
 const { sendNotificationToUser } = require("../socket/socketHandler");
-const { sendPushNotification } = require("./fcm.service");
+// const { sendPushNotification } = require("./fcm.service");
+const { sendPushNotification } = require("../firebase/fcmService");
 const {
   brokerMessagesProcessedTotal,
   notificationsSentTotal,

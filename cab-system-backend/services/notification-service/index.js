@@ -117,7 +117,13 @@ const start = async () => {
 
   // 4. Khởi động HTTP server (Socket.IO dùng chung server này)
   const protocol = mtls.getProtocol();
-  server.listen(PORT, () => {
+  // 👇 THÊM ĐOẠN NÀY VÀO DƯỚI CÙNG TRONG HÀM start 👇
+  const http = require("http");
+  http.createServer(app).listen(3040, "0.0.0.0", () => {
+    console.log("📊 Cổng HTTP 3040 đã mở riêng cho Prometheus!");
+  });
+  // 👆 ---------------------------- 👆
+  server.listen(PORT, "0.0.0.0",() => {
     console.log(
       `🚀 Notification Service đang chạy tại ${protocol}://localhost:${PORT} [${NODE_ENV}]`,
     );

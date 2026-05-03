@@ -20,7 +20,8 @@ const {
 } = require("../controllers/notification.controller");
 
 const router = Router();
-
+// 1. THÊM DÒNG NÀY ĐỂ GỌI METRIC:
+const { brokerMessagesProcessedTotal } = require("../metrics/prometheus");
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
 /**
@@ -39,6 +40,21 @@ router.post("/test", (req, res) => {
         success: true,
         message: "Notification được gửi (log)",
         data: { user_id, message }
+    });
+});
+const { processNotification } = require("../services/notificationCore.service");
+
+router.post("/simulate-crash", (req, res) => {
+    console.error("[ALERT TEST] Cố tình gây lỗi hệ thống để trigger Prometheus...");
+    
+    // 2. THÊM DÒNG NÀY ĐỂ ÉP PROMETHEUS GHI NHẬN LỖI:
+    brokerMessagesProcessedTotal.inc({ topic: "simulate-crash", status: "error" });
+
+    // Trả về lỗi 500 
+    res.status(500).json({ 
+        success: false, 
+        message: "SYSTEM_CRASH_SIMULATED",
+        detail: "Error rate is climbing..." 
     });
 });
 /**

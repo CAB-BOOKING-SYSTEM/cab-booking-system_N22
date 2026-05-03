@@ -1,0 +1,11 @@
+groups:
+  - name: notification_alerts
+    rules:
+      - alert: HighErrorRate
+        # Dùng lại đúng metric có sẵn trong code
+        expr: sum(rate(cab_notification_broker_messages_processed_total{status="error"}[1m])) > 0
+        for: 1s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Tỷ lệ lỗi dịch vụ Notification cao!"
