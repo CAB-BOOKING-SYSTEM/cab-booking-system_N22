@@ -237,6 +237,8 @@ services:
     volumes:
       - ./shared-certs:/shared-certs:ro
       - ./shared:/shared:ro
+      - ./cab-system-backend/services/payment-service:/app
+      - /app/node_modules
     depends_on:
       postgres:
         condition: service_healthy

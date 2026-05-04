@@ -1,3 +1,4 @@
+//D:\bc_cki_new3\cab-booking-system_N22\cab-system-backend\services\payment-service\src\config\db.js
 const { Pool } = require("pg");
 
 const pool = new Pool({
@@ -13,7 +14,4 @@ const connectDB = async () => {
   }
 };
 
-module.exports = {
-  pool,
-  connectDB,
-};
+module.exports = { pool, connectDB };

@@ -1,3 +1,4 @@
+//D:\bc_cki_new3\cab-booking-system_N22\cab-system-backend\services\payment-service\src\services\payment.consumer.js
 const messageBroker = require("../utils/messageBroker");
 
 async function createQueues() {
@@ -6,24 +7,21 @@ async function createQueues() {
 
     await ch.assertExchange("payment.events", "topic", { durable: true });
 
-    // ✅ queue trùng tên event
-    await ch.assertQueue("payment.completed", { durable: true });
-    await ch.bindQueue(
-      "payment.completed",
-      "payment.events",
-      "payment.completed"
-    );
+    const queues = [
+      { name: "payment.created",   key: "payment.created"   },
+      { name: "payment.completed", key: "payment.completed" },
+      { name: "payment.failed",    key: "payment.failed"    },
+      { name: "payment.compensate",key: "payment.compensate"},
+    ];
 
-    await ch.assertQueue("payment.failed", { durable: true });
-    await ch.bindQueue(
-      "payment.failed",
-      "payment.events",
-      "payment.failed"
-    );
+    for (const q of queues) {
+      await ch.assertQueue(q.name, { durable: true });
+      await ch.bindQueue(q.name, "payment.events", q.key);
+    }
 
-    console.log("✅ Payment queues created");
+    console.log("✅ Payment queues ready");
   } catch (err) {
-    console.error("❌ Queue error:", err.message);
+    console.error("❌ Queue setup error:", err.message);
   }
 }
 
