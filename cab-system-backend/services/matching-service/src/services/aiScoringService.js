@@ -1,10 +1,15 @@
+const axios = require('axios');
 const logger = require('../utils/logger');
 const scoringAlgorithm = require('../utils/scoringAlgorithm');
 
+const AI_PLATFORM_URL = process.env.AI_MODEL_ENDPOINT || 'http://ai-model:8080';
+const AI_HEALTH_TIMEOUT_MS = 2000;
+
 class AIScoringService {
   constructor() {
-    this.aiAvailable = true;
-    this.modelEndpoint = process.env.AI_MODEL_ENDPOINT || 'http://ai-model:8080';
+    this.aiAvailable = false; // Start as false, check on first call
+    this._lastHealthCheck = 0;
+    this._healthCheckInterval = 30000; // 30 seconds
   }
 
   async scoreDriver(driver, distanceKm, features) {
@@ -92,14 +97,26 @@ class AIScoringService {
   }
 
   async checkAIAvailability() {
-    // In production, check health of AI model endpoint
+    const now = Date.now();
+    // Cache health check result for 30 seconds
+    if (now - this._lastHealthCheck < this._healthCheckInterval) {
+      return this.aiAvailable;
+    }
+
     try {
-      // const response = await axios.get(`${this.modelEndpoint}/health`, { timeout: 2000 });
-      // this.aiAvailable = response.status === 200;
+      const response = await axios.get(`${AI_PLATFORM_URL}/health`, {
+        timeout: AI_HEALTH_TIMEOUT_MS,
+      });
+      this.aiAvailable = response.status === 200;
+      this._lastHealthCheck = now;
+      if (this.aiAvailable) {
+        logger.debug(`AI Platform health check OK: ${JSON.stringify(response.data.models_loaded)}`);
+      }
       return this.aiAvailable;
     } catch (error) {
-      logger.warn('AI model health check failed:', error.message);
+      logger.warn('AI Platform health check failed:', error.message);
       this.aiAvailable = false;
+      this._lastHealthCheck = now;
       return false;
     }
   }

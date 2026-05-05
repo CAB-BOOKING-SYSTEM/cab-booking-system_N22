@@ -1,0 +1,64 @@
+{
+  "model_name": "fraud",
+  "version": "1.0.0",
+  "trained_at": "2026-05-05T00:08:17.484907",
+  "metrics": {
+    "accuracy": 1.0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0
+  },
+  "feature_names": [
+    "trip_amount",
+    "trip_distance_km",
+    "payment_method",
+    "num_trips_last_hour",
+    "avg_trip_amount",
+    "distance_from_usual_area_km",
+    "time_since_last_trip_min"
+  ],
+  "training_stats": {
+    "trip_amount": {
+      "mean": 132811.9994,
+      "std": 133073.2089,
+      "min": 15005.0,
+      "max": 998610.0
+    },
+    "trip_distance_km": {
+      "mean": 4.8761,
+      "std": 4.9235,
+      "min": 0.11,
+      "max": 41.97
+    },
+    "payment_method": {
+      "mean": 0.7048,
+      "std": 0.7794,
+      "min": 0.0,
+      "max": 2.0
+    },
+    "num_trips_last_hour": {
+      "mean": 1.4367,
+      "std": 2.1225,
+      "min": 0.0,
+      "max": 14.0
+    },
+    "avg_trip_amount": {
+      "mean": 109566.0033,
+      "std": 114285.4674,
+      "min": 20047.0,
+      "max": 797941.0
+    },
+    "distance_from_usual_area_km": {
+      "mean": 6.3282,
+      "std": 6.854,
+      "min": 0.0,
+      "max": 49.82
+    },
+    "time_since_last_trip_min": {
+      "mean": 232.3877,
+      "std": 143.2319,
+      "min": 0.0,
+      "max": 479.99
+    }
+  }
+}
