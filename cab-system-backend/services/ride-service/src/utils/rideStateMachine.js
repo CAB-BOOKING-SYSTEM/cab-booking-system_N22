@@ -28,6 +28,9 @@ class RideStateMachine {
    * Check if the transition from currentStatus to nextStatus is valid.
    */
   static canTransition(currentStatus, nextStatus) {
+    if (currentStatus === nextStatus) {
+      return true; // Allow self-transition for idempotent updates
+    }
     if (!this.states[nextStatus]) {
       return false; // Unknown next state
     }

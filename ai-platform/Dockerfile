@@ -16,10 +16,8 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy source code and trained models from builder
+# Copy source code (includes trained models and generated data inside src/)
 COPY --from=builder /app/src ./src
-COPY --from=builder /app/models ./models
-COPY --from=builder /app/data ./data
 
 EXPOSE 8080
 

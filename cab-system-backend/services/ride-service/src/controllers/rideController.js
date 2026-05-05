@@ -4,9 +4,15 @@ class RideController {
   async createRide(req, res) {
     try {
       // Automatic use userId from JWT if not in body
+      const userId = req.body.userId || req.user?.id || req.user?.userId || req.user?.sub || req.headers['x-user-id'];
+      
+      if (!userId) {
+        return res.status(400).json({ error: "userId is required. Please ensure you are logged in correctly." });
+      }
+
       const rideData = {
         ...req.body,
-        userId: req.body.userId || req.user.sub
+        userId: String(userId)
       };
       
       const ride = await rideService.createRide(rideData);
