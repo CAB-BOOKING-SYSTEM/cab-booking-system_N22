@@ -45,7 +45,7 @@ const pool = new Pool({
   connectionTimeoutMillis: 2000,
 });
 
-// Hàm tự động tạo bảng (giống Driver Service)
+// Hàm tự động tạo bảng
 const initTables = async () => {
   const client = await pool.connect();
   try {
