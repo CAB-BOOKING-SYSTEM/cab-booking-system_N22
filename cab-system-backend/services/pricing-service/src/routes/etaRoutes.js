@@ -1,8 +1,9 @@
 const express = require('express');
 const router = express.Router();
+const { pricingRateLimiter } = require('../middleware/rateLimitMiddleware');
 const { getETA } = require('../services/etaService');
 
-router.post('/', async (req, res) => {
+router.post('/', pricingRateLimiter, async (req, res) => {
   try {
     const { pickupLat, pickupLng, dropoffLat, dropoffLng } = req.body;
     

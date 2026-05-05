@@ -6,6 +6,7 @@ const morgan = require("morgan");
 const database = require("./config/database");
 const redisClient = require("./config/redis");
 const eventPublisher = require("./services/eventPublisher");
+const paymentEventConsumer = require("./services/paymentEventConsumer");
 const driverRoutes = require("./routes/driverRoutes");
 const LocationSocket = require("./socket/locationSocket");
 const logger = require("./utils/logger");
@@ -96,6 +97,25 @@ async function startServer(retryCount = 0) {
     await redisClient.connect();
     await eventPublisher.connect();
 
+    // 🔥 Initialize Payment Event Consumer
+    try {
+      await paymentEventConsumer.connect();
+      await paymentEventConsumer.startConsuming();
+      logger.info('✅ Payment Event Consumer started successfully');
+    } catch (consumerError) {
+      logger.warn('⚠️ Payment Event Consumer failed to start (will retry):', consumerError.message);
+      // Don't block service startup if consumer fails - retry will happen
+      setTimeout(async () => {
+        try {
+          await paymentEventConsumer.connect();
+          await paymentEventConsumer.startConsuming();
+          logger.info('✅ Payment Event Consumer started (retry succeeded)');
+        } catch (err) {
+          logger.error('❌ Payment Event Consumer retry failed:', err.message);
+        }
+      }, 5000);
+    }
+
     const locationSocket = new LocationSocket(io);
     locationSocket.initialize();
     global.locationSocket = locationSocket;
@@ -128,6 +148,7 @@ process.on("SIGTERM", async () => {
   await database.closeConnections();
   await redisClient.close();
   await eventPublisher.close();
+  await paymentEventConsumer.close();
   io.close();
   process.exit(0);
 });

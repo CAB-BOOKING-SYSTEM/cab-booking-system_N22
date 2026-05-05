@@ -73,6 +73,72 @@ const initTables = async () => {
       );
     `);
     
+    // Tạo bảng promotions
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS promotions (
+        id SERIAL PRIMARY KEY,
+        code VARCHAR(50) NOT NULL UNIQUE,
+        type VARCHAR(20) NOT NULL CHECK (type IN ('fixed', 'percentage')),
+        value DECIMAL(10,2) NOT NULL,
+        min_trip_value DECIMAL(10,2) DEFAULT 0,
+        max_discount DECIMAL(10,2),
+        valid_from TIMESTAMP NOT NULL,
+        valid_to TIMESTAMP NOT NULL,
+        usage_limit INTEGER,
+        used_count INTEGER DEFAULT 0,
+        applicable_vehicle_types TEXT[],
+        applicable_zones TEXT[],
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    
+    // Tạo bảng historical_estimates
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS historical_estimates (
+        id SERIAL PRIMARY KEY,
+        request_id VARCHAR(100) NOT NULL,
+        vehicle_type VARCHAR(50) NOT NULL,
+        distance DECIMAL(10,2) NOT NULL,
+        duration INTEGER NOT NULL,
+        zone VARCHAR(100) NOT NULL,
+        base_fare DECIMAL(10,2) NOT NULL,
+        per_km_rate DECIMAL(10,2) NOT NULL,
+        per_minute_rate DECIMAL(10,2) NOT NULL,
+        surge_multiplier DECIMAL(5,2) DEFAULT 1.0,
+        estimated_fare DECIMAL(10,2) NOT NULL,
+        promotion_code VARCHAR(50),
+        final_fare DECIMAL(10,2),
+        user_id VARCHAR(100),
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    
+    // Tạo bảng historical_eta (Feature Store cho ETA)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS historical_eta (
+        id SERIAL PRIMARY KEY,
+        feature_id VARCHAR(100) UNIQUE NOT NULL,
+        pickup_lat DECIMAL(10, 8),
+        pickup_lng DECIMAL(11, 8),
+        dropoff_lat DECIMAL(10, 8),
+        dropoff_lng DECIMAL(11, 8),
+        distance_km DECIMAL(8, 2),
+        eta_minutes INTEGER,
+        eta_seconds INTEGER,
+        traffic_level DECIMAL(3, 2),
+        recorded_at TIMESTAMP NOT NULL
+      );
+    `);
+
+    // Tạo indexes
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_promotions_code ON promotions(code);
+      CREATE INDEX IF NOT EXISTS idx_historical_timestamp ON historical_estimates(timestamp);
+      CREATE INDEX IF NOT EXISTS idx_historical_eta_recorded_at ON historical_eta(recorded_at);
+    `);
+    
     // Insert dữ liệu mẫu
     await client.query(`
       INSERT INTO pricings (vehicle_type, base_fare, per_km_rate, per_minute_rate) VALUES

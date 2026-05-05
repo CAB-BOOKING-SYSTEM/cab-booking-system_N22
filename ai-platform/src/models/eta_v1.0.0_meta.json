@@ -1,0 +1,49 @@
+{
+  "model_name": "eta",
+  "version": "1.0.0",
+  "trained_at": "2026-05-05T00:08:14.355671",
+  "metrics": {
+    "mae": 1.2276,
+    "rmse": 1.5378,
+    "r2": 0.9891
+  },
+  "feature_names": [
+    "distance_km",
+    "hour_of_day",
+    "day_of_week",
+    "traffic_index",
+    "is_rain"
+  ],
+  "training_stats": {
+    "distance_km": {
+      "mean": 4.899,
+      "std": 4.8465,
+      "min": 0.5,
+      "max": 40.86
+    },
+    "hour_of_day": {
+      "mean": 11.5348,
+      "std": 6.9146,
+      "min": 0.0,
+      "max": 23.0
+    },
+    "day_of_week": {
+      "mean": 3.0488,
+      "std": 1.9959,
+      "min": 0.0,
+      "max": 6.0
+    },
+    "traffic_index": {
+      "mean": 0.4584,
+      "std": 0.2517,
+      "min": 0.1,
+      "max": 1.0
+    },
+    "is_rain": {
+      "mean": 0.2006,
+      "std": 0.4005,
+      "min": 0.0,
+      "max": 1.0
+    }
+  }
+}

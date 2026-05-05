@@ -1,0 +1,49 @@
+{
+  "model_name": "demand_forecast",
+  "version": "1.0.0",
+  "trained_at": "2026-05-05T00:08:24.873985",
+  "metrics": {
+    "mae": 14.1694,
+    "rmse": 18.5822,
+    "r2": 0.3636
+  },
+  "feature_names": [
+    "hour",
+    "day_of_week",
+    "month",
+    "zone_zone_A",
+    "zone_zone_B",
+    "zone_zone_C",
+    "zone_zone_D"
+  ],
+  "training_stats": {
+    "hour": {
+      "mean": 11.4659,
+      "std": 6.9156
+    },
+    "day_of_week": {
+      "mean": 2.9926,
+      "std": 1.998
+    },
+    "month": {
+      "mean": 6.5233,
+      "std": 3.4406
+    },
+    "zone_zone_A": {
+      "mean": 0.2482,
+      "std": 0.432
+    },
+    "zone_zone_B": {
+      "mean": 0.2496,
+      "std": 0.4328
+    },
+    "zone_zone_C": {
+      "mean": 0.2502,
+      "std": 0.4331
+    },
+    "zone_zone_D": {
+      "mean": 0.252,
+      "std": 0.4341
+    }
+  }
+}

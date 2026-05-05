@@ -94,6 +94,7 @@ class MatchingController {
       status: 'healthy',
       service: 'matching-service',
       aiAvailable: aiAvailable,
+      aiPlatformUrl: process.env.AI_MODEL_ENDPOINT || 'http://ai-model:8080',
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
     });

@@ -1,4 +1,5 @@
 const axios = require("axios");
+const crypto = require("crypto");
 const MatchingRequest = require("../models/MatchingRequest");
 const MatchingResult = require("../models/MatchingResult");
 const redisClient = require("../config/redis");
@@ -6,6 +7,7 @@ const aiScoringService = require("./aiScoringService");
 const fallbackService = require("./fallbackService");
 const featureStoreService = require("./featureStoreService");
 const pricingClient = require("./pricingClient");
+const aiAgent = require("./aiAgentOrchestrator");
 const logger = require("../utils/logger");
 const mtls = require("../../../../../shared/mtls.cjs");
 
@@ -18,6 +20,11 @@ class MatchingService {
     this.matchTimeout = 30000;
   }
 
+  /**
+   * Find the best driver for a ride request.
+   * Now uses AI Agent Orchestrator for multi-objective matching (TC44, TC51-TC60).
+   * Generates a trace_id for full decision logging (TC58).
+   */
   async findDriverForRide(
     rideId,
     userId,
@@ -28,8 +35,11 @@ class MatchingService {
     vehicleType = null,
   ) {
     const startTime = Date.now();
+    // TC58: Generate unique trace_id for this request
+    const traceId = `trace_${crypto.randomUUID()}`;
+
     logger.info(
-      `🎯 Finding driver for ride ${rideId} at (${pickupLat}, ${pickupLng})`,
+      `[${traceId}] 🎯 Finding driver for ride ${rideId} at (${pickupLat}, ${pickupLng})`,
     );
 
     try {
@@ -47,10 +57,10 @@ class MatchingService {
           etaMinutes = etaData.eta_minutes;
           etaSeconds = etaData.eta_seconds;
           logger.info(
-            `📊 ETA calculated: ${etaMinutes} minutes, distance: ${etaData.distance_km}km`,
+            `[${traceId}] 📊 ETA calculated: ${etaMinutes} minutes, distance: ${etaData.distance_km}km`,
           );
         } catch (error) {
-          logger.warn("ETA calculation failed, using default", error.message);
+          logger.warn(`[${traceId}] ETA calculation failed, using default`, error.message);
         }
       }
 
@@ -62,7 +72,7 @@ class MatchingService {
         pickupLng,
       });
 
-      logger.info(`📝 Matching request created: ${request.id}`);
+      logger.info(`[${traceId}] 📝 Matching request created: ${request.id}`);
 
       const nearbyDrivers = await redisClient.getNearbyDrivers(
         pickupLng,
@@ -72,7 +82,7 @@ class MatchingService {
 
       if (nearbyDrivers.length === 0) {
         await MatchingRequest.updateStatus(pool, rideId, "failed");
-        logger.warn(`⚠️ No nearby drivers found for ride ${rideId}`);
+        logger.warn(`[${traceId}] ⚠️ No nearby drivers found for ride ${rideId}`);
         return {
           success: false,
           error: "Không có tài xế nào ở gần",
@@ -80,38 +90,23 @@ class MatchingService {
       }
 
       logger.info(
-        `📍 Found ${nearbyDrivers.length} nearby drivers for ride ${rideId}`,
+        `[${traceId}] 📍 Found ${nearbyDrivers.length} nearby drivers for ride ${rideId}`,
       );
 
       const driverDetailsMap = await this.getDriverDetails(
         nearbyDrivers.map((d) => d.driverId),
       );
 
-      const onlineDrivers = nearbyDrivers.filter(
-        (d) =>
-          driverDetailsMap[d.driverId] &&
-          driverDetailsMap[d.driverId].data?.status === "online",
-      );
-
-      if (onlineDrivers.length === 0) {
-        await MatchingRequest.updateStatus(pool, rideId, "failed");
-        logger.warn(`⚠️ No online drivers found for ride ${rideId}`);
-        return {
-          success: false,
-          error: "Không có tài xế trực tuyến",
-        };
-      }
-
-      logger.info(`✅ Found ${onlineDrivers.length} online drivers`);
-
-      let filteredDrivers = onlineDrivers;
+      // TC57: Filter offline drivers is done INSIDE aiAgent.orchestrate()
+      // but we also pre-filter by vehicle type here
+      let filteredDrivers = nearbyDrivers;
       if (vehicleType) {
-        filteredDrivers = onlineDrivers.filter(
+        filteredDrivers = nearbyDrivers.filter(
           (d) =>
             driverDetailsMap[d.driverId]?.data?.vehicleType === vehicleType,
         );
         logger.info(
-          `🚗 Filtered to ${filteredDrivers.length} drivers with vehicle type ${vehicleType}`,
+          `[${traceId}] 🚗 Filtered to ${filteredDrivers.length} drivers with vehicle type ${vehicleType}`,
         );
       }
 
@@ -127,86 +122,102 @@ class MatchingService {
         filteredDrivers.map((d) => d.driverId),
       );
 
-      let matchedDriver = null;
-      let usedFallback = false;
-      let aiAvailable = await aiScoringService.checkAIAvailability();
+      // ──── AI Agent Orchestration (TC44, TC47-TC60) ────
+      const agentResult = await aiAgent.orchestrate({
+        traceId,
+        drivers: filteredDrivers,
+        featuresMap,
+        driverDetailsMap,
+        rideContext: { pickupLat, pickupLng, dropoffLat, dropoffLng },
+        topN: 3, // TC44: always return top 3
+      });
 
-      try {
-        if (aiAvailable) {
-          const scoredDrivers = await aiScoringService.scoreMultipleDrivers(
-            filteredDrivers,
-            featuresMap,
-            driverDetailsMap,
-          );
+      if (!agentResult.success || agentResult.drivers.length === 0) {
+        // If agent also fails, try legacy fallback as last resort
+        logger.warn(`[${traceId}] ⚠️ Agent returned no results, trying legacy fallback`);
 
-          if (scoredDrivers.length > 0) {
-            matchedDriver = scoredDrivers[0];
-            logger.info(
-              `🤖 AI matched driver ${matchedDriver.driverId} with score ${matchedDriver.totalScore}`,
-            );
-          } else {
-            throw new Error("No drivers scored by AI");
-          }
-        } else {
-          throw new Error("AI service unavailable");
-        }
-      } catch (aiError) {
-        logger.warn(
-          `⚠️ AI failed for ride ${rideId}, using fallback:`,
-          aiError.message,
-        );
-        usedFallback = true;
-
-        matchedDriver = await fallbackService.nearestDriverMatch(
+        const legacyMatch = await fallbackService.ruleBasedMatch(
           filteredDrivers,
           driverDetailsMap,
         );
 
-        if (!matchedDriver) {
-          matchedDriver = await fallbackService.ruleBasedMatch(
-            filteredDrivers,
-            driverDetailsMap,
-          );
+        if (!legacyMatch) {
+          await MatchingRequest.updateStatus(pool, rideId, "failed");
+          return {
+            success: false,
+            error: "Không thể tìm được tài xế phù hợp",
+          };
         }
 
-        if (matchedDriver) {
-          logger.info(`🔄 Fallback matched driver ${matchedDriver.driverId}`);
-        }
-      }
+        // Save and return legacy result
+        const result = await MatchingResult.create(pool, {
+          requestId: request.id,
+          driverId: legacyMatch.driverId,
+          distanceKm: legacyMatch.distanceKm,
+          aiScore: legacyMatch.totalScore || null,
+          wasFallback: true,
+        });
 
-      if (!matchedDriver) {
-        await MatchingRequest.updateStatus(pool, rideId, "failed");
+        const matchResult = this.buildMatchResult(
+          rideId, legacyMatch.driverId, driverDetailsMap, legacyMatch,
+          etaSeconds, etaMinutes, true, traceId
+        );
+
+        await redisClient.cacheMatchResult(rideId, matchResult, 300);
+        await MatchingRequest.updateStatus(pool, rideId, "matched");
+
         return {
-          success: false,
-          error: "Không thể tìm được tài xế phù hợp",
+          success: true,
+          data: matchResult,
+          meta: {
+            traceId,
+            matchingTimeMs: Date.now() - startTime,
+            candidatesCount: filteredDrivers.length,
+            usedFallback: true,
+            aiAvailable: false,
+            etaMinutes,
+          },
         };
       }
 
+      // ──── Use Agent's top-1 driver as matched driver ────
+      const topDriver = agentResult.drivers[0];
+      const usedFallback = agentResult.meta.usedFallback;
+
       const result = await MatchingResult.create(pool, {
         requestId: request.id,
-        driverId: matchedDriver.driverId,
-        distanceKm: matchedDriver.distanceKm,
-        aiScore: matchedDriver.totalScore || null,
+        driverId: topDriver.driver_id,
+        distanceKm: topDriver.distance_km,
+        aiScore: topDriver.match_score,
         wasFallback: usedFallback,
       });
 
-      logger.info(`💾 Saved match result: ${result.id}`);
+      logger.info(`[${traceId}] 💾 Saved match result: ${result.id}`);
 
-      const driverDetails =
-        driverDetailsMap[matchedDriver.driverId]?.data || {};
+      const driverDetails = driverDetailsMap[topDriver.driver_id]?.data || {};
       const matchResult = {
         rideId,
-        driverId: matchedDriver.driverId,
+        driverId: topDriver.driver_id,
         driverName: driverDetails.fullName,
         driverPhone: driverDetails.phone,
-        distanceKm: matchedDriver.distanceKm,
+        distanceKm: topDriver.distance_km,
         vehicleType: driverDetails.vehicleType,
         vehiclePlate: driverDetails.licensePlate,
-        driverRating: driverDetails.rating || 5.0,
+        driverRating: topDriver.driver_rating || driverDetails.rating || 5.0,
         estimatedArrivalSec: etaSeconds,
-        etaMinutes: etaMinutes,
+        etaMinutes: topDriver.eta_minutes || etaMinutes,
         usedFallback,
-        aiScore: matchedDriver.totalScore,
+        aiScore: topDriver.match_score,
+        modelVersion: agentResult.meta.modelVersion,
+        traceId,
+        // TC44: Include all top-3 candidates
+        topCandidates: agentResult.drivers.map((d, i) => ({
+          rank: i + 1,
+          driverId: d.driver_id,
+          matchScore: d.match_score,
+          distanceKm: d.distance_km,
+          rating: d.driver_rating,
+        })),
         matchedAt: new Date().toISOString(),
       };
 
@@ -215,31 +226,56 @@ class MatchingService {
 
       const duration = Date.now() - startTime;
       logger.info(
-        `✅ Matching completed for ride ${rideId} in ${duration}ms, ETA: ${etaMinutes} min`,
+        `[${traceId}] ✅ Matching completed for ride ${rideId} in ${duration}ms, ` +
+        `ETA: ${etaMinutes} min, AI Score: ${topDriver.match_score}, ` +
+        `Fallback: ${usedFallback}, Model: ${agentResult.meta.modelVersion}`,
       );
 
       this.publishMatchEvent(matchResult).catch((err) => {
-        logger.error("Failed to publish match event:", err);
+        logger.error(`[${traceId}] Failed to publish match event:`, err);
       });
 
       return {
         success: true,
         data: matchResult,
         meta: {
+          traceId,
           matchingTimeMs: duration,
           candidatesCount: filteredDrivers.length,
           usedFallback,
-          aiAvailable,
+          aiAvailable: !usedFallback,
+          modelVersion: agentResult.meta.modelVersion,
           etaMinutes,
+          decisionLog: agentResult.meta.decisionLog,
         },
       };
     } catch (error) {
-      logger.error(`❌ Matching error for ride ${rideId}:`, error);
+      logger.error(`[${traceId}] ❌ Matching error for ride ${rideId}:`, error);
       return {
         success: false,
         error: error.message || "Internal server error",
       };
     }
+  }
+
+  buildMatchResult(rideId, driverId, driverDetailsMap, driverData, etaSec, etaMin, fallback, traceId) {
+    const driverDetails = driverDetailsMap[driverId]?.data || {};
+    return {
+      rideId,
+      driverId,
+      driverName: driverDetails.fullName,
+      driverPhone: driverDetails.phone,
+      distanceKm: driverData.distanceKm || driverData.distance_km,
+      vehicleType: driverDetails.vehicleType,
+      vehiclePlate: driverDetails.licensePlate,
+      driverRating: driverDetails.rating || 5.0,
+      estimatedArrivalSec: etaSec,
+      etaMinutes: etaMin,
+      usedFallback: fallback,
+      aiScore: driverData.totalScore || driverData.match_score || 0,
+      traceId,
+      matchedAt: new Date().toISOString(),
+    };
   }
 
   async getDriverDetails(driverIds) {

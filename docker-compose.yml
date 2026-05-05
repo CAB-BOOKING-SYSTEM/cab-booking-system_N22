@@ -347,6 +347,23 @@ services:
       - ./cab-system-backend/services/user-service:/app
       - /app/node_modules
 
+  # --- 3. AI PLATFORM (Python/FastAPI) ---
+  ai-platform:
+    build:
+      context: ./ai-platform
+    container_name: cab_ai_platform
+    ports:
+      - "8080:8080"
+    environment:
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
   matching-service:
     build:
       context: cab-system-backend/services/matching-service
@@ -367,6 +384,7 @@ services:
       - PRICING_SERVICE_URL=https://pricing-service:${PRICING_PORT:-3006}
       - JWT_SECRET=${JWT_SECRET}
       - LOG_LEVEL=info
+      - AI_MODEL_ENDPOINT=http://ai-platform:8080
       - MTLS_ENABLED=true
       - TLS_CA_PATH=/shared-certs/ca-root.pem
       - TLS_CERT_PATH=/shared-certs/matching-service-cert.pem
@@ -375,6 +393,7 @@ services:
       - postgres
       - redis
       - driver-service
+      - ai-platform
     volumes:
       - ./shared-certs:/shared-certs:ro
       - ./shared:/shared:ro
