@@ -45,7 +45,7 @@ const pool = new Pool({
   connectionTimeoutMillis: 2000,
 });
 
-// Hàm tự động tạo bảng (giống Driver Service)
+// Hàm tự động tạo bảng
 const initTables = async () => {
   const client = await pool.connect();
   try {
@@ -115,10 +115,28 @@ const initTables = async () => {
       );
     `);
     
+    // Tạo bảng historical_eta (Feature Store cho ETA)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS historical_eta (
+        id SERIAL PRIMARY KEY,
+        feature_id VARCHAR(100) UNIQUE NOT NULL,
+        pickup_lat DECIMAL(10, 8),
+        pickup_lng DECIMAL(11, 8),
+        dropoff_lat DECIMAL(10, 8),
+        dropoff_lng DECIMAL(11, 8),
+        distance_km DECIMAL(8, 2),
+        eta_minutes INTEGER,
+        eta_seconds INTEGER,
+        traffic_level DECIMAL(3, 2),
+        recorded_at TIMESTAMP NOT NULL
+      );
+    `);
+
     // Tạo indexes
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_promotions_code ON promotions(code);
       CREATE INDEX IF NOT EXISTS idx_historical_timestamp ON historical_estimates(timestamp);
+      CREATE INDEX IF NOT EXISTS idx_historical_eta_recorded_at ON historical_eta(recorded_at);
     `);
     
     // Insert dữ liệu mẫu

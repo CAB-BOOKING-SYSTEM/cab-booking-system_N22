@@ -306,11 +306,59 @@ class MatchingService {
     return detailsMap;
   }
 
+  /**
+   * Publish DriverMatched event to Event Broker (RabbitMQ).
+   * Sequence Diagram Step 10: AI Matching Service → Event Broker: Publish DriverMatched
+   * Sequence Diagram Step 11: Event Broker → DriverApp: Notify assignment
+   */
   async publishMatchEvent(matchResult) {
     try {
-      logger.info(`📤 Match event published for ride ${matchResult.rideId}`);
+      const amqp = require('amqplib');
+      const rabbitmqUrl = process.env.RABBITMQ_URL || 'amqp://admin:password123@rabbitmq:5672';
+      const conn = await amqp.connect(rabbitmqUrl);
+      const ch = await conn.createChannel();
+
+      const exchange = 'booking.events';
+      await ch.assertExchange(exchange, 'topic', { durable: true });
+
+      const event = {
+        event: 'driver.matched',
+        timestamp: new Date().toISOString(),
+        data: {
+          rideId: matchResult.rideId,
+          driverId: matchResult.driverId,
+          driverName: matchResult.driverName,
+          driverPhone: matchResult.driverPhone,
+          vehicleType: matchResult.vehicleType,
+          vehiclePlate: matchResult.vehiclePlate,
+          driverRating: matchResult.driverRating,
+          distanceKm: matchResult.distanceKm,
+          etaMinutes: matchResult.etaMinutes,
+          aiScore: matchResult.aiScore,
+          traceId: matchResult.traceId,
+          matchedAt: matchResult.matchedAt,
+        },
+      };
+
+      ch.publish(
+        exchange,
+        'driver.matched',
+        Buffer.from(JSON.stringify(event)),
+        { persistent: true }
+      );
+
+      logger.info(
+        `📤 DriverMatched event published to Event Broker for ride ${matchResult.rideId}, ` +
+        `driver: ${matchResult.driverId}`
+      );
+
+      // Close channel after short delay to ensure message is sent
+      setTimeout(() => {
+        ch.close().catch(() => {});
+        conn.close().catch(() => {});
+      }, 500);
     } catch (error) {
-      logger.error("Failed to publish match event:", error);
+      logger.error('Failed to publish DriverMatched event to Event Broker:', error.message);
     }
   }
 

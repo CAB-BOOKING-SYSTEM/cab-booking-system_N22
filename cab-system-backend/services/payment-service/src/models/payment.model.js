@@ -1,38 +1,48 @@
-const db = require("../config/db");
-
-const Payment = {
-
-  create: async (data) => {
-    const res = await db.pool.query(
-      `INSERT INTO payments 
-      (ride_id, user_id, booking_id, amount, status, created_at)
-      VALUES ($1,$2,$3,$4,'PENDING',NOW()) RETURNING *`,
-      [data.rideId, data.userId, data.bookingId, data.amount]
-    );
-    return res.rows[0];
-  },
-
-  findByRideId: async (rideId) => {
-    const res = await db.pool.query(
-      "SELECT * FROM payments WHERE ride_id=$1",
-      [rideId]
-    );
-    return res.rows[0];
-  },
-
-  update: async (id, status) => {
-    await db.pool.query(
-      "UPDATE payments SET status=$1 WHERE id=$2",
-      [status, id]
-    );
-  },
-
-  increaseRetry: async (id) => {
-    await db.pool.query(
-      "UPDATE payments SET retry_count = retry_count + 1 WHERE id=$1",
-      [id]
-    );
-  }
+//D:\bc_cki_new3\cab-booking-system_N22\cab-system-backend\services\payment-service\src\models\payment.model.js
+const PaymentStatus = {
+  PENDING: "PENDING",
+  SUCCESS: "SUCCESS",
+  FAILED:  "FAILED",
 };
 
-module.exports = Payment;
+const PaymentMethod = {
+  CASH:   "cash",
+  CARD:   "card",
+  WALLET: "wallet",
+};
+
+class Payment {
+  constructor({
+    bookingId,
+    userId,
+    driverId      = null,
+    amount,
+    driverAmount  = 0,
+    currency      = "VND",
+    status        = PaymentStatus.PENDING,
+    paymentMethod = PaymentMethod.CARD,
+    eventId,
+    idempotencyKey,
+  }) {
+    this.bookingId      = bookingId;
+    this.userId         = userId;
+    this.driverId       = driverId;
+    this.amount         = amount;
+    this.driverAmount   = driverAmount;
+    this.currency       = currency;
+    this.status         = status;
+    this.paymentMethod  = paymentMethod;
+    this.eventId        = eventId;
+    this.idempotencyKey = idempotencyKey;
+  }
+
+  isPending() {
+    return this.status === PaymentStatus.PENDING;
+  }
+
+  isCompleted() {
+    return this.status === PaymentStatus.SUCCESS;
+  }
+}
+
+module.exports = { Payment, PaymentStatus, PaymentMethod };

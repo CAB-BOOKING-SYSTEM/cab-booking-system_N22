@@ -48,14 +48,11 @@ const createProxy = (target, prefix) =>
       }
 
       if (srcReq.user) {
-        proxyReqOpts.headers["x-user-id"] =
-          srcReq.user.sub ||
-          srcReq.user.id ||
-          srcReq.user._id ||
-          srcReq.user.userId ||
-          "";
-        proxyReqOpts.headers["x-user-role"] =
-          srcReq.user.role || srcReq.user.roles || "";
+        proxyReqOpts.headers['x-user-id'] = srcReq.user.sub || srcReq.user.id || srcReq.user._id || srcReq.user.userId || '';
+        proxyReqOpts.headers['x-user-role'] = srcReq.user.role || srcReq.user.roles || '';
+        if (srcReq.user.driver_id) {
+          proxyReqOpts.headers['x-driver-id'] = srcReq.user.driver_id;
+        }
       }
 
       return proxyReqOpts;
@@ -186,6 +183,26 @@ app.use(
   "/api/matching",
   authMiddleware,
   createProxy(serviceUrl("matching-service", 3010), "/api/matching"),
+);
+
+// AI Platform routes (internal ML model API)
+app.use(
+  "/api/ai",
+  authMiddleware,
+  proxy("http://ai-platform:8080", {
+    proxyReqPathResolver: (req) => `${req.url}`,
+    proxyReqOptDecorator: (proxyReqOpts, srcReq) => {
+      // AI Platform uses HTTP, no mTLS
+      proxyReqOpts.headers["x-gateway-proxy"] = "true";
+      if (srcReq.user) {
+        proxyReqOpts.headers["x-user-id"] =
+          srcReq.user.sub || srcReq.user.id || srcReq.user.userId || "";
+        proxyReqOpts.headers["x-user-role"] =
+          srcReq.user.role || srcReq.user.roles || "";
+      }
+      return proxyReqOpts;
+    },
+  }),
 );
 
 // Health check endpoint (no rate limit)

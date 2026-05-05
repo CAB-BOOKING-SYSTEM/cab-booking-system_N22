@@ -6,8 +6,8 @@
 # ──────────────────────────────────────────────────────────────────────────────
 
 global:
-  scrape_interval: 15s       # Kéo metrics mỗi 15 giây
-  evaluation_interval: 15s   # Đánh giá alerting rules mỗi 15 giây
+  scrape_interval: 5s       # Kéo metrics mỗi 15 giây
+  evaluation_interval: 5s   # Đánh giá alerting rules mỗi 15 giây
   external_labels:
     environment: production
     project: cab-booking-system
@@ -31,18 +31,23 @@ scrape_configs:
       - targets: ["localhost:9090"]
 
   # 2. Notification Service — endpoint /metrics do prom-client expose
+ # 2. Notification Service
+ # 2. Notification Service
   - job_name: cab-notification-service
+    scheme: http
     metrics_path: /metrics
-    scrape_interval: 10s     # Scrape nhanh hơn vì đây là service chính cần theo dõi
+    scrape_interval: 80s
     static_configs:
-      - targets:
-          - "notification-service:3004"   # Docker Swarm / Compose: dùng service name
+      - targets: ["cab_notification:3040"] # <-- Dùng đúng container_name là cab_notification
         labels:
           service: notification-service
           team: backend
-
-  # 3. Node Exporter — thu thập metrics hệ thống (CPU, RAM, Disk) của host
-  #    Cần thêm node-exporter vào docker-stack.yml khi muốn bật
-  # - job_name: node-exporter
-  #   static_configs:
-  #     - targets: ["node-exporter:9100"]
+  # 3. Node Exporter
+  - job_name: node-exporter
+    static_configs:
+      - targets: ["node-exporter:9100"]
+# ── Alerting (tuỳ chọn, bật khi tích hợp Alertmanager) ──────────────────────
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]

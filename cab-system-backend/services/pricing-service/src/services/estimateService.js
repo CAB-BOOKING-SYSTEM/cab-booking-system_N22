@@ -1,6 +1,5 @@
 const pricingRepository = require('../repositories/pricingRepository');
 const pricingService = require('./pricingService');
-const historicalRepository = require('../repositories/historicalRepository');
 const { redisClient } = require('../config/redisConfig');
 const { publishEvent } = require('../rabbitmq/producer');
 const { v4: uuidv4 } = require('uuid');
@@ -27,15 +26,30 @@ const calculateEstimate = async ({ pickupLat, pickupLng, dropoffLat, dropoffLng,
     throw new Error('Vehicle type not found');
   }
   
-  // 2. Lấy surge multiplier từ Redis (đã được Surge AI tính)
-  const surgeMultiplier = await redisClient.get(`surge:${zone}`) || 1.0;
+  // 2. Lấy surge multiplier từ Redis (có thể là JSON hoặc số cũ)
+  let surgeMultiplier = 1.0;
+  let modelVersion = 'rule-based-fallback';
+  
+  const surgeRaw = await redisClient.get(`surge:${zone}`);
+  if (surgeRaw) {
+    try {
+      // Format mới: JSON có multiplier và modelVersion
+      const surgeData = JSON.parse(surgeRaw);
+      surgeMultiplier = surgeData.multiplier;
+      modelVersion = surgeData.modelVersion || 'unknown';
+    } catch (e) {
+      // Format cũ: chỉ là số
+      surgeMultiplier = parseFloat(surgeRaw);
+      modelVersion = 'legacy-v1';
+    }
+  }
   
   console.log('Pricing config:', {
     base_fare: pricingConfig.base_fare,
     per_km_rate: pricingConfig.per_km_rate,
     per_minute_rate: pricingConfig.per_minute_rate
   });
-  console.log(`Surge multiplier for ${zone}: ${surgeMultiplier}`);
+  console.log(`Surge multiplier for ${zone}: ${surgeMultiplier} (model: ${modelVersion})`);
   
   // 3. Tính giá
   const fare = pricingService.calculateFare({
@@ -49,22 +63,23 @@ const calculateEstimate = async ({ pickupLat, pickupLng, dropoffLat, dropoffLng,
   
   console.log(`Calculated fare: ${fare} VND`);
   
-  // 4. Lưu lịch sử
-  await historicalRepository.saveHistory({
+  // 4. Cache kết quả vào Redis
+  const cacheKey = `estimate:${requestId}`;
+  await redisClient.setEx(cacheKey, 300, JSON.stringify({
     requestId,
     vehicleType,
     distance,
     duration,
     zone,
-    baseFare: pricingConfig.base_fare,
-    perKmRate: pricingConfig.per_km_rate,
-    perMinuteRate: pricingConfig.per_minute_rate,
-    surgeMultiplier,
+    surgeMultiplier: parseFloat(surgeMultiplier),
+    modelVersion: modelVersion,
     estimatedFare: fare,
-    userId
-  });
+    currency: 'VND',
+    userId,
+    timestamp: new Date().toISOString()
+  }));
   
-  // 5. Gửi event RabbitMQ cho Notification Service
+  // 5. Gửi event RabbitMQ
   await publishEvent('pricing.estimate.calculated', {
     requestId,
     userId,
@@ -77,12 +92,14 @@ const calculateEstimate = async ({ pickupLat, pickupLng, dropoffLat, dropoffLng,
     dropoffLat,
     dropoffLng,
     surgeMultiplier: parseFloat(surgeMultiplier),
+    modelVersion: modelVersion,
     estimatedFare: fare,
     paymentMethod: paymentMethod || 'unknown',
     currency: 'VND',
     timestamp: new Date().toISOString()
   });
   
+  // 6. Trả về kết quả (có modelVersion)
   return {
     requestId,
     vehicleType,
@@ -90,7 +107,9 @@ const calculateEstimate = async ({ pickupLat, pickupLng, dropoffLat, dropoffLng,
     duration,
     zone,
     surgeMultiplier: parseFloat(surgeMultiplier),
+    modelVersion: modelVersion,
     estimatedFare: fare,
+    total: fare,
     currency: 'VND'
   };
 };

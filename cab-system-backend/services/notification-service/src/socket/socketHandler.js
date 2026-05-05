@@ -40,6 +40,7 @@ let io;
  */
 const initSocket = (server) => {
   io = new Server(server, {
+  //  path: "/api/notifications/socket.io",
     cors: {
       origin: process.env.CORS_ORIGIN || "*", // Tuỳ chỉnh domain khi lên production
       methods: ["GET", "POST"],

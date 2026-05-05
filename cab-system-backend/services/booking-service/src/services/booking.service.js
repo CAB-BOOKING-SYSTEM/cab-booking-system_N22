@@ -1,6 +1,5 @@
 // src/services/booking.service.js
-const { v4: uuidv4 } = require('uuid');
-const { BookingStatus } = require('../models/Booking');
+const { BookingStatus, Booking } = require('../models/Booking');
 const { ForbiddenError, ConflictError } = require('../utils/error.handler');
 
 class BookingService {
@@ -14,9 +13,12 @@ class BookingService {
     console.log(`📝 Creating booking for customer: ${customerId}`);
     
     let booking = null;
+    let eventPublished = false;
+    let compensationNeeded = false;
     
     try {
       // 1. Get price from Pricing Service
+      console.log(`💰 Getting price estimate...`);
       const estimatedPrice = await this.pricingClient.estimatePrice({
         distance: data.distance,
         duration: data.duration || 0,
@@ -25,7 +27,8 @@ class BookingService {
         dropoffLocation: data.dropoffLocation
       });
       
-      // 2. Create booking
+      // 2. Create booking với status REQUESTED + metadata PENDING
+      console.log(`📦 Creating booking record...`);
       booking = await this.bookingRepository.create({
         customerId,
         pickupLocation: data.pickupLocation,
@@ -36,13 +39,19 @@ class BookingService {
         distance: data.distance,
         duration: data.duration,
         estimatedPrice,
-        status: BookingStatus.PENDING,
-        trackingPath: []
+        status: BookingStatus.REQUESTED,
+        trackingPath: [],
+        metadata: {
+          compensationStatus: 'PENDING',
+          createdAt: new Date()
+        }
       });
       
       console.log(`✅ Booking created: ${booking._id}`);
+      compensationNeeded = true;
       
-      // 3. Publish event for Matching Service
+      // 3. Publish event - CRITICAL STEP
+      console.log(`📤 Publishing booking.created event...`);
       const published = await this.rabbitMQService.publish('booking.created', {
         bookingId: booking._id.toString(),
         customerId,
@@ -55,35 +64,71 @@ class BookingService {
         timestamp: new Date().toISOString()
       });
       
-      // 🔥 Nếu publish event thất bại → ROLLBACK: xóa booking vừa tạo
       if (!published) {
-        console.error(`❌ Failed to publish event, rolling back booking ${booking._id}`);
-        await this.bookingRepository.delete(booking._id);
-        throw new Error("Failed to publish booking event, transaction rolled back");
+        throw new Error('Failed to publish booking.created event');
       }
       
-      console.log(`✅ Booking created and event published: ${booking._id}`);
-      return this.mapToResponse(booking);
+      eventPublished = true;
+      
+      // ========== FIX: Dùng findByIdAndUpdate (ATOMIC) ==========
+      console.log(`🔄 Updating metadata atomically...`);
+      const updatedBooking = await Booking.findByIdAndUpdate(
+        booking._id,
+        {
+          $set: {
+            'metadata.compensationStatus': 'COMPLETED',
+            'metadata.eventPublished': true,
+            'metadata.eventPublishedAt': new Date()
+          }
+        },
+        { new: true }
+      );
+      
+      console.log(`🔍 Metadata after update:`, JSON.stringify(updatedBooking.metadata));
+      console.log(`✅ Booking completed successfully: ${booking._id}`);
+      
+      return this.mapToResponse(updatedBooking);
       
     } catch (error) {
-      // 🔥 Nếu có lỗi và booking đã được tạo → ROLLBACK: xóa booking
-      if (booking && booking._id) {
-        console.error(`❌ Error occurred, rolling back booking ${booking._id}`);
-        try {
-          await this.bookingRepository.delete(booking._id);
-          console.log(`🗑️ Booking ${booking._id} deleted during rollback`);
-        } catch (deleteError) {
-          console.error(`❌ Failed to delete booking during rollback:`, deleteError.message);
-        }
+      console.error(`❌ Error creating booking:`, error.message);
+      
+      if (compensationNeeded && !eventPublished && booking) {
+        console.log(`🔄 Running compensation for booking: ${booking._id}`);
+        await this.compensateCreateBooking(booking._id);
       }
+      
       throw error;
+    }
+  }
+  
+  async compensateCreateBooking(bookingId) {
+    try {
+      console.log(`🗑️ Compensating: Deleting booking ${bookingId}`);
+      
+      const booking = await this.bookingRepository.findById(bookingId);
+      
+      if (!booking.driverId) {
+        await this.bookingRepository.delete(bookingId);
+        console.log(`✅ Compensation successful: Booking ${bookingId} deleted`);
+      } else {
+        await Booking.findByIdAndUpdate(bookingId, {
+          $set: {
+            'metadata.compensationStatus': 'FAILED',
+            'metadata.compensationError': 'Event publish failed',
+            'metadata.compensationAt': new Date()
+          }
+        });
+        console.log(`⚠️ Cannot delete booking ${bookingId}, marked as FAILED`);
+      }
+      
+    } catch (error) {
+      console.error(`❌ Compensation failed:`, error.message);
     }
   }
   
   async getBooking(bookingId, userId, role) {
     const booking = await this.bookingRepository.findById(bookingId);
     
-    // Check permission
     if (role === 'customer' && booking.customerId !== userId) {
       throw new ForbiddenError('You do not have permission to view this booking');
     }
@@ -95,17 +140,28 @@ class BookingService {
   }
   
   async getCustomerBookings(customerId, page, limit) {
-    return await this.bookingRepository.findByCustomerId(customerId, page, limit);
+    const result = await this.bookingRepository.findByCustomerId(customerId, page, limit);
+    
+    if (result.data) {
+      result.data = result.data.map(booking => this.mapToResponse(booking));
+    }
+    
+    return result;
   }
   
   async getDriverBookings(driverId, page, limit) {
-    return await this.bookingRepository.findByDriverId(driverId, page, limit);
+    const result = await this.bookingRepository.findByDriverId(driverId, page, limit);
+    
+    if (result.data) {
+      result.data = result.data.map(booking => this.mapToResponse(booking));
+    }
+    
+    return result;
   }
   
   async cancelBooking(bookingId, userId, role, reason) {
     const booking = await this.bookingRepository.findById(bookingId);
     
-    // Check permission
     if (role === 'customer' && booking.customerId !== userId) {
       throw new ForbiddenError('You do not have permission to cancel this booking');
     }
@@ -113,7 +169,6 @@ class BookingService {
       throw new ForbiddenError('You do not have permission to cancel this booking');
     }
     
-    // Check if cancellable
     if (!booking.canCancel()) {
       throw new ConflictError(`Cannot cancel booking with status: ${booking.status}`);
     }
@@ -124,7 +179,6 @@ class BookingService {
       reason
     );
     
-    // Publish cancellation event
     await this.rabbitMQService.publish('booking.cancelled', {
       bookingId: booking._id.toString(),
       customerId: booking.customerId,
@@ -136,7 +190,6 @@ class BookingService {
     return this.mapToResponse(cancelledBooking);
   }
   
-  // Internal methods (called via RabbitMQ events)
   async handleBookingAccepted(data) {
     console.log(`📥 Handling booking.accepted for: ${data.bookingId}`);
     
@@ -146,7 +199,6 @@ class BookingService {
       data.eta || 5
     );
     
-    // Forward event to Ride Service
     await this.rabbitMQService.publish('booking.accepted', {
       bookingId: booking._id.toString(),
       customerId: booking.customerId,

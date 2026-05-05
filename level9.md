@@ -177,3 +177,6 @@ Expected:
   "email": "n***@example.com"
 }
 ```
+TC90: SENSITIVE DATA MASKING
+GET
+https://localhost:3000/api/v1/users/1

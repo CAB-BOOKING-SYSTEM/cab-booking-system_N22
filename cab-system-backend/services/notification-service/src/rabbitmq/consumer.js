@@ -28,7 +28,7 @@ const EXCHANGES = [
   },
   {
     name: "payment.events",
-    routingKeys: ["payment.completed", "payment.failed"],
+    routingKeys: ["payment.created", "payment.completed", "payment.failed"], // 👈 Thêm payment.created vào đây
   },
   {
     name: "pricing.events",
@@ -224,6 +224,12 @@ function buildNotificationPayload(routingKey, payload = {}) {
         ...baseEnvelope,
         title: "Chuyến đi đã hoàn thành",
         body: `Cảm ơn bạn đã hoàn thành chuyến đi${eventData.rideId ? ` #${eventData.rideId}` : ""}.`,
+      };
+    case "payment.created":
+      return {
+        ...baseEnvelope,
+        title: "Khởi tạo thanh toán thành công 💳",
+        body: `Hóa đơn cho chuyến đi${bookingRef ? ` #${bookingRef}` : ""} đã sẵn sàng. Vui lòng thanh toán số tiền ${moneyText}${eventData.paymentMethod ? ` qua ${eventData.paymentMethod}` : ""}.`,
       };
     case "payment.completed":
       return {
