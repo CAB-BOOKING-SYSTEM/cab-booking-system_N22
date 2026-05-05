@@ -14,7 +14,7 @@ import joblib
 import numpy as np
 import pandas as pd
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Any
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
@@ -71,7 +71,8 @@ class ETARequest(BaseModel):
     distance_km: float = Field(..., description="Trip distance in km")
     hour_of_day: int = Field(default=12, ge=0, le=23)
     day_of_week: int = Field(default=3, ge=0, le=6)
-    traffic_index: float = Field(default=0.5, ge=0.0, le=1.0)
+    traffic_index: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+    traffic_level: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Alias for traffic_index (TC7)")
     is_rain: int = Field(default=0, ge=0, le=1)
 
     @field_validator('distance_km')
@@ -83,6 +84,14 @@ class ETARequest(BaseModel):
         if v > 200:
             raise ValueError(f"distance_km={v} is unreasonably large (max 200km). Possible outlier.")
         return v
+
+    def get_traffic_index(self) -> float:
+        """Return traffic_index, accepting traffic_level as alias (TC7)."""
+        if self.traffic_index is not None:
+            return self.traffic_index
+        if self.traffic_level is not None:
+            return self.traffic_level
+        return 0.5  # default
 
 
 class ETAResponse(BaseModel):
@@ -105,6 +114,24 @@ class SurgeRequest(BaseModel):
 class SurgeResponse(BaseModel):
     surge_multiplier: float
     demand_index: float
+    model_version: str
+    latency_ms: float
+
+
+# --- Pricing (TC8) ---
+class PricingRequest(BaseModel):
+    distance_km: float = Field(..., gt=0, description="Trip distance in km")
+    demand_index: float = Field(default=1.0, ge=0, le=10)
+    vehicle_type: str = Field(default="4_seat")
+
+
+class PricingResponse(BaseModel):
+    base_fare: float
+    distance_fare: float
+    surge_multiplier: float
+    total_price: float
+    currency: str
+    distance_km: float
     model_version: str
     latency_ms: float
 
@@ -220,11 +247,13 @@ async def predict_eta(req: ETARequest):
     bundle = registry.load('eta', 'latest')
     model, scaler = bundle['model'], bundle['scaler']
 
+    traffic_idx = req.get_traffic_index()
+
     features = pd.DataFrame([{
         'distance_km': req.distance_km,
         'hour_of_day': req.hour_of_day,
         'day_of_week': req.day_of_week,
-        'traffic_index': req.traffic_index,
+        'traffic_index': traffic_idx,
         'is_rain': req.is_rain,
     }])
 
@@ -389,6 +418,57 @@ async def predict_forecast(req: ForecastRequest):
         zone_id=req.zone_id,
         predicted_demand=demand,
         model_version=bundle['version'],
+        latency_ms=round(latency, 2),
+    )
+
+
+@app.post("/predict/pricing", response_model=PricingResponse)
+async def predict_pricing(req: PricingRequest):
+    """
+    Calculate trip pricing with surge (TC8).
+    - price > base fare
+    - surge >= 1
+    Uses surge model internally to compute surge_multiplier.
+    """
+    start = time.time()
+
+    # Base fare constants (VND)
+    BASE_FARE = 12000       # Mở cửa
+    PER_KM_RATE = 8500      # Giá/km
+
+    # Calculate distance-based fare
+    distance_fare = req.distance_km * PER_KM_RATE
+
+    # Get surge from model
+    try:
+        bundle = registry.load('surge', 'latest')
+        model, scaler = bundle['model'], bundle['scaler']
+
+        surge_features = pd.DataFrame([{
+            'demand_index': req.demand_index,
+            'supply_ratio': 0.5,
+            'hour_of_day': datetime.utcnow().hour,
+            'is_holiday': 0,
+            'is_event': 0,
+        }])
+        surge = float(model.predict(scaler.transform(surge_features))[0])
+        surge = max(1.0, min(surge, 3.0))
+        model_ver = bundle['version']
+    except Exception:
+        surge = 1.0
+        model_ver = 'fallback'
+
+    total_price = round((BASE_FARE + distance_fare) * surge)
+
+    latency = (time.time() - start) * 1000
+    return PricingResponse(
+        base_fare=BASE_FARE,
+        distance_fare=round(distance_fare),
+        surge_multiplier=round(surge, 3),
+        total_price=total_price,
+        currency="VND",
+        distance_km=req.distance_km,
+        model_version=model_ver,
         latency_ms=round(latency, 2),
     )
 

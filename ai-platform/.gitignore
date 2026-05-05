@@ -12,13 +12,6 @@ venv/
 .venv/
 env/
 
-# Trained models (regenerated from training pipeline)
-models/*.joblib
-models/*.json
-
-# Training data (regenerated from generate_data.py)
-data/*.csv
-
 # IDE
 .vscode/
 .idea/
