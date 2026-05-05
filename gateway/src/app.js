@@ -1,8 +1,14 @@
 const express = require("express");
 const proxy = require("express-http-proxy");
+const { createProxyMiddleware } = require("http-proxy-middleware");
 const cors = require("cors");
 const authMiddleware = require("./middlewares/auth");
-const { globalLimiter, authLimiter, refreshLimiter, bookingLimiter } = require("./middlewares/rateLimiter");
+const {
+  globalLimiter,
+  authLimiter,
+  refreshLimiter,
+  bookingLimiter,
+} = require("./middlewares/rateLimiter");
 const mtls = require("/shared/mtls.cjs");
 
 const gatewayAgent = mtls.createClientAgent();
@@ -40,10 +46,16 @@ const createProxy = (target, prefix) =>
         proxyReqOpts.agent = gatewayAgent;
         proxyReqOpts.rejectUnauthorized = true;
       }
-      
+
       if (srcReq.user) {
-        proxyReqOpts.headers['x-user-id'] = srcReq.user.sub || srcReq.user.id || srcReq.user._id || srcReq.user.userId || '';
-        proxyReqOpts.headers['x-user-role'] = srcReq.user.role || srcReq.user.roles || '';
+        proxyReqOpts.headers["x-user-id"] =
+          srcReq.user.sub ||
+          srcReq.user.id ||
+          srcReq.user._id ||
+          srcReq.user.userId ||
+          "";
+        proxyReqOpts.headers["x-user-role"] =
+          srcReq.user.role || srcReq.user.roles || "";
       }
 
       return proxyReqOpts;
@@ -53,8 +65,22 @@ const createProxy = (target, prefix) =>
 const serviceUrl = (host, port) =>
   useMtls ? `https://${host}:${port}` : `http://${host}:${port}`;
 
+// Socket.IO WebSocket proxy (express-http-proxy does not support WS)
+const notificationWsProxy = createProxyMiddleware({
+  target: serviceUrl("notification-service", 3004),
+  ws: true,
+  changeOrigin: true,
+  secure: useMtls,
+  agent: gatewayAgent || undefined,
+  logLevel: process.env.NODE_ENV === "development" ? "debug" : "warn",
+});
+
 // Auth routes - no authentication required, with stricter rate limit
-app.use("/auth", authLimiter, createProxy(serviceUrl("auth-service", 3001), "/api/auth"));
+app.use(
+  "/auth",
+  authLimiter,
+  createProxy(serviceUrl("auth-service", 3001), "/api/auth"),
+);
 
 // Protected API routes - all require authentication
 app.use(
@@ -100,6 +126,9 @@ app.use(
   createProxy(serviceUrl("notification-service", 3004), "/api/notifications"),
 );
 
+// Socket.IO endpoint for Notification Service (real-time)
+app.use("/socket.io", notificationWsProxy);
+
 app.use(
   "/reviews",
   authMiddleware,
@@ -112,8 +141,14 @@ app.use(
       }
       proxyReqOpts.headers["x-gateway-proxy"] = "true";
       if (srcReq.user) {
-        proxyReqOpts.headers['x-user-id'] = srcReq.user.sub || srcReq.user.id || srcReq.user._id || srcReq.user.userId || '';
-        proxyReqOpts.headers['x-user-role'] = srcReq.user.role || srcReq.user.roles || '';
+        proxyReqOpts.headers["x-user-id"] =
+          srcReq.user.sub ||
+          srcReq.user.id ||
+          srcReq.user._id ||
+          srcReq.user.userId ||
+          "";
+        proxyReqOpts.headers["x-user-role"] =
+          srcReq.user.role || srcReq.user.roles || "";
       }
       return proxyReqOpts;
     },
@@ -133,8 +168,14 @@ app.use(
       }
       proxyReqOpts.headers["x-gateway-proxy"] = "true";
       if (srcReq.user) {
-        proxyReqOpts.headers['x-user-id'] = srcReq.user.sub || srcReq.user.id || srcReq.user._id || srcReq.user.userId || '';
-        proxyReqOpts.headers['x-user-role'] = srcReq.user.role || srcReq.user.roles || '';
+        proxyReqOpts.headers["x-user-id"] =
+          srcReq.user.sub ||
+          srcReq.user.id ||
+          srcReq.user._id ||
+          srcReq.user.userId ||
+          "";
+        proxyReqOpts.headers["x-user-role"] =
+          srcReq.user.role || srcReq.user.roles || "";
       }
       return proxyReqOpts;
     },
@@ -147,37 +188,59 @@ app.use(
   createProxy(serviceUrl("matching-service", 3010), "/api/matching"),
 );
 
+// AI Platform routes (internal ML model API)
+app.use(
+  "/api/ai",
+  authMiddleware,
+  proxy("http://ai-platform:8080", {
+    proxyReqPathResolver: (req) => `${req.url}`,
+    proxyReqOptDecorator: (proxyReqOpts, srcReq) => {
+      // AI Platform uses HTTP, no mTLS
+      proxyReqOpts.headers["x-gateway-proxy"] = "true";
+      if (srcReq.user) {
+        proxyReqOpts.headers["x-user-id"] =
+          srcReq.user.sub || srcReq.user.id || srcReq.user.userId || "";
+        proxyReqOpts.headers["x-user-role"] =
+          srcReq.user.role || srcReq.user.roles || "";
+      }
+      return proxyReqOpts;
+    },
+  }),
+);
+
 // Health check endpoint (no rate limit)
-app.get('/health', (req, res) => {
-  res.json({ status: 'OK', timestamp: new Date().toISOString() });
+app.get("/health", (req, res) => {
+  res.json({ status: "OK", timestamp: new Date().toISOString() });
 });
 
 // 404 handler
 app.use((req, res) => {
   res.status(404).json({
-    message: 'Route not found',
+    message: "Route not found",
     path: req.path,
-    method: req.method
+    method: req.method,
   });
 });
 
 // Global error handler middleware (MUST be last)
 app.use((err, req, res, next) => {
-  console.error('Gateway Error:', err.message);
-  
+  console.error("Gateway Error:", err.message);
+
   // Rate limit error
   if (err.status === 429) {
     return res.status(429).json({
-      message: err.message || 'Too many requests',
-      retryAfter: err.retryAfter
+      message: err.message || "Too many requests",
+      retryAfter: err.retryAfter,
     });
   }
 
   // Default error response
   res.status(err.status || 500).json({
-    message: err.message || 'Internal Server Error',
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+    message: err.message || "Internal Server Error",
+    ...(process.env.NODE_ENV === "development" && { stack: err.stack }),
   });
 });
+
+app.notificationWsProxy = notificationWsProxy;
 
 module.exports = app;
