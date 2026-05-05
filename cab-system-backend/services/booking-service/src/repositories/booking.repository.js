@@ -3,9 +3,9 @@ const { Booking } = require('../models/Booking');
 const { NotFoundError } = require('../utils/error.handler');
 
 class BookingRepository {
-  async create(bookingData) {
+  async create(bookingData, session = null) {
     const booking = new Booking(bookingData);
-    return await booking.save();
+    return await booking.save({ session });
   }
   
   async findById(id) {
@@ -16,9 +16,8 @@ class BookingRepository {
     return booking;
   }
   
-  // 🔥 THÊM METHOD NÀY
-  async delete(id) {
-    const booking = await Booking.findByIdAndDelete(id);
+  async delete(id, session = null) {
+    const booking = await Booking.findByIdAndDelete(id, { session });
     if (!booking) {
       throw new NotFoundError('Booking', id);
     }
@@ -68,7 +67,7 @@ class BookingRepository {
     };
   }
   
-  async updateStatus(id, status, additionalData = {}) {
+  async updateStatus(id, status, additionalData = {}, session = null) {
     const booking = await this.findById(id);
     
     this.validateStatusTransition(booking.status, status);
@@ -83,7 +82,7 @@ class BookingRepository {
     
     Object.assign(booking, additionalData);
     
-    await booking.save();
+    await booking.save({ session });
     return booking;
   }
   
@@ -102,7 +101,7 @@ class BookingRepository {
     return booking;
   }
   
-  async cancelBooking(id, cancelledBy, reason) {
+  async cancelBooking(id, cancelledBy, reason, session = null) {
     const booking = await this.findById(id);
     
     if (!booking.canCancel()) {
@@ -116,14 +115,14 @@ class BookingRepository {
       cancelledAt: new Date()
     };
     
-    await booking.save();
+    await booking.save({ session });
     return booking;
   }
   
-  async updatePrice(id, priceData) {
+  async updatePrice(id, priceData, session = null) {
     const booking = await this.findById(id);
     booking.price = priceData;
-    await booking.save();
+    await booking.save({ session });
     return booking;
   }
   
@@ -142,15 +141,25 @@ class BookingRepository {
     return booking;
   }
   
+  // Tìm các transaction bị stale (chưa complete sau X phút)
+  async findStaleTransactions(minutes = 5) {
+    const staleTime = new Date(Date.now() - minutes * 60000);
+    
+    return await Booking.find({
+      'metadata.transactionStatus': 'IN_PROGRESS',
+      createdAt: { $lt: staleTime }
+    });
+  }
+  
   validateStatusTransition(oldStatus, newStatus) {
     const validTransitions = {
-      'pending': ['confirmed', 'cancelled', 'no_driver'],
-      'confirmed': ['picking_up', 'cancelled'],
-      'picking_up': ['in_progress', 'cancelled'],
-      'in_progress': ['completed'],
-      'completed': [],
-      'cancelled': [],
-      'no_driver': ['pending']
+      'REQUESTED': ['DRIVER_ASSIGNED', 'CANCELLED', 'NO_DRIVER'],  // ✅
+      'DRIVER_ASSIGNED': ['PICKING_UP', 'CANCELLED'],              // ✅
+      'PICKING_UP': ['IN_PROGRESS', 'CANCELLED'],
+      'IN_PROGRESS': ['COMPLETED'],
+      'COMPLETED': [],
+      'CANCELLED': [],
+      'NO_DRIVER': ['REQUESTED']
     };
     
     const allowed = validTransitions[oldStatus] || [];

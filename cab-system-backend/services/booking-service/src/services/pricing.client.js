@@ -26,7 +26,7 @@ class PricingClient {
       vehicleType: mappedVehicleType,
       distance: data.distance,
       duration: data.duration,
-      zone: data.zone || "CENTER",
+      zone: data.zone,
     };
 
     for (let i = 0; i <= this.retries; i++) {
