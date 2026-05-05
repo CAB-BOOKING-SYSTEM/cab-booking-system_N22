@@ -1,3 +1,4 @@
+//D:\bc_cki_new1\cab-booking-system_N22\cab-system-backend\services\payment-service\src\config\rabbitMQ.js
 const amqp = require("amqplib");
 
 let channel = null;
