@@ -3,6 +3,8 @@ const pricingService = require('./pricingService');
 const { redisClient } = require('../config/redisConfig');
 const { publishEvent } = require('../rabbitmq/producer');
 const { v4: uuidv4 } = require('uuid');
+const { computeSurge } = require('./surgeIntelligenceService');
+const { isSurgeFeatureEnabled } = require('../config/featureFlags');
 
 const calculateEstimate = async ({ pickupLat, pickupLng, dropoffLat, dropoffLng, vehicleType, distance, duration, zone, paymentMethod, userId }) => {
   const requestId = uuidv4();
@@ -29,18 +31,51 @@ const calculateEstimate = async ({ pickupLat, pickupLng, dropoffLat, dropoffLng,
   // 2. Lấy surge multiplier từ Redis (có thể là JSON hoặc số cũ)
   let surgeMultiplier = 1.0;
   let modelVersion = 'rule-based-fallback';
+  let surgeSource = 'default';
   
-  const surgeRaw = await redisClient.get(`surge:${zone}`);
-  if (surgeRaw) {
-    try {
-      // Format mới: JSON có multiplier và modelVersion
-      const surgeData = JSON.parse(surgeRaw);
-      surgeMultiplier = surgeData.multiplier;
-      modelVersion = surgeData.modelVersion || 'unknown';
-    } catch (e) {
-      // Format cũ: chỉ là số
-      surgeMultiplier = parseFloat(surgeRaw);
-      modelVersion = 'legacy-v1';
+  if (!isSurgeFeatureEnabled()) {
+    const persistedSurge = await pricingRepository.getSurge(zone);
+    surgeMultiplier = parseFloat(persistedSurge ?? 1.0);
+    modelVersion = 'legacy-db-only';
+    surgeSource = 'postgres';
+  } else {
+    const surgeRaw = await redisClient.get(`surge:${zone}`);
+    if (surgeRaw) {
+      try {
+        // Format mới: JSON có multiplier và modelVersion
+        const surgeData = JSON.parse(surgeRaw);
+        surgeMultiplier = surgeData.multiplier;
+        modelVersion = surgeData.modelVersion || 'unknown';
+        surgeSource = surgeData.source || 'redis-cache';
+      } catch (e) {
+        // Format cũ: chỉ là số
+        surgeMultiplier = parseFloat(surgeRaw);
+        modelVersion = 'legacy-v1';
+        surgeSource = 'legacy-cache';
+      }
+    } else {
+      const persistedSurge = await pricingRepository.getSurge(zone);
+      if (persistedSurge !== null && persistedSurge !== undefined) {
+        surgeMultiplier = parseFloat(persistedSurge);
+        modelVersion = 'db-fallback';
+        surgeSource = 'postgres';
+      } else {
+        const supply = parseInt(await redisClient.get(`drivers:${zone}:online:count`) || 0);
+        const demand = parseInt(await redisClient.get(`requests:${zone}:pending:count`) || 0);
+        const surgePrediction = await computeSurge({ zone, supply, demand });
+        surgeMultiplier = surgePrediction.multiplier;
+        modelVersion = surgePrediction.modelVersion;
+        surgeSource = surgePrediction.source;
+
+        await redisClient.set(`surge:${zone}`, JSON.stringify({
+          multiplier: surgeMultiplier,
+          modelVersion,
+          source: surgeSource,
+          features: surgePrediction.features,
+          fallbackReason: surgePrediction.fallbackReason || null,
+          updatedAt: new Date().toISOString(),
+        }));
+      }
     }
   }
   
@@ -49,7 +84,7 @@ const calculateEstimate = async ({ pickupLat, pickupLng, dropoffLat, dropoffLng,
     per_km_rate: pricingConfig.per_km_rate,
     per_minute_rate: pricingConfig.per_minute_rate
   });
-  console.log(`Surge multiplier for ${zone}: ${surgeMultiplier} (model: ${modelVersion})`);
+  console.log(`Surge multiplier for ${zone}: ${surgeMultiplier} (model: ${modelVersion}, source: ${surgeSource})`);
   
   // 3. Tính giá
   const fare = pricingService.calculateFare({
@@ -73,6 +108,7 @@ const calculateEstimate = async ({ pickupLat, pickupLng, dropoffLat, dropoffLng,
     zone,
     surgeMultiplier: parseFloat(surgeMultiplier),
     modelVersion: modelVersion,
+    surgeSource,
     estimatedFare: fare,
     currency: 'VND',
     userId,
@@ -93,6 +129,7 @@ const calculateEstimate = async ({ pickupLat, pickupLng, dropoffLat, dropoffLng,
     dropoffLng,
     surgeMultiplier: parseFloat(surgeMultiplier),
     modelVersion: modelVersion,
+    surgeSource,
     estimatedFare: fare,
     paymentMethod: paymentMethod || 'unknown',
     currency: 'VND',
@@ -108,6 +145,7 @@ const calculateEstimate = async ({ pickupLat, pickupLng, dropoffLat, dropoffLng,
     zone,
     surgeMultiplier: parseFloat(surgeMultiplier),
     modelVersion: modelVersion,
+    surgeSource,
     estimatedFare: fare,
     total: fare,
     currency: 'VND'
