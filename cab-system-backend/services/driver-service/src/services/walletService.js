@@ -1,5 +1,6 @@
  
 const Wallet = require('../models/Wallet');
+const Ledger = require('../models/Ledger');
 const DriverEarning = require('../models/DriverEarning');
 const logger = require('../utils/logger');
 const { v4: uuidv4 } = require('uuid');
@@ -42,7 +43,7 @@ class WalletService {
   }
 
   // Cộng tiền vào ví (khi hoàn thành chuyến)
-  async addEarning(driverId, amount, rideId, description = '') {
+  async addEarning(driverId, amount, rideId, description = '', paymentId = null) {
     try {
       const wallet = await this.getWallet(driverId);
       
@@ -63,7 +64,21 @@ class WalletService {
       
       await wallet.save();
       
-      logger.info(`Added ${amount} to wallet of driver ${driverId}`);
+      // 🔥 CREATE LEDGER ENTRY for audit trail
+      await this.createLedgerEntry({
+        driverId,
+        walletId: wallet._id,
+        amount,
+        transactionType: 'earn',
+        referenceId: transaction.id,
+        referenceType: 'payment',
+        bookingId: rideId,
+        paymentId,
+        description: description || `Thu nhập từ chuyến ${rideId}`,
+        status: 'completed'
+      });
+      
+      logger.info(`✅ Added ${amount} to wallet of driver ${driverId}`);
       return { success: true, balance: wallet.balance, transaction };
     } catch (error) {
       logger.error('Error adding earning:', error);
@@ -99,6 +114,18 @@ class WalletService {
       wallet.updatedAt = new Date();
       
       await wallet.save();
+      
+      // 🔥 CREATE LEDGER ENTRY for audit trail
+      await this.createLedgerEntry({
+        driverId,
+        walletId: wallet._id,
+        amount,
+        transactionType: 'withdraw',
+        referenceId: transaction.id,
+        referenceType: 'withdrawal',
+        description: `Yêu cầu rút tiền về ${bankAccount?.bankName || 'ngân hàng'}`,
+        status: 'pending'
+      });
       
       logger.info(`Withdraw request of ${amount} from driver ${driverId}`);
       return { 
@@ -171,6 +198,104 @@ class WalletService {
       return wallet;
     } catch (error) {
       logger.error('Error syncing earnings:', error);
+      throw error;
+    }
+  }
+
+  // 🔥 CREATE LEDGER ENTRY (for audit trail and accounting)
+  async createLedgerEntry(data) {
+    try {
+      const ledgerEntry = new Ledger({
+        driverId: data.driverId,
+        walletId: data.walletId,
+        amount: data.amount,
+        transactionType: data.transactionType,
+        referenceId: data.referenceId,
+        referenceType: data.referenceType,
+        bookingId: data.bookingId,
+        paymentId: data.paymentId,
+        description: data.description,
+        notes: data.notes,
+        status: data.status || 'completed'
+      });
+
+      const savedEntry = await ledgerEntry.save();
+      logger.debug(`📝 Ledger entry created:`, savedEntry._id);
+      return savedEntry;
+    } catch (error) {
+      logger.error('Error creating ledger entry:', error);
+      // Don't throw - ledger creation failure shouldn't block wallet operations
+      // But log it for monitoring
+      logger.warn('⚠️ Ledger entry creation failed, but wallet operation succeeded');
+      return null;
+    }
+  }
+
+  // 🔥 GET LEDGER HISTORY (detailed accounting)
+  async getLedgerHistory(driverId, page = 1, limit = 50, filters = {}) {
+    try {
+      const skip = (page - 1) * limit;
+      
+      // Build filter query
+      const query = { driverId };
+      
+      if (filters.transactionType) {
+        query.transactionType = filters.transactionType;
+      }
+      
+      if (filters.startDate || filters.endDate) {
+        query.createdAt = {};
+        if (filters.startDate) {
+          query.createdAt.$gte = new Date(filters.startDate);
+        }
+        if (filters.endDate) {
+          query.createdAt.$lte = new Date(filters.endDate);
+        }
+      }
+
+      if (filters.status) {
+        query.status = filters.status;
+      }
+
+      // Query ledger
+      const ledgerEntries = await Ledger.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean();
+
+      const total = await Ledger.countDocuments(query);
+
+      // Calculate summary
+      const summary = await Ledger.aggregate([
+        { $match: query },
+        {
+          $group: {
+            _id: '$transactionType',
+            totalAmount: { $sum: '$amount' },
+            count: { $sum: 1 }
+          }
+        }
+      ]);
+
+      return {
+        ledger: ledgerEntries,
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit)
+        },
+        summary: summary.reduce((acc, item) => {
+          acc[item._id] = {
+            totalAmount: item.totalAmount,
+            count: item.count
+          };
+          return acc;
+        }, {})
+      };
+    } catch (error) {
+      logger.error('Error getting ledger history:', error);
       throw error;
     }
   }

@@ -315,8 +315,23 @@ class DriverController {
   async getWallet(req, res) {
     try {
       const driverId = req.user.driverId;
+      
+      if (!driverId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Driver ID not found in request'
+        });
+      }
+      
       const walletService = require('../services/walletService');
       const wallet = await walletService.getWallet(driverId);
+      
+      if (!wallet) {
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to get or create wallet'
+        });
+      }
       
       res.json({
         success: true,
@@ -415,6 +430,38 @@ class DriverController {
       });
     } catch (error) {
       logger.error('Internal create driver error:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message
+      });
+    }
+  }
+
+  // 🔥 GET LEDGER HISTORY
+  async getLedgerHistory(req, res) {
+    try {
+      const driverId = req.user.driverId;
+      const { page = 1, limit = 50, transactionType, status, startDate, endDate } = req.query;
+      
+      const walletService = require('../services/walletService');
+      const result = await walletService.getLedgerHistory(
+        driverId,
+        parseInt(page),
+        parseInt(limit),
+        {
+          transactionType,
+          status,
+          startDate,
+          endDate
+        }
+      );
+      
+      res.json({
+        success: true,
+        data: result
+      });
+    } catch (error) {
+      logger.error('Get ledger history error:', error);
       res.status(500).json({
         success: false,
         message: error.message
