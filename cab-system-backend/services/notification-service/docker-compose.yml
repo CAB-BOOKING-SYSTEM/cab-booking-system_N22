@@ -25,7 +25,7 @@ services:
       - cab-net
     healthcheck:
       # Kiểm tra cổng mạng thực tế thay vì chỉ ping
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_port_connectivity"]
+      test: [ "CMD", "rabbitmq-diagnostics", "-q", "check_port_connectivity" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -46,7 +46,7 @@ services:
     networks:
       - cab-net
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
       timeout: 3s
       retries: 5
@@ -60,7 +60,8 @@ services:
     image: cab-notification-service:latest
     restart: unless-stopped
     ports:
-      - "3004:3004" # Dev: 1 replica → 1 port cố định, không conflict
+      - "3004:3004"
+    # Dev: 1 replica → 1 port cố định, không conflict
     environment:
       - NODE_ENV=production
       - PORT=3004
@@ -78,7 +79,7 @@ services:
     networks:
       - cab-net
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3004/health"]
+      test: [ "CMD", "wget", "-qO-", "http://localhost:3004/health" ]
       interval: 30s
       timeout: 5s
       retries: 3

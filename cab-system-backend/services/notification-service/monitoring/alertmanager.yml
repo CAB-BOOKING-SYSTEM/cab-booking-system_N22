@@ -1,0 +1,19 @@
+global:
+  smtp_smarthost: 'smtp.gmail.com:587'
+  smtp_from: 'hle26625@gmail.com'       # <-- Sửa thành Gmail gửi của bạn
+  smtp_auth_username: 'hle26625@gmail.com' # <-- Sửa thành Gmail gửi của bạn
+  smtp_auth_identity: 'hle26625@gmail.com' # <-- Sửa thành Gmail gửi của bạn
+  smtp_auth_password: 'urwn xhlp miyu dbxx'         # <-- Dán 16 chữ cái Mật khẩu ứng dụng vào đây (nhớ giữ nháy đơn)
+  smtp_require_tls: true
+
+route:
+  receiver: 'email-alert'
+  group_wait: 1s            # Giảm từ 10s xuống 1s (Chờ gom lỗi)[cite: 4]
+  group_interval: 5s        # Giảm xuống 5s (Gửi đợt lỗi mới)[cite: 4]
+  repeat_interval: 5m       # Nhắc lại sau 5 phút nếu chưa sửa (thay vì 1h)[cite: 4]
+
+receivers:
+  - name: 'email-alert'
+    email_configs:
+      - to: 'hle26625@gmail.com' # <-- Sửa thành Email bạn muốn nhận cảnh báo (có thể giống email gửi)
+        send_resolved: true
