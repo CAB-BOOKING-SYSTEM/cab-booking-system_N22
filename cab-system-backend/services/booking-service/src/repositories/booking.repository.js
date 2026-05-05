@@ -1,5 +1,5 @@
 // src/repositories/booking.repository.js
-const { Booking } = require('../models/Booking');
+const { Booking, BookingStatus } = require('../models/Booking');
 const { NotFoundError } = require('../utils/error.handler');
 
 class BookingRepository {
@@ -74,9 +74,9 @@ class BookingRepository {
     
     booking.status = status;
     
-    if (status === 'in_progress') {
+    if (status === BookingStatus.IN_PROGRESS) {
       booking.startTime = new Date();
-    } else if (status === 'completed') {
+    } else if (status === BookingStatus.COMPLETED) {
       booking.endTime = new Date();
     }
     
@@ -94,7 +94,7 @@ class BookingRepository {
     }
     
     booking.driverId = driverId;
-    booking.status = 'confirmed';
+    booking.status = BookingStatus.DRIVER_ASSIGNED;
     booking.pickupTime = new Date(Date.now() + (eta || 5) * 60000);
     
     await booking.save();
@@ -108,7 +108,7 @@ class BookingRepository {
       throw new Error(`Cannot cancel booking with status: ${booking.status}`);
     }
     
-    booking.status = 'cancelled';
+    booking.status = BookingStatus.CANCELLED;
     booking.cancellation = {
       cancelledBy,
       reason,

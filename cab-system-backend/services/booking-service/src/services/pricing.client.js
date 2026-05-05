@@ -71,6 +71,54 @@ class PricingClient {
     return this.fallbackCalculatePrice(data);
   }
 
+  async adjustRequestCount(zone, delta) {
+    let lastError;
+
+    for (let i = 0; i <= this.retries; i++) {
+      try {
+        const response = await axios.post(
+          `${this.baseURL}/internal/requests/adjust`,
+          { zone, delta },
+          {
+            timeout: this.timeout,
+            headers: { "Content-Type": "application/json" },
+            ...(httpsAgent ? { httpsAgent } : {}),
+          },
+        );
+
+        return response.data;
+      } catch (error) {
+        lastError = error;
+        if (i < this.retries) {
+          const delay = Math.pow(2, i) * 1000;
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+      }
+    }
+
+    console.warn(
+      `⚠️ Failed to adjust request count for zone ${zone} by ${delta}:`,
+      lastError?.message,
+    );
+    return null;
+  }
+
+  async getCurrentSurge(zone) {
+    try {
+      const response = await axios.get(
+        `${this.baseURL}/internal/surge/${zone}`,
+        {
+          timeout: this.timeout,
+          ...(httpsAgent ? { httpsAgent } : {}),
+        },
+      );
+      return response.data?.data || null;
+    } catch (error) {
+      console.warn(`⚠️ Failed to get current surge for zone ${zone}:`, error.message);
+      return null;
+    }
+  }
+
   fallbackCalculatePrice(data) {
     const { distance, duration, vehicleType } = data;
 

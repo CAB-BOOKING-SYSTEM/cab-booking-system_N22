@@ -1,37 +1,28 @@
 const cron = require('node-cron');
 const { redisClient } = require('../config/redisConfig');
 const { publishEvent } = require('../rabbitmq/producer');
+const Surge = require('../models/surgeModel');
+const { computeSurge } = require('../services/surgeIntelligenceService');
+const { getKnownZones } = require('../utils/zoneUtil');
 
 // === MODEL VERSION ===
-const MODEL_VERSION = 'random-forest-v1.0.0';
+const MODEL_VERSION = 'phase1-intelligent-surge-v1';
 
 // Chạy mỗi 5 phút
 function startSurgeAIJob() {
   cron.schedule('*/5 * * * *', async () => {
     console.log('🔄 Running Surge AI job...');
-    console.log(`   🤖 Model version: ${MODEL_VERSION}`);
+    console.log(`   🤖 Default model version: ${MODEL_VERSION}`);
     
     try {
-      const zones = ['CENTER', 'AIRPORT', 'SUBURB'];
+      const zones = getKnownZones();
       
       for (const zone of zones) {
-        // Lấy supply và demand
         const supply = parseInt(await redisClient.get(`drivers:${zone}:online:count`) || 0);
         const demand = parseInt(await redisClient.get(`requests:${zone}:pending:count`) || 0);
+        const surgePrediction = await computeSurge({ zone, supply, demand });
+        const surge = surgePrediction.multiplier;
         
-        // Tính surge
-        let surge;
-        if (supply === 0) {
-          surge = Math.max(1.0, demand);
-        } else {
-          surge = demand / supply;
-        }
-        
-        // Giới hạn surge từ 1.0 đến 3.0
-        surge = Math.min(Math.max(surge, 1.0), 3.0);
-        surge = Math.round(surge * 10) / 10;
-        
-        // Lấy surge cũ
         let oldSurge = 1.0;
         const oldRaw = await redisClient.get(`surge:${zone}`);
         if (oldRaw) {
@@ -43,18 +34,20 @@ function startSurgeAIJob() {
           }
         }
         
-        // Lưu surge mới vào Redis (kèm model version)
         const surgeData = {
           multiplier: surge,
-          modelVersion: MODEL_VERSION,
-          updatedAt: new Date().toISOString()
+          modelVersion: surgePrediction.modelVersion,
+          source: surgePrediction.source,
+          features: surgePrediction.features,
+          fallbackReason: surgePrediction.fallbackReason || null,
+          updatedAt: new Date().toISOString(),
         };
         await redisClient.set(`surge:${zone}`, JSON.stringify(surgeData));
+        await Surge.create(zone, surge);
         
         console.log(`📍 ${zone}: Supply=${supply}, Demand=${demand}, Surge=${surge}x (old=${oldSurge}x)`);
-        console.log(`   🤖 Model: ${MODEL_VERSION}`);
+        console.log(`   🤖 Model: ${surgePrediction.modelVersion} via ${surgePrediction.source}`);
         
-        // Gửi event nếu surge thay đổi
         if (surge !== oldSurge) {
           await publishEvent('pricing.surge.updated', {
             zone: zone,
@@ -62,34 +55,34 @@ function startSurgeAIJob() {
             newMultiplier: surge,
             supply: supply,
             demand: demand,
-            modelVersion: MODEL_VERSION,
+            modelVersion: surgePrediction.modelVersion,
+            source: surgePrediction.source,
+            features: surgePrediction.features,
             calculatedAt: new Date().toISOString()
           });
         }
       }
       
-      // Surge global
       const totalSupply = parseInt(await redisClient.get('drivers:online:count') || 0);
       const totalDemand = parseInt(await redisClient.get('requests:pending:count') || 0);
-      
-      let globalSurge;
-      if (totalSupply === 0) {
-        globalSurge = Math.max(1.0, totalDemand);
-      } else {
-        globalSurge = totalDemand / totalSupply;
-      }
-      globalSurge = Math.min(Math.max(globalSurge, 1.0), 3.0);
-      globalSurge = Math.round(globalSurge * 10) / 10;
+      const globalPrediction = await computeSurge({
+        zone: 'GLOBAL',
+        supply: totalSupply,
+        demand: totalDemand,
+      });
       
       const globalSurgeData = {
-        multiplier: globalSurge,
-        modelVersion: MODEL_VERSION,
+        multiplier: globalPrediction.multiplier,
+        modelVersion: globalPrediction.modelVersion,
+        source: globalPrediction.source,
+        features: globalPrediction.features,
+        fallbackReason: globalPrediction.fallbackReason || null,
         updatedAt: new Date().toISOString()
       };
       await redisClient.set('surge:global', JSON.stringify(globalSurgeData));
       
-      console.log(`🌍 Global: Supply=${totalSupply}, Demand=${totalDemand}, Surge=${globalSurge}x`);
-      console.log(`   🤖 Model: ${MODEL_VERSION}`);
+      console.log(`🌍 Global: Supply=${totalSupply}, Demand=${totalDemand}, Surge=${globalPrediction.multiplier}x`);
+      console.log(`   🤖 Model: ${globalPrediction.modelVersion} via ${globalPrediction.source}`);
       
     } catch (error) {
       console.error('❌ Surge AI job failed:', error.message);
@@ -97,7 +90,7 @@ function startSurgeAIJob() {
   });
   
   console.log('✅ Surge AI job scheduled (every 5 minutes)');
-  console.log(`   🤖 Model version: ${MODEL_VERSION}`);
+  console.log(`   🤖 Default model version: ${MODEL_VERSION}`);
 }
 
 module.exports = { startSurgeAIJob };

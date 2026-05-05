@@ -1,6 +1,10 @@
 // src/services/booking.service.js
 const { BookingStatus, Booking } = require('../models/Booking');
 const { ForbiddenError, ConflictError } = require('../utils/error.handler');
+const { determineZone } = require('../utils/zone');
+
+const isSurgeFeatureEnabled = () =>
+  process.env.SURGE_FEATURE_ENABLED === 'true';
 
 class BookingService {
   constructor(bookingRepository, rabbitMQService, pricingClient) {
@@ -15,6 +19,11 @@ class BookingService {
     let booking = null;
     let eventPublished = false;
     let compensationNeeded = false;
+    let demandTracked = false;
+    const surgeEnabled = isSurgeFeatureEnabled();
+    const zone = surgeEnabled
+      ? determineZone(data.pickupLocation.lat, data.pickupLocation.lng)
+      : null;
     
     try {
       // 1. Get price from Pricing Service
@@ -24,7 +33,8 @@ class BookingService {
         duration: data.duration || 0,
         vehicleType: data.vehicleType,
         pickupLocation: data.pickupLocation,
-        dropoffLocation: data.dropoffLocation
+        dropoffLocation: data.dropoffLocation,
+        zone,
       });
       
       // 2. Create booking với status REQUESTED + metadata PENDING
@@ -43,12 +53,22 @@ class BookingService {
         trackingPath: [],
         metadata: {
           compensationStatus: 'PENDING',
-          createdAt: new Date()
+          createdAt: new Date(),
+          ...(surgeEnabled
+            ? {
+                surgeZone: zone,
+                surgeDemandTracked: false,
+              }
+            : {}),
         }
       });
       
       console.log(`✅ Booking created: ${booking._id}`);
       compensationNeeded = true;
+
+      if (surgeEnabled) {
+        demandTracked = await this.trackDemandDelta(booking, +1, 'booking.created');
+      }
       
       // 3. Publish event - CRITICAL STEP
       console.log(`📤 Publishing booking.created event...`);
@@ -92,6 +112,10 @@ class BookingService {
     } catch (error) {
       console.error(`❌ Error creating booking:`, error.message);
       
+      if (demandTracked && booking) {
+        await this.trackDemandDelta(booking, -1, 'booking.create.rollback');
+      }
+
       if (compensationNeeded && !eventPublished && booking) {
         console.log(`🔄 Running compensation for booking: ${booking._id}`);
         await this.compensateCreateBooking(booking._id);
@@ -106,6 +130,9 @@ class BookingService {
       console.log(`🗑️ Compensating: Deleting booking ${bookingId}`);
       
       const booking = await this.bookingRepository.findById(bookingId);
+      if (isSurgeFeatureEnabled() && booking?.metadata?.surgeDemandTracked) {
+        await this.trackDemandDelta(booking, -1, 'booking.compensation');
+      }
       
       if (!booking.driverId) {
         await this.bookingRepository.delete(bookingId);
@@ -178,6 +205,10 @@ class BookingService {
       role, 
       reason
     );
+
+    if (isSurgeFeatureEnabled() && booking.metadata?.surgeDemandTracked && booking.status === BookingStatus.REQUESTED) {
+      await this.trackDemandDelta(booking, -1, 'booking.cancelled');
+    }
     
     await this.rabbitMQService.publish('booking.cancelled', {
       bookingId: booking._id.toString(),
@@ -192,12 +223,17 @@ class BookingService {
   
   async handleBookingAccepted(data) {
     console.log(`📥 Handling booking.accepted for: ${data.bookingId}`);
+    const originalBooking = await this.bookingRepository.findById(data.bookingId);
     
     const booking = await this.bookingRepository.assignDriver(
       data.bookingId,
       data.driverId,
       data.eta || 5
     );
+
+    if (isSurgeFeatureEnabled() && originalBooking.metadata?.surgeDemandTracked && originalBooking.status === BookingStatus.REQUESTED) {
+      await this.trackDemandDelta(originalBooking, -1, 'booking.accepted');
+    }
     
     await this.rabbitMQService.publish('booking.accepted', {
       bookingId: booking._id.toString(),
@@ -221,7 +257,7 @@ class BookingService {
     
     const booking = await this.bookingRepository.updateStatus(
       data.bookingId,
-      'completed',
+      BookingStatus.COMPLETED,
       { endTime: new Date(data.endTime || Date.now()) }
     );
     
@@ -235,15 +271,55 @@ class BookingService {
   
   async handleRideCancelled(data) {
     console.log(`📥 Handling ride.cancelled for: ${data.bookingId}`);
+    const originalBooking = await this.bookingRepository.findById(data.bookingId);
     
     const booking = await this.bookingRepository.cancelBooking(
       data.bookingId,
       'system',
       data.reason || 'Ride cancelled by system'
     );
+
+    if (isSurgeFeatureEnabled() && originalBooking.metadata?.surgeDemandTracked && originalBooking.status === BookingStatus.REQUESTED) {
+      await this.trackDemandDelta(originalBooking, -1, 'ride.cancelled');
+    }
     
     console.log(`✅ Booking cancelled: ${data.bookingId}`);
     return booking;
+  }
+
+  async trackDemandDelta(booking, delta, reason) {
+    try {
+      if (!isSurgeFeatureEnabled()) {
+        return false;
+      }
+
+      const zone =
+        booking?.metadata?.surgeZone ||
+        determineZone(booking.pickupLocation?.lat, booking.pickupLocation?.lng);
+
+      if (!zone) {
+        return false;
+      }
+
+      const result = await this.pricingClient.adjustRequestCount(zone, delta);
+      if (!result) {
+        return false;
+      }
+
+      await Booking.findByIdAndUpdate(booking._id, {
+        $set: {
+          'metadata.surgeZone': zone,
+          'metadata.surgeDemandTracked': delta > 0,
+          'metadata.surgeDemandUpdatedAt': new Date(),
+          'metadata.surgeDemandLastReason': reason,
+        },
+      });
+
+      return true;
+    } catch (error) {
+      console.warn(`⚠️ Demand tracking skipped for booking ${booking?._id}:`, error.message);
+      return false;
+    }
   }
   
   mapToResponse(booking) {

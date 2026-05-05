@@ -155,6 +155,7 @@ services:
       - MONGODB_DB_NAME=booking_db
       - RABBITMQ_URL=amqp://${RABBITMQ_USER:-admin}:${RABBITMQ_PASS:-password123}@rabbitmq:5672
       - PRICING_SERVICE_URL=https://pricing-service:${PRICING_PORT:-3006}
+      - SURGE_FEATURE_ENABLED=false
       - JWT_SECRET=${JWT_SECRET:-supersecret}
       - MTLS_ENABLED=true
       - TLS_CA_PATH=/shared-certs/ca-root.pem
@@ -300,6 +301,9 @@ services:
       - DB_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/pricing_db
       - REDIS_URL=redis://redis:6379
       - RABBITMQ_URL=amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@rabbitmq:5672
+      - SURGE_FEATURE_ENABLED=false
+      - AI_MODEL_ENDPOINT=http://ai-platform:8080
+      - SURGE_AI_PHASE2_ENABLED=false
       - MTLS_ENABLED=true
       - TLS_CA_PATH=/shared-certs/ca-root.pem
       - TLS_CERT_PATH=/shared-certs/pricing-service-cert.pem
