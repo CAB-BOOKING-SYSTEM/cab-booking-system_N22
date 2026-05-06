@@ -62,7 +62,7 @@ async function syncUserToUserService(user) {
     let userServiceRole = "RIDER";
     if (user.role === "admin") userServiceRole = "ADMIN";
     if (user.role === "driver") userServiceRole = "DRIVER";
-    
+
     const response = await axios.post(
       `${USER_SERVICE_URL}/internal/users`,
       {
@@ -97,7 +97,7 @@ async function createDriverInDriverService(user) {
     const response = await axios.post(
       `${DRIVER_SERVICE_URL}/api/drivers/internal/create`,
       {
-        driverId: String(user.id),
+        driverId: user.driver_id || String(user.id),
         email: user.email,
         phone: user.phone_number || "",
         fullName: user.username,
@@ -367,7 +367,7 @@ export const logout = async (req, res) => {
         if (ttl > 0) {
           await blacklistToken(accessToken, ttl);
         }
-      } catch {}
+      } catch { }
     }
 
     if (refreshToken) {
@@ -377,7 +377,7 @@ export const logout = async (req, res) => {
         if (ttl > 0) {
           await blacklistToken(refreshToken, ttl);
         }
-      } catch {}
+      } catch { }
 
       const userId = jwt.decode(refreshToken)?.sub;
       if (userId) {
