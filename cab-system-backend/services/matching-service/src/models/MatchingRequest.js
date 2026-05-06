@@ -6,7 +6,13 @@ class MatchingRequest {
       VALUES ($1, $2, $3, $4, $5)
       RETURNING *
     `;
-    const values = [data.rideId, data.userId, data.pickupLat, data.pickupLng, 'pending'];
+    const values = [
+      data.rideId,
+      data.userId,
+      data.pickupLat,
+      data.pickupLng,
+      "pending",
+    ];
     const result = await pool.query(query, values);
     return result.rows[0];
   }
@@ -23,7 +29,7 @@ class MatchingRequest {
   }
 
   static async findById(pool, rideId) {
-    const query = 'SELECT * FROM matching_requests WHERE ride_id = $1';
+    const query = "SELECT * FROM matching_requests WHERE ride_id = $1";
     const result = await pool.query(query, [rideId]);
     return result.rows[0];
   }

@@ -2,6 +2,11 @@ import thu viện cho noti
 npm install socket.io-client
 TC09: Notification gửi thành công
 Mô tả: Kiểm tra khả năng nhận và xử lý thông báo khi có sự kiện Booking hoặc Payment.
+TEST BANG SOCKET.IO THEM TOKEN MS CHAY 
+lam theo nhu ảnh 
+muốn gửi thông báo cho thanh toán dc khởi tạo phương thức thanh toán là 
+ "paymentMethod": "card",
+![alt text](public/image.png)
 
 1. Thông tin Test Case
 Context: Booking đã được tạo thành công trong hệ thống.
@@ -81,3 +86,46 @@ Tỷ lệ lỗi được Prometheus tính toán chính xác bằng hàm rate() t
 Email Alert: Thông báo gửi về có đầy đủ thông tin: Tên lỗi, Môi trường (Production), Độ nghiêm trọng (Critical) và Nội dung lỗi[cite: 5, 6].
 ![alt text](public/TC116_3.3.png)
 Bảo mật: Tách biệt luồng dữ liệu ứng dụng (mTLS 3004) và luồng giám sát (HTTP 3040) giúp hệ thống chạy ổn định và an toàn. 
+docker restart prometheus
+TC25/TC26
+
+Môi trường Test (Development)
+Socket URL: wss://localhost:3000
+
+Công cụ test: Postman / Insomnia (socketIO)
+
+
+![alt text](public/tc25_26.png)
+📡 Luồng sự kiện Socket (Real-time Events)
+Khi có sự kiện matching hoặc booking, hệ thống sẽ phát (emit) một event có tên là new_notification.
+Trạng thái kết nối: Yêu cầu đăng ký event trước khi nhận dữ liệu (ví dụ: register). 
+Cấu trúc Data nhận được:
+JSON
+{
+    "notificationId": "69fa3712dfd0c2c049123f5a",
+    "type": "DriverMatched",
+    "title": "Đã tìm thấy tài xế!",![alt text](image.png)
+    "body": "Tài xế Tài xế Mới 234 (TEMP00002) đang đến. ETA: 31.06 phút.",
+    "routingKey": "driver.matched",
+    "data": {
+        "rideId": "69fa32bb27c93ee3708772ec",
+        "userId": "1",
+        "driverId": "DRV_1778001941418_qhzstd",
+        "driverName": "Tài xế Mới 234",
+        "vehicleType": "4_seat"
+    }
+}
+làm như ảnh 
+![alt text](public/tc25.png)
+![alt text](public/tc26.png)
+test 26 tren postmain
+gui thong bao cho tai
+https://localhost:3000/api/notifications/DRV_1778001941418_qhzstd
+ driverId: "DRV_1778001941418_qhzstd",
+![alt text](public/login.png)
+![alt text](public/26test.png)
+gui thong bao cho khach hang
+![alt text](public/loginkh.png)
+![alt text](public/kh.png)
+
+
