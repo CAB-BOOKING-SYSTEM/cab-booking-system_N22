@@ -14,10 +14,10 @@ const serviceAgent = mtls.createClientAgent();
 
 // URLs for other services
 const USER_SERVICE_URL = process.env.USER_SERVICE_URL || "http://cab_user:3009";
-const DRIVER_SERVICE_URL =
-  process.env.DRIVER_SERVICE_URL || "http://cab_driver:3003";
+const DRIVER_SERVICE_URL = process.env.DRIVER_SERVICE_URL || "http://cab_driver:3003";
 const INTERNAL_SECRET = process.env.INTERNAL_SECRET || "cab-internal-2024";
 
+// ================= TOKEN =================
 const generateAccessToken = (user) =>
   jwt.sign(
     {
@@ -33,7 +33,7 @@ const generateAccessToken = (user) =>
       issuer: "auth-service",
       audience: "cab-booking-clients",
       jwtid: randomUUID(),
-    },
+    }
   );
 
 const generateRefreshToken = (userId) =>
@@ -44,6 +44,7 @@ const generateRefreshToken = (userId) =>
     jwtid: randomUUID(),
   });
 
+// ================= REDIS =================
 const blacklistToken = async (token, expiresInSeconds) => {
   if (!token) return;
   await redisClient.set(`blacklist:${token}`, "1", { EX: expiresInSeconds });
@@ -54,12 +55,9 @@ const isBlacklisted = async (token) => {
   return exists === 1;
 };
 
-// ============================================================
-// HÀM SYNC USER VÀO USER SERVICE (CHO MỌI ROLE)
-// ============================================================
+// ================= SYNC USER =================
 async function syncUserToUserService(user) {
   try {
-    // Map role từ Auth Service sang User Service
     let userServiceRole = "RIDER";
     if (user.role === "admin") userServiceRole = "ADMIN";
     if (user.role === "driver") userServiceRole = "DRIVER";
@@ -79,50 +77,53 @@ async function syncUserToUserService(user) {
         },
         timeout: 5000,
         ...(serviceAgent ? { httpsAgent: serviceAgent } : {}),
-      },
+      }
     );
+
     console.log(
-      `✅ User synced to User Service: ${user.email} (role: ${user.role})`,
+      `✅ User synced: ${user.email} (role: ${user.role})`
     );
     return response.data;
   } catch (error) {
-    console.error(`❌ Failed to sync user to User Service:`, error.message);
-    // Không throw lỗi để không ảnh hưởng đến việc tạo user trong Auth DB
+    console.error(`❌ Sync user failed:`, error.message);
     return null;
   }
 }
 
-// ============================================================
-// HÀM TẠO DRIVER TRONG DRIVER SERVICE (CHỈ CHO ROLE DRIVER)
-// ============================================================
+// ================= CREATE DRIVER =================
 async function createDriverInDriverService(user) {
   try {
+    const driverId = user.driver_id || String(user.id);
+
     const response = await axios.post(
       `${DRIVER_SERVICE_URL}/api/drivers/internal/create`,
       {
-        driverId: String(user.id),
+        driverId,
         email: user.email,
         phone: user.phone_number || "",
         fullName: user.username,
         vehicleType: "4_seat",
-        licensePlate: `TEMP${String(user.id).padStart(5, "0")}`,
+        licensePlate: `TEMP${String(user.id).padStart(5, "0")}`, // ổn định
       },
       {
+        headers: {
+          "Content-Type": "application/json",
+          "x-internal-secret": INTERNAL_SECRET,
+        },
         timeout: 5000,
         ...(serviceAgent ? { httpsAgent: serviceAgent } : {}),
-      },
+      }
     );
-    console.log(`✅ Auto-created driver for user ${user.id} (${user.email})`);
+
+    console.log(`✅ Driver created: ${driverId}`);
     return response.data;
   } catch (error) {
-    console.error(`❌ Failed to auto-create driver:`, error.message);
+    console.error(`❌ Create driver failed:`, error.message);
     return null;
   }
 }
 
-// ============================================================
-// REGISTER CONTROLLER
-// ============================================================
+// ================= REGISTER =================
 export const register = async (req, res) => {
   try {
     const {
@@ -133,6 +134,7 @@ export const register = async (req, res) => {
       phone_number = null,
       driver_status = null,
     } = req.body;
+
     let driver_id = req.body.driver_id || null;
 
     if (!email || !username || !password) {
@@ -140,6 +142,7 @@ export const register = async (req, res) => {
     }
 
     const normalizedRole = User.normalizeRole(role);
+
     if (normalizedRole === "driver" && !driver_id) {
       driver_id = `DRV_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
     }
@@ -169,21 +172,12 @@ export const register = async (req, res) => {
       driver_status,
     });
 
-    // ============================================================
-    // 🔥 QUAN TRỌNG: Sync user vào User Service (CHO MỌI ROLE)
-    // ============================================================
     await syncUserToUserService(newUser);
 
-    // ============================================================
-    // Nếu là driver, tạo thêm trong Driver Service
-    // ============================================================
     if (normalizedRole === "driver") {
       await createDriverInDriverService(newUser);
     }
 
-    // ============================================================
-    // Trả về response
-    // ============================================================
     return res.status(201).json({
       message: "User registered successfully",
       user: {
@@ -205,17 +199,13 @@ export const register = async (req, res) => {
   }
 };
 
-// ============================================================
-// LOGIN CONTROLLER
-// ============================================================
+// ================= LOGIN =================
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
     if (!email || !password) {
-      return res
-        .status(400)
-        .json({ message: "Email and password are required" });
+      return res.status(400).json({ message: "Email and password are required" });
     }
 
     const user = await User.findByEmail(email);
@@ -244,6 +234,7 @@ export const login = async (req, res) => {
     }
 
     const loginUser = refreshedUser || user;
+
     const accessToken = generateAccessToken(loginUser);
     const refreshToken = generateRefreshToken(loginUser.id);
     const decodedAccessToken = jwt.decode(accessToken);
@@ -284,33 +275,29 @@ export const login = async (req, res) => {
   }
 };
 
-// ============================================================
-// REFRESH CONTROLLER
-// ============================================================
+// ================= REFRESH =================
 export const refresh = async (req, res) => {
   try {
     const oldRefreshToken = req.cookies.refreshToken;
+
     if (!oldRefreshToken) {
       return res.status(401).json({ message: "No refresh token provided" });
     }
 
     if (await isBlacklisted(oldRefreshToken)) {
-      return res
-        .status(401)
-        .json({ message: "Refresh token has been revoked" });
+      return res.status(401).json({ message: "Refresh token revoked" });
     }
 
     const decoded = jwt.verify(oldRefreshToken, JWT_REFRESH_SECRET, {
       issuer: "auth-service",
       audience: "cab-booking-refresh",
     });
+
     const userId = decoded.sub;
 
-    const currentRefreshInRedis = await redisClient.get(`refresh:${userId}`);
-    if (!currentRefreshInRedis || currentRefreshInRedis !== oldRefreshToken) {
-      return res
-        .status(401)
-        .json({ message: "Invalid or reused refresh token" });
+    const storedToken = await redisClient.get(`refresh:${userId}`);
+    if (!storedToken || storedToken !== oldRefreshToken) {
+      return res.status(401).json({ message: "Invalid refresh token" });
     }
 
     const user = await User.findById(userId);
@@ -318,15 +305,11 @@ export const refresh = async (req, res) => {
       return res.status(404).json({ message: "User not found or inactive" });
     }
 
-    const decodedOld = jwt.decode(oldRefreshToken);
-    const ttl = Math.floor((decodedOld.exp * 1000 - Date.now()) / 1000);
-    if (ttl > 0) {
-      await blacklistToken(oldRefreshToken, ttl);
-    }
+    const ttl = Math.floor((jwt.decode(oldRefreshToken).exp * 1000 - Date.now()) / 1000);
+    if (ttl > 0) await blacklistToken(oldRefreshToken, ttl);
 
     const newAccessToken = generateAccessToken(user);
     const newRefreshToken = generateRefreshToken(user.id);
-    const decodedAccessToken = jwt.decode(newAccessToken);
 
     await redisClient.set(`refresh:${user.id}`, newRefreshToken, {
       EX: 7 * 24 * 60 * 60,
@@ -339,64 +322,38 @@ export const refresh = async (req, res) => {
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    return res.status(200).json({
+    return res.json({
       message: "Token refreshed successfully",
       access_token: newAccessToken,
-      token_type: "Bearer",
-      token_payload: decodedAccessToken,
     });
   } catch (error) {
-    if (error.name === "TokenExpiredError") {
-      return res.status(401).json({ message: "Refresh token expired" });
-    }
-    console.error(error);
-    return res.status(401).json({ message: "Invalid refresh token" });
+    return res.status(401).json({ message: "Invalid or expired refresh token" });
   }
 };
 
-// ============================================================
-// LOGOUT CONTROLLER
-// ============================================================
+// ================= LOGOUT =================
 export const logout = async (req, res) => {
   try {
     const refreshToken = req.cookies.refreshToken;
-    const authHeader = req.headers.authorization;
-    const accessToken = authHeader && authHeader.split(" ")[1];
+    const accessToken = req.headers.authorization?.split(" ")[1];
 
     if (accessToken) {
-      try {
-        const decodedAccess = jwt.decode(accessToken);
-        const ttl = Math.floor((decodedAccess.exp * 1000 - Date.now()) / 1000);
-        if (ttl > 0) {
-          await blacklistToken(accessToken, ttl);
-        }
-      } catch {}
+      const ttl = Math.floor((jwt.decode(accessToken).exp * 1000 - Date.now()) / 1000);
+      if (ttl > 0) await blacklistToken(accessToken, ttl);
     }
 
     if (refreshToken) {
-      try {
-        const decodedRefresh = jwt.decode(refreshToken);
-        const ttl = Math.floor((decodedRefresh.exp * 1000 - Date.now()) / 1000);
-        if (ttl > 0) {
-          await blacklistToken(refreshToken, ttl);
-        }
-      } catch {}
+      const ttl = Math.floor((jwt.decode(refreshToken).exp * 1000 - Date.now()) / 1000);
+      if (ttl > 0) await blacklistToken(refreshToken, ttl);
 
       const userId = jwt.decode(refreshToken)?.sub;
-      if (userId) {
-        await redisClient.del(`refresh:${userId}`);
-      }
+      if (userId) await redisClient.del(`refresh:${userId}`);
     }
 
-    res.clearCookie("refreshToken", {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-    });
+    res.clearCookie("refreshToken");
 
     return res.json({ message: "Logged out successfully" });
   } catch (error) {
-    console.error(error);
     return res.status(500).json({ message: "Logout failed" });
   }
 };

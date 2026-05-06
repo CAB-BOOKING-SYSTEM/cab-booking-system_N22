@@ -31,6 +31,7 @@ async function bootstrap() {
       "booking.accepted": (data) => bookingService.handleBookingAccepted(data),
       "ride.completed": (data) => bookingService.handleRideCompleted(data),
       "ride.cancelled": (data) => bookingService.handleRideCancelled(data),
+      "driver.matched": (data) => bookingService.handleDriverMatched(data),
     });
 
     // Create Express app
