@@ -35,6 +35,13 @@ class DriverController {
       const { driverId } = req.params;
       const driver = await driverService.getDriverById(driverId);
 
+      if (!driver) {
+        return res.status(404).json({
+          success: false,
+          message: 'Driver not found'
+        });
+      }
+
       const publicData = {
         driverId: driver.driverId,
         fullName: driver.fullName,
@@ -67,6 +74,13 @@ class DriverController {
 
       const driverId = req.user.driverId;
       const { status } = req.body;
+
+      if (!driverId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Missing driverId in request'
+        });
+      }
 
       const driver = await driverService.updateDriverStatus(driverId, status);
       
@@ -387,7 +401,7 @@ class DriverController {
     }
   }
 
-  // 🔥 THÊM METHOD NÀY VÀO CUỐI, TRƯỚC module.exports
+  // 🔥 INTERNAL CREATE DRIVER (cho Auth Service gọi)
   async internalCreateDriver(req, res) {
     try {
       const errors = validationResult(req);
@@ -397,8 +411,12 @@ class DriverController {
 
       const { driverId, email, phone, fullName, vehicleType, licensePlate } = req.body;
 
+      console.log(`📝 [INTERNAL] Creating driver: ${driverId}`);
+
+      // Kiểm tra đã tồn tại chưa
       const existingDriver = await driverService.getDriverById(driverId);
       if (existingDriver) {
+        console.log(`ℹ️ Driver ${driverId} already exists`);
         return res.status(200).json({
           success: true,
           message: 'Driver already exists',
@@ -406,22 +424,24 @@ class DriverController {
         });
       }
 
+      // Tạo driver mới
       const driver = await driverService.createDriver({
         driverId: String(driverId),
         email: email,
         phone: phone || '',
         fullName: fullName,
-        licensePlate: licensePlate || `TEMP${Date.now()}`,
+        licensePlate: licensePlate || `AUTO${Date.now()}`,
         vehicleType: vehicleType || '4_seat',
         status: 'offline',
         rating: 5.0,
         totalTrips: 0
       });
 
+      // Tạo ví cho driver
       const walletService = require('../services/walletService');
       await walletService.createWallet(driverId);
 
-      logger.info(`✅ Internal: Driver created for user ${driverId}`);
+      console.log(`✅ Driver created successfully: ${driverId}`);
       
       res.status(201).json({
         success: true,

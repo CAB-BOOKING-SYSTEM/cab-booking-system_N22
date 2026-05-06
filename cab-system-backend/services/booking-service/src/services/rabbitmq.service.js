@@ -24,7 +24,7 @@ class RabbitMQService {
       await this.channel.assertQueue(this.queue, { durable: true });
       
       // Bind queue to relevant routing keys
-      const routingKeys = ['booking.accepted', 'ride.completed', 'ride.cancelled'];
+      const routingKeys = ['booking.accepted', 'ride.completed', 'ride.cancelled', 'driver.matched'];
       for (const key of routingKeys) {
         await this.channel.bindQueue(this.queue, this.exchange, key);
       }
@@ -88,7 +88,8 @@ class RabbitMQService {
       
       try {
         const content = JSON.parse(msg.content.toString());
-        const { eventType, data } = content;
+          let eventType = content.eventType || content.event || content.type;
+          let data = content.data || content;
         
         console.log(`📥 Event received: ${eventType}`, { bookingId: data?.bookingId });
         

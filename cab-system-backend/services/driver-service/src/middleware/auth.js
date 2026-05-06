@@ -3,11 +3,10 @@ const logger = require('../utils/logger');
 
 module.exports = async (req, res, next) => {
   try {
-    // 1. Lấy thông tin user từ header (do Gateway truyền vào)
     const userId = req.headers['x-user-id'];
     const userRole = req.headers['x-user-role'];
+    const driverIdHeader = req.headers['x-driver-id'];
 
-    // 2. Kiểm tra xem user đã đăng nhập chưa
     if (!userId || !userRole) {
       return res.status(401).json({
         success: false,
@@ -15,7 +14,6 @@ module.exports = async (req, res, next) => {
       });
     }
 
-    // 3. Phân quyền (RBAC): Chỉ driver hoặc admin mới được dùng API của Driver Service
     if (userRole !== 'driver' && userRole !== 'admin') {
       return res.status(403).json({
         success: false,
@@ -23,16 +21,16 @@ module.exports = async (req, res, next) => {
       });
     }
 
-    // 4. Lấy driver_id từ header (nếu có) hoặc dùng user_id
-    // Gateway should send x-driver-id header nếu có
-    const driverId = req.headers['x-driver-id'] || req.headers['x-user-id'];
+    // 🔥 Dùng driverId từ header, fallback sang userId
+    const driverId = driverIdHeader || userId;
     
-    // 5. Gắn thông tin vào req.user để các controller sử dụng
     req.user = {
       id: userId,
-      driverId: driverId, // Driver ID hoặc User ID
+      driverId: driverId,
       role: userRole,
     };
+    
+    logger.info(`Auth success: userId=${userId}, driverId=${driverId}, role=${userRole}`);
     
     next();
   } catch (error) {

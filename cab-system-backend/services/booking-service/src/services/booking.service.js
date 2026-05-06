@@ -2,9 +2,27 @@
 const { BookingStatus, Booking } = require('../models/Booking');
 const { ForbiddenError, ConflictError } = require('../utils/error.handler');
 const { determineZone } = require('../utils/zone');
+const axios = require('axios');
+const https = require('https');
+const fs = require('fs');
 
 const isSurgeFeatureEnabled = () =>
   process.env.SURGE_FEATURE_ENABLED === 'true';
+
+// 🔥 Tạo agent mTLS để gọi Ride Service
+let rideHttpsAgent;
+try {
+  rideHttpsAgent = new https.Agent({
+    ca: fs.readFileSync('/shared-certs/ca-root.pem'),
+    cert: fs.readFileSync('/shared-certs/booking-service-cert.pem'),
+    key: fs.readFileSync('/shared-certs/booking-service-key.pem'),
+    rejectUnauthorized: false
+  });
+  console.log('✅ mTLS agent for Ride Service initialized');
+} catch (err) {
+  console.warn('⚠️ Cannot load certificates, using fallback HTTP:', err.message);
+  rideHttpsAgent = new https.Agent({ rejectUnauthorized: false });
+}
 
 class BookingService {
   constructor(bookingRepository, rabbitMQService, pricingClient) {
@@ -346,6 +364,66 @@ class BookingService {
       createdAt: obj.createdAt,
       updatedAt: obj.updatedAt
     };
+  }
+
+  // 🔥🔥🔥 HANDLER DRIVER MATCHED + TỰ ĐỘNG TẠO RIDE 🔥🔥🔥
+  async handleDriverMatched(data) {
+    console.log(`📥 Handling driver.matched for booking: ${data.rideId}`);
+    
+    // 1. Assign driver cho booking
+    const booking = await this.bookingRepository.assignDriver(
+      data.rideId,
+      data.driverId,
+      data.etaMinutes || 5
+    );
+    
+    // 2. 🔥 TỰ ĐỘNG TẠO RIDE TRONG RIDE SERVICE
+    try {
+      const rideServiceUrl = process.env.RIDE_SERVICE_URL || "http://cab_ride:3008";
+      const internalSecret = process.env.INTERNAL_SECRET || "cab-internal-2024";
+      
+      const rideResponse = await axios.post(
+        `${rideServiceUrl}/api/rides`,
+        {
+          bookingId: booking._id.toString(),
+          userId: booking.customerId,
+          driverId: data.driverId,
+          pickupLocation: booking.pickupLocation.address,
+          dropoffLocation: booking.dropoffLocation.address,
+          fare: booking.estimatedPrice.total,
+          status: "ASSIGNED",
+          estimatedPrice: booking.estimatedPrice
+        },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            "x-internal-secret": internalSecret
+          },
+          timeout: 5000,
+          httpsAgent: rideHttpsAgent  // 🔥 DÙNG AGENT ĐÃ ĐƯỢC CẤU HÌNH mTLS
+        }
+      );
+      
+      console.log(`✅ Ride auto-created for booking ${data.rideId}, rideId: ${rideResponse.data.id || rideResponse.data.data?.id}`);
+    } catch (error) {
+      console.error(`❌ Failed to auto-create ride: ${error.message}`);
+      // Không throw lỗi để không ảnh hưởng đến việc assign driver
+    }
+    
+    // 3. Publish event để notification service gửi thông báo
+    await this.rabbitMQService.publish('booking.accepted', {
+      bookingId: booking._id.toString(),
+      customerId: booking.customerId,
+      driverId: data.driverId,
+      pickupLocation: booking.pickupLocation,
+      dropoffLocation: booking.dropoffLocation,
+      estimatedPrice: booking.estimatedPrice,
+      eta: data.etaMinutes || 5,
+      timestamp: new Date().toISOString()
+    });
+    
+    console.log(`✅ Driver ${data.driverId} assigned to booking ${data.rideId}`);
+    return booking;
   }
 }
 
