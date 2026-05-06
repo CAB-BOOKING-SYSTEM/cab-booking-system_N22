@@ -57,7 +57,8 @@ const notificationSchema = new mongoose.Schema(
     },
     sourceEventId: {
       type: String,
-      unique: true,
+      // unique: true,
+      unique: false,
       sparse: true,
       trim: true,
     },

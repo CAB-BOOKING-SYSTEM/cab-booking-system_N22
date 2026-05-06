@@ -14,7 +14,8 @@ const serviceAgent = mtls.createClientAgent();
 
 // URLs for other services
 const USER_SERVICE_URL = process.env.USER_SERVICE_URL || "http://cab_user:3009";
-const DRIVER_SERVICE_URL = process.env.DRIVER_SERVICE_URL || "http://cab_driver:3003";
+const DRIVER_SERVICE_URL =
+  process.env.DRIVER_SERVICE_URL || "http://cab_driver:3003";
 const INTERNAL_SECRET = process.env.INTERNAL_SECRET || "cab-internal-2024";
 
 const generateAccessToken = (user) =>
@@ -62,7 +63,7 @@ async function syncUserToUserService(user) {
     let userServiceRole = "RIDER";
     if (user.role === "admin") userServiceRole = "ADMIN";
     if (user.role === "driver") userServiceRole = "DRIVER";
-    
+
     const response = await axios.post(
       `${USER_SERVICE_URL}/internal/users`,
       {
@@ -77,10 +78,12 @@ async function syncUserToUserService(user) {
           "x-internal-secret": INTERNAL_SECRET,
         },
         timeout: 5000,
-        ...(serviceAgent ? { httpsAgent: serviceAgent } : {})
-      }
+        ...(serviceAgent ? { httpsAgent: serviceAgent } : {}),
+      },
     );
-    console.log(`✅ User synced to User Service: ${user.email} (role: ${user.role})`);
+    console.log(
+      `✅ User synced to User Service: ${user.email} (role: ${user.role})`,
+    );
     return response.data;
   } catch (error) {
     console.error(`❌ Failed to sync user to User Service:`, error.message);
@@ -106,8 +109,8 @@ async function createDriverInDriverService(user) {
       },
       {
         timeout: 5000,
-        ...(serviceAgent ? { httpsAgent: serviceAgent } : {})
-      }
+        ...(serviceAgent ? { httpsAgent: serviceAgent } : {}),
+      },
     );
     console.log(`✅ Auto-created driver for user ${user.id} (${user.email})`);
     return response.data;
@@ -190,10 +193,10 @@ export const register = async (req, res) => {
         username: newUser.username,
         role: newUser.role,
         status: newUser.status,
-        ...(newUser.role === 'driver' && {
+        ...(newUser.role === "driver" && {
           driver_id: newUser.driver_id,
-          driver_status: newUser.driver_status
-        })
+          driver_status: newUser.driver_status,
+        }),
       },
     });
   } catch (error) {

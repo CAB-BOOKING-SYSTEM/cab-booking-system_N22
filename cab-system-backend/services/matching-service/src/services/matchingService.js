@@ -60,7 +60,10 @@ class MatchingService {
             `[${traceId}] 📊 ETA calculated: ${etaMinutes} minutes, distance: ${etaData.distance_km}km`,
           );
         } catch (error) {
-          logger.warn(`[${traceId}] ETA calculation failed, using default`, error.message);
+          logger.warn(
+            `[${traceId}] ETA calculation failed, using default`,
+            error.message,
+          );
         }
       }
 
@@ -82,7 +85,9 @@ class MatchingService {
 
       if (nearbyDrivers.length === 0) {
         await MatchingRequest.updateStatus(pool, rideId, "failed");
-        logger.warn(`[${traceId}] ⚠️ No nearby drivers found for ride ${rideId}`);
+        logger.warn(
+          `[${traceId}] ⚠️ No nearby drivers found for ride ${rideId}`,
+        );
         return {
           success: false,
           error: "Không có tài xế nào ở gần",
@@ -134,7 +139,9 @@ class MatchingService {
 
       if (!agentResult.success || agentResult.drivers.length === 0) {
         // If agent also fails, try legacy fallback as last resort
-        logger.warn(`[${traceId}] ⚠️ Agent returned no results, trying legacy fallback`);
+        logger.warn(
+          `[${traceId}] ⚠️ Agent returned no results, trying legacy fallback`,
+        );
 
         const legacyMatch = await fallbackService.ruleBasedMatch(
           filteredDrivers,
@@ -159,8 +166,15 @@ class MatchingService {
         });
 
         const matchResult = this.buildMatchResult(
-          rideId, legacyMatch.driverId, driverDetailsMap, legacyMatch,
-          etaSeconds, etaMinutes, true, traceId
+          rideId,
+          userId, // 👉 BẮT BUỘC THÊM DÒNG NÀY (để app biết gửi cho khách hàng nào)
+          legacyMatch.driverId,
+          driverDetailsMap,
+          legacyMatch,
+          etaSeconds,
+          etaMinutes,
+          true,
+          traceId,
         );
 
         await redisClient.cacheMatchResult(rideId, matchResult, 300);
@@ -197,6 +211,7 @@ class MatchingService {
       const driverDetails = driverDetailsMap[topDriver.driver_id]?.data || {};
       const matchResult = {
         rideId,
+        userId, // 👉 THÊM DÒNG NÀY VÀO ĐÂY
         driverId: topDriver.driver_id,
         driverName: driverDetails.fullName,
         driverPhone: driverDetails.phone,
@@ -227,8 +242,8 @@ class MatchingService {
       const duration = Date.now() - startTime;
       logger.info(
         `[${traceId}] ✅ Matching completed for ride ${rideId} in ${duration}ms, ` +
-        `ETA: ${etaMinutes} min, AI Score: ${topDriver.match_score}, ` +
-        `Fallback: ${usedFallback}, Model: ${agentResult.meta.modelVersion}`,
+          `ETA: ${etaMinutes} min, AI Score: ${topDriver.match_score}, ` +
+          `Fallback: ${usedFallback}, Model: ${agentResult.meta.modelVersion}`,
       );
 
       this.publishMatchEvent(matchResult).catch((err) => {
@@ -258,7 +273,16 @@ class MatchingService {
     }
   }
 
-  buildMatchResult(rideId, driverId, driverDetailsMap, driverData, etaSec, etaMin, fallback, traceId) {
+  buildMatchResult(
+    rideId,
+    driverId,
+    driverDetailsMap,
+    driverData,
+    etaSec,
+    etaMin,
+    fallback,
+    traceId,
+  ) {
     const driverDetails = driverDetailsMap[driverId]?.data || {};
     return {
       rideId,
@@ -313,19 +337,21 @@ class MatchingService {
    */
   async publishMatchEvent(matchResult) {
     try {
-      const amqp = require('amqplib');
-      const rabbitmqUrl = process.env.RABBITMQ_URL || 'amqp://admin:password123@rabbitmq:5672';
+      const amqp = require("amqplib");
+      const rabbitmqUrl =
+        process.env.RABBITMQ_URL || "amqp://admin:password123@rabbitmq:5672";
       const conn = await amqp.connect(rabbitmqUrl);
       const ch = await conn.createChannel();
 
-      const exchange = 'booking.events';
-      await ch.assertExchange(exchange, 'topic', { durable: true });
+      const exchange = "booking.events";
+      await ch.assertExchange(exchange, "topic", { durable: true });
 
       const event = {
-        event: 'driver.matched',
+        event: "driver.matched",
         timestamp: new Date().toISOString(),
         data: {
           rideId: matchResult.rideId,
+          userId: matchResult.userId, //them dong nay
           driverId: matchResult.driverId,
           driverName: matchResult.driverName,
           driverPhone: matchResult.driverPhone,
@@ -342,14 +368,14 @@ class MatchingService {
 
       ch.publish(
         exchange,
-        'driver.matched',
+        "driver.matched",
         Buffer.from(JSON.stringify(event)),
-        { persistent: true }
+        { persistent: true },
       );
 
       logger.info(
         `📤 DriverMatched event published to Event Broker for ride ${matchResult.rideId}, ` +
-        `driver: ${matchResult.driverId}`
+          `driver: ${matchResult.driverId}`,
       );
 
       // Close channel after short delay to ensure message is sent
@@ -358,7 +384,10 @@ class MatchingService {
         conn.close().catch(() => {});
       }, 500);
     } catch (error) {
-      logger.error('Failed to publish DriverMatched event to Event Broker:', error.message);
+      logger.error(
+        "Failed to publish DriverMatched event to Event Broker:",
+        error.message,
+      );
     }
   }
 
