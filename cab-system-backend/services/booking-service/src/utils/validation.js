@@ -27,7 +27,7 @@ const createBookingSchema = Joi.object({
   waypoints: Joi.array().items(locationSchema).optional().default([]),
   vehicleType: Joi.string().valid('car_4', 'car_7', 'motorbike').required(),
   paymentMethod: Joi.string().valid('cash', 'card', 'wallet').default('cash'),
-  distance: Joi.number().min(0.1).max(1000).required(),
+  distance: Joi.number().min(0.1).max(1000).optional(),
   duration: Joi.number().min(1).max(1440).optional()
 });
 

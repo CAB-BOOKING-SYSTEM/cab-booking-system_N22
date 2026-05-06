@@ -18,7 +18,7 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 }
 
 /**
- * Hàm tính ETA dự phòng (Tên hàm đã được sửa thành calculateETA cho khớp với module.exports)
+ * Hàm tính ETA dự phòng
  */
 function calculateETA(distanceKm, avgSpeedKmph = 30) {
     const etaMinutes = (distanceKm / avgSpeedKmph) * 60;
@@ -35,26 +35,27 @@ function calculateETA(distanceKm, avgSpeedKmph = 30) {
 
 /**
  * Hàm chính getETA
+ * Tính ETA giữa 2 điểm: pickup → dropoff
+ * Dùng Map API (Google/OSRM/Here), fallback về Haversine
+ * Reject nếu khoảng cách > 300km
  */
 async function getETA(pickupLat, pickupLng, dropoffLat, dropoffLng) {
     // 1. Tính distance để check Outlier (Test Case 50)
     const distance = calculateDistance(pickupLat, pickupLng, dropoffLat, dropoffLng);
 
-  // 2. NGƯỠNG REJECT (Ví dụ: hệ thống chỉ phục vụ trong phạm vi 300km)
+    // 2. Reject nếu quá 300km
     if (distance > 300) {
         console.warn(`🚨 Rejecting Outlier: Distance ${distance.toFixed(1)}km is too far.`);
         
         return {
-            success: false, // Trả về false để Controller nhận diện lỗi nghiệp vụ
+            success: false,
             message: "Quãng đường quá xa (giới hạn 300km), vui lòng chọn lại điểm đón/trả.",
-            data: {
-                distance_km: Math.round(distance * 10) / 10,
-                rejected: true
-            }
+            distance_km: Math.round(distance * 10) / 10,
+            rejected: true
         };
     }
 
-    // 2. Check Cache
+    // 3. Check Cache
     const cacheKey = `eta:${pickupLat},${pickupLng}:${dropoffLat},${dropoffLng}`;
     try {
         const cached = await redisClient.get(cacheKey);
@@ -66,7 +67,7 @@ async function getETA(pickupLat, pickupLng, dropoffLat, dropoffLng) {
         console.error('Redis Error:', err.message);
     }
 
-    // 3. Tính toán có Fallback
+    // 4. Tính toán có Fallback
     let eta;
     try {
         const routeInfo = await getRouteInfo(pickupLat, pickupLng, dropoffLat, dropoffLng);
@@ -85,7 +86,7 @@ async function getETA(pickupLat, pickupLng, dropoffLat, dropoffLng) {
         eta = calculateETA(distance);
     }
 
-    // 4. Lưu Cache & Feature Store (Test Case 118)
+    // 5. Lưu Cache & Feature Store (Test Case 118)
     try {
         await redisClient.setEx(cacheKey, 300, JSON.stringify(eta));
         
@@ -161,7 +162,7 @@ async function getDriverToPickupETA(driverId, pickupLat, pickupLng) {
         console.log(`✅ Driver ETA from [${result.source}]: ${result.distance_km}km, ${result.eta_minutes}min`);
     } catch (apiErr) {
         console.warn(`⚠️ Map API failed (${apiErr.message}). Fallback to Haversine for driver ETA.`);
-        const fallback = calculateETA(haversineDistance, 35); // Tài xế thường chạy nhanh hơn (35km/h)
+        const fallback = calculateETA(haversineDistance, 35);
         result = {
             distance_km:   fallback.distance_km,
             eta_minutes:   fallback.eta_minutes,

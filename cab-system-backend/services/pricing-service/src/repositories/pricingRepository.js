@@ -1,4 +1,5 @@
 const Pricing = require('../models/pricingModel');
+const Surge = require('../models/surgeModel');
 
 const getPricing = async (vehicleType) => {
   console.log(`🔍 Querying pricing for: ${vehicleType}`);
@@ -32,10 +33,16 @@ const deletePricing = async (vehicleType) => {
   return pricing;
 };
 
+const getSurge = async (zone) => {
+  console.log(`🔍 Querying surge for zone: ${zone}`);
+  return await Surge.getMultiplier(zone);
+};
+
 module.exports = { 
   getPricing,
   getAllPricing,
   createPricing,
   updatePricing,
-  deletePricing
+  deletePricing,
+  getSurge
 };

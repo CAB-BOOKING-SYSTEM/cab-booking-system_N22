@@ -24,9 +24,14 @@ class PricingClient {
       pickupLocation: data.pickupLocation,
       dropoffLocation: data.dropoffLocation,
       vehicleType: mappedVehicleType,
-      distance: data.distance,
-      duration: data.duration,
+      distance: data.distance || 0,
+      duration: data.duration || 0,
       zone: data.zone,
+      // Gửi tọa độ để Pricing Service tự tính distance/duration
+      pickupLat: data.pickupLocation?.lat,
+      pickupLng: data.pickupLocation?.lng,
+      dropoffLat: data.dropoffLocation?.lat,
+      dropoffLng: data.dropoffLocation?.lng,
     };
 
     for (let i = 0; i <= this.retries; i++) {
@@ -43,7 +48,7 @@ class PricingClient {
 
         const pricingData = response.data.data;
 
-        console.log("✅ Pricing response:", pricingData);
+        console.log("✅ Pricing response:", JSON.stringify(pricingData, null, 2));
 
         return {
           basePrice: Math.round(pricingData.estimatedFare * 0.3),
@@ -52,6 +57,12 @@ class PricingClient {
           surgeMultiplier: pricingData.surgeMultiplier || 1,
           total: pricingData.estimatedFare,
           currency: pricingData.currency || "VND",
+          // Lấy distance & duration từ Pricing Service
+          distance: pricingData.distance,
+          duration: pricingData.duration,
+          zone: pricingData.zone,
+          etaSource: pricingData.etaSource,
+          modelVersion: pricingData.modelVersion,
         };
       } catch (error) {
         lastError = error;
@@ -122,13 +133,11 @@ class PricingClient {
   fallbackCalculatePrice(data) {
     const { distance, duration, vehicleType } = data;
 
-    // Map vehicleType để tính giá
     let type = vehicleType;
     if (vehicleType === "car_4") type = "car";
     if (vehicleType === "car_7") type = "suv";
     if (vehicleType === "motorbike") type = "bike";
 
-    // Giá cơ bản theo loại xe (giống pricing service)
     const basePrices = {
       car: 10000,
       suv: 15000,
@@ -155,7 +164,6 @@ class PricingClient {
     const timePrice = (duration || 0) * perMinuteRate;
     const total = Math.round(basePrice + distancePrice + timePrice);
 
-    // Trả về format GIỐNG HỆT pricing service
     return {
       basePrice: basePrice,
       distancePrice: Math.round(distancePrice),
@@ -164,6 +172,9 @@ class PricingClient {
       total: total,
       currency: "VND",
       isFallback: true,
+      distance: distance || 0,
+      duration: duration || 0,
+      etaSource: 'fallback',
     };
   }
 }
