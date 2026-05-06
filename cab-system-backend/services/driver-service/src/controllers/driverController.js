@@ -1,3 +1,4 @@
+// controllers/driverController.js
 const driverService = require('../services/driverService');
 const { validationResult } = require('express-validator');
 const logger = require('../utils/logger');
@@ -49,7 +50,7 @@ class DriverController {
         licensePlate: driver.licensePlate,
         rating: driver.rating,
         status: driver.status,
-        currentLocation: driver.currentLocation
+        currentLocation: driver.currentLocation || { lat: 10.7626, lng: 106.6823 }
       };
 
       res.json({
@@ -98,6 +99,92 @@ class DriverController {
       res.status(500).json({
         success: false,
         message: error.message || 'Internal server error',
+      });
+    }
+  }
+
+  // 🔥 UPDATE LOCATION METHOD
+  async updateLocation(req, res) {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ 
+          success: false, 
+          errors: errors.array() 
+        });
+      }
+
+      const driverId = req.user.driverId;
+      
+      if (!driverId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Driver ID not found in token'
+        });
+      }
+
+      const { lat, lng, speed, heading, accuracy } = req.body;
+
+      const driver = await driverService.updateDriverLocation(
+        driverId,
+        parseFloat(lat),
+        parseFloat(lng),
+        speed || 0,
+        heading || 0,
+        accuracy || 0
+      );
+
+      res.json({
+        success: true,
+        message: 'Location updated successfully',
+        data: {
+          driverId: driver.driverId,
+          currentLocation: driver.currentLocation,
+          status: driver.status
+        }
+      });
+    } catch (error) {
+      logger.error('Update location error:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Internal server error'
+      });
+    }
+  }
+
+  // 🔥 INTERNAL UPDATE STATUS (cho Matching Service gọi)
+  async internalUpdateStatus(req, res) {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const internalSecret = req.headers['x-internal-secret'];
+      if (internalSecret !== process.env.INTERNAL_SECRET) {
+        return res.status(403).json({
+          success: false,
+          message: 'Unauthorized: Invalid internal secret'
+        });
+      }
+
+      const { driverId, status } = req.body;
+
+      const driver = await driverService.updateDriverStatus(driverId, status);
+
+      res.json({
+        success: true,
+        message: `Driver status updated to ${status}`,
+        data: {
+          driverId: driver.driverId,
+          status: driver.status
+        }
+      });
+    } catch (error) {
+      logger.error('Internal update status error:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message
       });
     }
   }
@@ -401,7 +488,6 @@ class DriverController {
     }
   }
 
-  // 🔥 INTERNAL CREATE DRIVER (cho Auth Service gọi)
   async internalCreateDriver(req, res) {
     try {
       const errors = validationResult(req);
@@ -413,7 +499,6 @@ class DriverController {
 
       console.log(`📝 [INTERNAL] Creating driver: ${driverId}`);
 
-      // Kiểm tra đã tồn tại chưa
       const existingDriver = await driverService.getDriverById(driverId);
       if (existingDriver) {
         console.log(`ℹ️ Driver ${driverId} already exists`);
@@ -424,7 +509,6 @@ class DriverController {
         });
       }
 
-      // Tạo driver mới
       const driver = await driverService.createDriver({
         driverId: String(driverId),
         email: email,
@@ -434,10 +518,14 @@ class DriverController {
         vehicleType: vehicleType || '4_seat',
         status: 'offline',
         rating: 5.0,
-        totalTrips: 0
+        totalTrips: 0,
+        currentLocation: {
+          lat: 10.7626,
+          lng: 106.6823,
+          updatedAt: new Date()
+        }
       });
 
-      // Tạo ví cho driver
       const walletService = require('../services/walletService');
       await walletService.createWallet(driverId);
 
@@ -457,7 +545,6 @@ class DriverController {
     }
   }
 
-  // 🔥 GET LEDGER HISTORY
   async getLedgerHistory(req, res) {
     try {
       const driverId = req.user.driverId;
