@@ -45,6 +45,7 @@ class BookingService {
     
     try {
       // 1. Get price from Pricing Service
+      // Gửi tọa độ để Pricing Service tự tính distance & duration qua Map API
       console.log(`💰 Getting price estimate...`);
       const estimatedPrice = await this.pricingClient.estimatePrice({
         distance: data.distance,
@@ -55,7 +56,13 @@ class BookingService {
         zone,
       });
       
-      // 2. Create booking với status REQUESTED + metadata PENDING
+      // Lấy distance & duration từ Pricing Service (đã được tính chính xác qua Map API)
+      const finalDistance = estimatedPrice.distance || data.distance;
+      const finalDuration = estimatedPrice.duration || data.duration;
+      
+      console.log(`📍 Final distance: ${finalDistance}km, duration: ${finalDuration}min (source: ${estimatedPrice.etaSource || 'client'})`);
+      
+      // 2. Create booking với distance/duration từ Pricing
       console.log(`📦 Creating booking record...`);
       booking = await this.bookingRepository.create({
         customerId,
@@ -64,8 +71,8 @@ class BookingService {
         waypoints: data.waypoints || [],
         vehicleType: data.vehicleType,
         paymentMethod: data.paymentMethod || 'cash',
-        distance: data.distance,
-        duration: data.duration,
+        distance: finalDistance,
+        duration: finalDuration,
         estimatedPrice,
         status: BookingStatus.REQUESTED,
         trackingPath: [],
@@ -98,7 +105,7 @@ class BookingService {
         vehicleType: data.vehicleType,
         estimatedPrice,
         paymentMethod: data.paymentMethod || 'cash',
-        distance: data.distance,
+        distance: finalDistance,
         timestamp: new Date().toISOString()
       });
       
@@ -400,7 +407,7 @@ class BookingService {
             "x-internal-secret": internalSecret
           },
           timeout: 5000,
-          httpsAgent: rideHttpsAgent  // 🔥 DÙNG AGENT ĐÃ ĐƯỢC CẤU HÌNH mTLS
+          httpsAgent: rideHttpsAgent
         }
       );
       
