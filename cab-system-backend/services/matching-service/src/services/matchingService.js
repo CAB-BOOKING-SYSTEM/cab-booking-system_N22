@@ -167,7 +167,7 @@ class MatchingService {
 
         const matchResult = this.buildMatchResult(
           rideId,
-          userId, // 👉 BẮT BUỘC THÊM DÒNG NÀY (để app biết gửi cho khách hàng nào)
+          userId,
           legacyMatch.driverId,
           driverDetailsMap,
           legacyMatch,
@@ -179,6 +179,9 @@ class MatchingService {
 
         await redisClient.cacheMatchResult(rideId, matchResult, 300);
         await MatchingRequest.updateStatus(pool, rideId, "matched");
+
+        // 🔥 THÊM: Chuyển trạng thái driver sang busy cho legacy fallback
+        await this.updateDriverStatusToBusy(legacyMatch.driverId, traceId);
 
         return {
           success: true,
@@ -211,7 +214,7 @@ class MatchingService {
       const driverDetails = driverDetailsMap[topDriver.driver_id]?.data || {};
       const matchResult = {
         rideId,
-        userId, // 👉 THÊM DÒNG NÀY VÀO ĐÂY
+        userId,
         driverId: topDriver.driver_id,
         driverName: driverDetails.fullName,
         driverPhone: driverDetails.phone,
@@ -238,6 +241,9 @@ class MatchingService {
 
       await redisClient.cacheMatchResult(rideId, matchResult, 300);
       await MatchingRequest.updateStatus(pool, rideId, "matched");
+
+      // 🔥 THÊM: Chuyển trạng thái driver sang busy
+      await this.updateDriverStatusToBusy(topDriver.driver_id, traceId);
 
       const duration = Date.now() - startTime;
       logger.info(
@@ -273,8 +279,38 @@ class MatchingService {
     }
   }
 
+  // 🔥 THÊM METHOD MỚI: Cập nhật trạng thái driver sang busy
+  async updateDriverStatusToBusy(driverId, traceId) {
+    try {
+      const internalSecret = process.env.INTERNAL_SECRET || "cab-internal-2024";
+      const driverServiceUrl = process.env.DRIVER_SERVICE_URL || "https://driver-service:3003";
+      
+      await axios.post(
+        `${driverServiceUrl}/api/drivers/internal/status`,
+        {
+          driverId: driverId,
+          status: "busy"
+        },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            "x-internal-secret": internalSecret
+          },
+          timeout: 5000,
+          ...(httpsAgent ? { httpsAgent } : {})
+        }
+      );
+      logger.info(`[${traceId}] ✅ Driver ${driverId} status changed to BUSY`);
+      return true;
+    } catch (error) {
+      logger.warn(`[${traceId}] ⚠️ Failed to update driver status to busy: ${error.message}`);
+      return false;
+    }
+  }
+
   buildMatchResult(
     rideId,
+    userId,
     driverId,
     driverDetailsMap,
     driverData,
@@ -286,6 +322,7 @@ class MatchingService {
     const driverDetails = driverDetailsMap[driverId]?.data || {};
     return {
       rideId,
+      userId,
       driverId,
       driverName: driverDetails.fullName,
       driverPhone: driverDetails.phone,
@@ -351,7 +388,7 @@ class MatchingService {
         timestamp: new Date().toISOString(),
         data: {
           rideId: matchResult.rideId,
-          userId: matchResult.userId, //them dong nay
+          userId: matchResult.userId,
           driverId: matchResult.driverId,
           driverName: matchResult.driverName,
           driverPhone: matchResult.driverPhone,
