@@ -163,6 +163,8 @@ services:
     volumes:
       - ./shared-certs:/shared-certs:ro
       - ./shared:/shared:ro
+    ports:
+      - "3002:3002"
     depends_on:
       mongodb:
         condition: service_started
