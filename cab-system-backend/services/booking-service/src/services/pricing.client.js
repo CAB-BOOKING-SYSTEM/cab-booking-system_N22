@@ -11,6 +11,57 @@ class PricingClient {
     this.retries = config.pricingService.retries;
   }
 
+  // ========== THÊM HÀM TÍNH KHOẢNG CÁCH (HAVERSINE) ==========
+  /**
+   * Tính khoảng cách giữa 2 điểm GPS (km)
+   * Dùng công thức Haversine
+   */
+  calculateDistance(lat1, lon1, lat2, lon2) {
+    if (!lat1 || !lon1 || !lat2 || !lon2) return 0;
+    
+    const R = 6371; // Bán kính trái đất (km)
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }
+
+  /**
+   * Tính duration (phút) từ distance (km)
+   * Giả sử tốc độ trung bình 30km/h trong thành phố
+   */
+  calculateDuration(distanceKm, trafficLevel = 0.5) {
+    if (!distanceKm || distanceKm <= 0) return 0;
+    // Tốc độ cơ bản 30km/h, bị ảnh hưởng bởi traffic (0.5 = bình thường, 1 = kẹt xe)
+    const speedKmph = 30 * (1 - trafficLevel * 0.4);
+    const hours = distanceKm / Math.max(speedKmph, 5);
+    return Math.ceil(hours * 60); // phút
+  }
+
+  // ========== THÊM HÀM LẤY ETA FALLBACK ==========
+  /**
+   * Lấy ETA từ tọa độ (fallback khi Pricing Service chết)
+   * Trả về { distance_km, eta_minutes, source }
+   */
+  async getETAFallback(pickupLat, pickupLng, dropoffLat, dropoffLng) {
+    const distance = this.calculateDistance(pickupLat, pickupLng, dropoffLat, dropoffLng);
+    const etaMinutes = this.calculateDuration(distance);
+    
+    console.log(`📍 [Fallback] Calculated distance: ${distance.toFixed(2)}km, ETA: ${etaMinutes}min`);
+    
+    return {
+      distance_km: Math.round(distance * 10) / 10,
+      eta_minutes: etaMinutes,
+      eta_seconds: etaMinutes * 60,
+      traffic_level: 0.5,
+      speed_kph: 30,
+      source: 'client-fallback-haversine'
+    };
+  }
+
   async estimatePrice(data) {
     let lastError;
 
@@ -27,7 +78,6 @@ class PricingClient {
       distance: data.distance || 0,
       duration: data.duration || 0,
       zone: data.zone,
-      // Gửi tọa độ để Pricing Service tự tính distance/duration
       pickupLat: data.pickupLocation?.lat,
       pickupLng: data.pickupLocation?.lng,
       dropoffLat: data.dropoffLocation?.lat,
@@ -57,7 +107,6 @@ class PricingClient {
           surgeMultiplier: pricingData.surgeMultiplier || 1,
           total: pricingData.estimatedFare,
           currency: pricingData.currency || "VND",
-          // Lấy distance & duration từ Pricing Service
           distance: pricingData.distance,
           duration: pricingData.duration,
           zone: pricingData.zone,
@@ -79,7 +128,35 @@ class PricingClient {
     }
 
     console.warn("⚠️ Pricing Service unavailable, using fallback calculation");
-    return this.fallbackCalculatePrice(data);
+    
+    // ========== FALLBACK: TỰ TÍNH DISTANCE & DURATION ==========
+    let finalDistance = data.distance || 0;
+    let finalDuration = data.duration || 0;
+    let etaSource = 'client-provided';
+    
+    // Nếu có tọa độ, tự tính distance & duration
+    if (data.pickupLocation?.lat && data.pickupLocation?.lng &&
+        data.dropoffLocation?.lat && data.dropoffLocation?.lng) {
+      
+      finalDistance = this.calculateDistance(
+        data.pickupLocation.lat,
+        data.pickupLocation.lng,
+        data.dropoffLocation.lat,
+        data.dropoffLocation.lng
+      );
+      
+      finalDuration = this.calculateDuration(finalDistance);
+      etaSource = 'fallback-haversine';
+      
+      console.log(`📍 [Fallback] Auto-calculated: distance=${finalDistance.toFixed(2)}km, duration=${finalDuration}min`);
+    }
+    
+    return this.fallbackCalculatePrice({
+      ...data,
+      distance: finalDistance,
+      duration: finalDuration,
+      etaSource: etaSource,
+    });
   }
 
   async adjustRequestCount(zone, delta) {
@@ -131,7 +208,7 @@ class PricingClient {
   }
 
   fallbackCalculatePrice(data) {
-    const { distance, duration, vehicleType } = data;
+    const { distance, duration, vehicleType, etaSource } = data;
 
     let type = vehicleType;
     if (vehicleType === "car_4") type = "car";
@@ -174,7 +251,7 @@ class PricingClient {
       isFallback: true,
       distance: distance || 0,
       duration: duration || 0,
-      etaSource: 'fallback',
+      etaSource: etaSource || 'fallback',
     };
   }
 }
