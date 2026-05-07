@@ -46,6 +46,22 @@ services:
       retries: 10
       start_period: 10s
 
+  # PostgreSQL UI (pgAdmin)
+  pgadmin:
+    image: dpage/pgadmin4:8.9
+    container_name: cab_pgadmin
+    restart: always
+    ports:
+      - "${PGADMIN_PORT:-8081}:80"
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_EMAIL:-admin@admin.com}
+      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_PASSWORD:-admin}
+      - PGADMIN_CONFIG_SERVER_MODE=False
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      - postgres
+
   mongodb:
     image: mongo:8.2.5
     container_name: cab_mongodb
@@ -58,6 +74,22 @@ services:
     volumes:
       - mongodb_data:/data/db
 
+  # MongoDB UI (Mongo Express)
+  mongo-express:
+    image: mongo-express:1.0.2-20-alpine3.19
+    container_name: cab_mongo_express
+    restart: always
+    ports:
+      - "${MONGO_EXPRESS_PORT:-8082}:8081"
+    environment:
+      - ME_CONFIG_MONGODB_SERVER=mongodb
+      - ME_CONFIG_MONGODB_ADMINUSERNAME=${MONGO_USER}
+      - ME_CONFIG_MONGODB_ADMINPASSWORD=${MONGO_PASSWORD}
+      - ME_CONFIG_BASICAUTH_USERNAME=${MONGO_EXPRESS_USER:-admin}
+      - ME_CONFIG_BASICAUTH_PASSWORD=${MONGO_EXPRESS_PASSWORD:-admin}
+    depends_on:
+      - mongodb
+
   redis:
     image: redis:alpine3.22
     container_name: cab_redis
@@ -69,6 +101,21 @@ services:
       timeout: 3s
       retries: 10
       start_period: 5s
+
+  # Redis UI (Redis Commander)
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: cab_redis_commander
+    restart: always
+    ports:
+      - "${REDIS_COMMANDER_PORT:-8083}:8081"
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - HTTP_USER=${REDIS_COMMANDER_USER:-admin}
+      - HTTP_PASSWORD=${REDIS_COMMANDER_PASSWORD:-admin}
+    depends_on:
+      - redis
 
   rabbitmq:
     image: rabbitmq:4.2.2-management-alpine
@@ -155,6 +202,7 @@ services:
       - MONGODB_DB_NAME=booking_db
       - RABBITMQ_URL=amqp://${RABBITMQ_USER:-admin}:${RABBITMQ_PASS:-password123}@rabbitmq:5672
       - PRICING_SERVICE_URL=https://pricing-service:${PRICING_PORT:-3006}
+      - SURGE_FEATURE_ENABLED=false
       - JWT_SECRET=${JWT_SECRET:-supersecret}
       - MTLS_ENABLED=true
       - TLS_CA_PATH=/shared-certs/ca-root.pem
@@ -163,6 +211,8 @@ services:
     volumes:
       - ./shared-certs:/shared-certs:ro
       - ./shared:/shared:ro
+    ports:
+      - "3002:3002"
     depends_on:
       mongodb:
         condition: service_started
@@ -450,3 +500,4 @@ volumes:
   postgres_data:
   mongodb_data:
   rabbitmq_data:
+  pgadmin_data:

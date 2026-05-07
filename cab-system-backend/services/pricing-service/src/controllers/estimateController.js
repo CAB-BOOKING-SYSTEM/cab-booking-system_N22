@@ -1,19 +1,6 @@
 const estimateService = require('../services/estimateService');
 const { successResponse, errorResponse } = require('../utils/responseUtil');
-
-// Hàm xác định zone từ tọa độ
-function determineZone(lat, lng) {
-  // Khu vực trung tâm
-  if (lat >= 10.75 && lat <= 10.8 && lng >= 106.65 && lng <= 106.72) {
-    return 'CENTER';
-  }
-  // Khu vực sân bay
-  if (lat >= 10.8 && lat <= 10.85 && lng >= 106.7 && lng <= 106.75) {
-    return 'AIRPORT';
-  }
-  // Mặc định ngoại ô
-  return 'SUBURB';
-}
+const { determineZone } = require('../utils/zoneUtil');
 
 // Hàm map vehicleType từ Booking sang Pricing
 function mapVehicleType(vehicleType) {

@@ -2,6 +2,9 @@ const cron = require('node-cron');
 const axios = require('axios');
 const { redisClient } = require('../config/redisConfig');
 const { publishEvent } = require('../rabbitmq/producer');
+const Surge = require('../models/surgeModel');
+const { computeSurge } = require('../services/surgeIntelligenceService');
+const { getKnownZones } = require('../utils/zoneUtil');
 
 // === AI Platform URL ===
 const AI_PLATFORM_URL = process.env.AI_PLATFORM_URL || 'http://ai-platform:8080';
@@ -65,6 +68,8 @@ function startSurgeAIJob() {
         // Lấy supply và demand từ Redis
         const supply = parseInt(await redisClient.get(`drivers:${zone}:online:count`) || 0);
         const demand = parseInt(await redisClient.get(`requests:${zone}:pending:count`) || 0);
+        const surgePrediction = await computeSurge({ zone, supply, demand });
+        const surge = surgePrediction.multiplier;
         
         // Tính demand_index và supply_ratio cho AI model
         const demandIndex = Math.min(demand, 10); // Clamp 0-10 (model limit)
@@ -111,10 +116,10 @@ function startSurgeAIJob() {
           updatedAt: new Date().toISOString()
         };
         await redisClient.set(`surge:${zone}`, JSON.stringify(surgeData));
+        await Surge.create(zone, surge);
         
         console.log(`📍 ${zone}: Supply=${supply}, Demand=${demand}, Surge=${surge}x (old=${oldSurge}x, source=${source})`);
         
-        // Gửi event nếu surge thay đổi
         if (surge !== oldSurge) {
           await publishEvent('pricing.surge.updated', {
             zone: zone,
@@ -129,7 +134,6 @@ function startSurgeAIJob() {
         }
       }
       
-      // Surge global
       const totalSupply = parseInt(await redisClient.get('drivers:online:count') || 0);
       const totalDemand = parseInt(await redisClient.get('requests:pending:count') || 0);
       

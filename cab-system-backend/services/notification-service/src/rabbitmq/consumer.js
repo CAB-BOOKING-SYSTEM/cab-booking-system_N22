@@ -16,7 +16,12 @@ const EXCHANGES = [
   },
   {
     name: "booking.events",
-    routingKeys: ["booking.created", "booking.accepted", "booking.cancelled"],
+    routingKeys: [
+      "booking.created",
+      "booking.accepted",
+      "booking.cancelled",
+      "driver.matched",
+    ],
   },
   {
     name: "ride.events",
@@ -65,26 +70,27 @@ function parseMessageContent(message) {
  * KHÔNG bao giờ trả về nguyên cục payload thô để tránh dump metaData lồng nhau.
  */
 function getEventData(payload = {}) {
-  // Ưu tiên 1: payload.payload.data (booking-service bắn message bị wrap thêm lớp)
-  if (
-    payload.payload &&
-    typeof payload.payload === "object" &&
-    payload.payload.data &&
-    typeof payload.payload.data === "object"
-  ) {
-    return payload.payload.data;
-  }
-
-  // Ưu tiên 2: payload.data (cấu trúc chuẩn)
+  // Ưu tiên 1: Lấy trực tiếp từ trường data (Cấu trúc của Matching Service bạn vừa sửa)
   if (payload.data && typeof payload.data === "object") {
     return payload.data;
   }
 
-  // Fallback: trả về payload nhưng loại bỏ các trường envelope rác
-  const { metaData, payload: _innerPayload, eventId, eventType, eventName, type, source, sourceService, timestamp, ...rest } = payload;
+  // Ưu tiên 2: Cấu trúc cũ của booking-service
+  if (payload.payload?.data) {
+    return payload.payload.data;
+  }
+
+  // Fallback
+  const {
+    metaData,
+    payload: _p,
+    eventId,
+    eventType,
+    timestamp,
+    ...rest
+  } = payload;
   return rest;
 }
-
 function extractRecipientId(payload = {}) {
   const eventData = getEventData(payload);
 
@@ -200,6 +206,13 @@ function buildNotificationPayload(routingKey, payload = {}) {
         ...baseEnvelope,
         title: "Đơn đặt xe đã bị hủy",
         body: `Đơn đặt xe${bookingRef ? ` #${bookingRef}` : ""} đã bị hủy${eventData.reason ? ` vì: ${eventData.reason}` : ""}.`,
+      };
+    // 👉 ĐÃ THÊM LOGIC DRIVER.MATCHED VÀO ĐÂY
+    case "driver.matched":
+      return {
+        ...baseEnvelope,
+        title: "Đã tìm thấy tài xế!",
+        body: `Tài xế ${eventData.driverName || "của bạn"} (${eventData.vehiclePlate || ""}) đang đến. ETA: ${eventData.etaMinutes || "?"} phút.`,
       };
     case "ride.arrived":
       return {

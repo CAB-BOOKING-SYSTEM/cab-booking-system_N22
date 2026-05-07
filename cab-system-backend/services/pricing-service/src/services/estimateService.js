@@ -4,6 +4,9 @@ const pricingService = require('./pricingService');
 const { redisClient } = require('../config/redisConfig');
 const { publishEvent } = require('../rabbitmq/producer');
 const { v4: uuidv4 } = require('uuid');
+const { computeSurge } = require('./surgeIntelligenceService');
+const { isSurgeFeatureEnabled } = require('../config/featureFlags');
+const { getETA } = require('./etaService');
 
 // === AI Platform URL ===
 const AI_PLATFORM_URL = process.env.AI_PLATFORM_URL || 'http://ai-platform:8080';
@@ -59,14 +62,44 @@ const calculateEstimate = async ({ pickupLat, pickupLng, dropoffLat, dropoffLng,
     dropoffLng
   });
   
-  // 1. Lấy pricing config từ database
+  // 1. TỰ TÍNH distance & duration từ tọa độ - NGHIỆP VỤ CHÍNH
+  let finalDistance = parseFloat(distance) || 0;
+  let finalDuration = parseInt(duration) || 0;
+  let etaSource = 'client-provided';
+  
+  if (pickupLat && pickupLng && dropoffLat && dropoffLng) {
+    try {
+      const etaResult = await getETA(pickupLat, pickupLng, dropoffLat, dropoffLng);
+      
+      if (etaResult && !etaResult.rejected && etaResult.distance_km > 0) {
+        finalDistance = etaResult.distance_km;
+        finalDuration = etaResult.eta_minutes;
+        etaSource = etaResult.source || 'eta-service';
+        
+        console.log(`📍 ETA calculated: ${finalDistance}km, ${finalDuration}min (source: ${etaSource})`);
+      }
+    } catch (etaError) {
+      console.warn(`⚠️ ETA calculation failed: ${etaError.message}. Using client-provided distance/duration.`);
+      
+      if (!finalDistance || !finalDuration) {
+        throw new Error('Cannot calculate estimate: missing distance/duration and ETA failed');
+      }
+    }
+  } else if (!finalDistance || !finalDuration) {
+    throw new Error('Missing required fields: either (pickupLat, pickupLng, dropoffLat, dropoffLng) or (distance, duration)');
+  }
+  
+  // 2. Lấy pricing config từ database
   const pricingConfig = await pricingRepository.getPricing(vehicleType);
   if (!pricingConfig) {
     console.warn('Vehicle type not found', { requestId, vehicleType });
     throw new Error('Vehicle type not found');
   }
   
-  // 2. Lấy surge multiplier từ Redis (có thể là JSON hoặc số cũ)
+  // 3. Xác định zone (nếu chưa có)
+  const finalZone = zone || 'SUBURB';
+  
+  // 4. Lấy surge multiplier
   let surgeMultiplier = 1.0;
   let surgeModelVersion = 'rule-based-fallback';
   let surgeSource = 'default';

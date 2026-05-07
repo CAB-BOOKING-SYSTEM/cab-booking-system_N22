@@ -12,7 +12,7 @@ router.get('/online/list', [
   query('lng').optional().isFloat(),
 ], driverController.getOnlineDrivers);
 
-// 🔥 THÊM INTERNAL ROUTE NÀY (cho Auth Service gọi)
+// 🔥 INTERNAL ROUTE (cho Auth Service gọi)
 router.post('/internal/create', [
   body('driverId').notEmpty(),
   body('email').isEmail(),
@@ -21,6 +21,12 @@ router.post('/internal/create', [
   body('vehicleType').optional().isIn(['4_seat', '7_seat', 'luxury']),
   body('licensePlate').optional(),
 ], driverController.internalCreateDriver);
+
+// 🔥 INTERNAL ROUTE (cho Matching Service gọi để update status)
+router.post('/internal/status', [
+  body('driverId').notEmpty(),
+  body('status').isIn(['online', 'offline', 'busy'])
+], driverController.internalUpdateStatus);
 
 // ========== PROTECTED ROUTES ==========
 router.put('/profile', 
@@ -38,6 +44,19 @@ router.post('/toggle-status',
     body('status').isIn(['online', 'offline']),
   ],
   driverController.toggleStatus
+);
+
+// 🔥 UPDATE LOCATION (chỉ cần token driver)
+router.post('/location/update',
+  authMiddleware,
+  [
+    body('lat').isFloat({ min: -90, max: 90 }).withMessage('Invalid latitude'),
+    body('lng').isFloat({ min: -180, max: 180 }).withMessage('Invalid longitude'),
+    body('speed').optional().isFloat({ min: 0 }),
+    body('heading').optional().isFloat({ min: 0, max: 360 }),
+    body('accuracy').optional().isFloat({ min: 0 }),
+  ],
+  driverController.updateLocation
 );
 
 router.get('/location-history',

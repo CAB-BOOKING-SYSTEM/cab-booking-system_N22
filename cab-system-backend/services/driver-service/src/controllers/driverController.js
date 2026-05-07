@@ -1,3 +1,4 @@
+// controllers/driverController.js
 const driverService = require('../services/driverService');
 const { validationResult } = require('express-validator');
 const logger = require('../utils/logger');
@@ -35,6 +36,13 @@ class DriverController {
       const { driverId } = req.params;
       const driver = await driverService.getDriverById(driverId);
 
+      if (!driver) {
+        return res.status(404).json({
+          success: false,
+          message: 'Driver not found'
+        });
+      }
+
       const publicData = {
         driverId: driver.driverId,
         fullName: driver.fullName,
@@ -42,7 +50,7 @@ class DriverController {
         licensePlate: driver.licensePlate,
         rating: driver.rating,
         status: driver.status,
-        currentLocation: driver.currentLocation
+        currentLocation: driver.currentLocation || { lat: 10.7626, lng: 106.6823 }
       };
 
       res.json({
@@ -68,6 +76,13 @@ class DriverController {
       const driverId = req.user.driverId;
       const { status } = req.body;
 
+      if (!driverId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Missing driverId in request'
+        });
+      }
+
       const driver = await driverService.updateDriverStatus(driverId, status);
       
       res.json({
@@ -84,6 +99,92 @@ class DriverController {
       res.status(500).json({
         success: false,
         message: error.message || 'Internal server error',
+      });
+    }
+  }
+
+  // 🔥 UPDATE LOCATION METHOD
+  async updateLocation(req, res) {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ 
+          success: false, 
+          errors: errors.array() 
+        });
+      }
+
+      const driverId = req.user.driverId;
+      
+      if (!driverId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Driver ID not found in token'
+        });
+      }
+
+      const { lat, lng, speed, heading, accuracy } = req.body;
+
+      const driver = await driverService.updateDriverLocation(
+        driverId,
+        parseFloat(lat),
+        parseFloat(lng),
+        speed || 0,
+        heading || 0,
+        accuracy || 0
+      );
+
+      res.json({
+        success: true,
+        message: 'Location updated successfully',
+        data: {
+          driverId: driver.driverId,
+          currentLocation: driver.currentLocation,
+          status: driver.status
+        }
+      });
+    } catch (error) {
+      logger.error('Update location error:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Internal server error'
+      });
+    }
+  }
+
+  // 🔥 INTERNAL UPDATE STATUS (cho Matching Service gọi)
+  async internalUpdateStatus(req, res) {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const internalSecret = req.headers['x-internal-secret'];
+      if (internalSecret !== process.env.INTERNAL_SECRET) {
+        return res.status(403).json({
+          success: false,
+          message: 'Unauthorized: Invalid internal secret'
+        });
+      }
+
+      const { driverId, status } = req.body;
+
+      const driver = await driverService.updateDriverStatus(driverId, status);
+
+      res.json({
+        success: true,
+        message: `Driver status updated to ${status}`,
+        data: {
+          driverId: driver.driverId,
+          status: driver.status
+        }
+      });
+    } catch (error) {
+      logger.error('Internal update status error:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message
       });
     }
   }
@@ -387,7 +488,6 @@ class DriverController {
     }
   }
 
-  // 🔥 THÊM METHOD NÀY VÀO CUỐI, TRƯỚC module.exports
   async internalCreateDriver(req, res) {
     try {
       const errors = validationResult(req);
@@ -397,8 +497,11 @@ class DriverController {
 
       const { driverId, email, phone, fullName, vehicleType, licensePlate } = req.body;
 
+      console.log(`📝 [INTERNAL] Creating driver: ${driverId}`);
+
       const existingDriver = await driverService.getDriverById(driverId);
       if (existingDriver) {
+        console.log(`ℹ️ Driver ${driverId} already exists`);
         return res.status(200).json({
           success: true,
           message: 'Driver already exists',
@@ -411,17 +514,22 @@ class DriverController {
         email: email,
         phone: phone || '',
         fullName: fullName,
-        licensePlate: licensePlate || `TEMP${Date.now()}`,
+        licensePlate: licensePlate || `AUTO${Date.now()}`,
         vehicleType: vehicleType || '4_seat',
         status: 'offline',
         rating: 5.0,
-        totalTrips: 0
+        totalTrips: 0,
+        currentLocation: {
+          lat: 10.7626,
+          lng: 106.6823,
+          updatedAt: new Date()
+        }
       });
 
       const walletService = require('../services/walletService');
       await walletService.createWallet(driverId);
 
-      logger.info(`✅ Internal: Driver created for user ${driverId}`);
+      console.log(`✅ Driver created successfully: ${driverId}`);
       
       res.status(201).json({
         success: true,
@@ -437,7 +545,6 @@ class DriverController {
     }
   }
 
-  // 🔥 GET LEDGER HISTORY
   async getLedgerHistory(req, res) {
     try {
       const driverId = req.user.driverId;

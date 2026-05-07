@@ -1,3 +1,4 @@
+// services/driverService.js
 const Driver = require("../models/Driver");
 const DriverEarning = require("../models/DriverEarning");
 const LocationHistory = require("../models/LocationHistory");
@@ -6,13 +7,22 @@ const logger = require("../utils/logger");
 const axios = require("axios");
 const eventPublisher = require("./eventPublisher");
 const pricingClient = require("./pricingClient");
-const mtls = require("../../../../../shared/mtls.cjs");
+const mtls = require("/shared/mtls.cjs");
 
 const httpsAgent = mtls.createClientAgent();
 
 class DriverService {
   async createDriver(driverData) {
     try {
+      // 🔥 Nếu không có currentLocation, gán mặc định
+      if (!driverData.currentLocation) {
+        driverData.currentLocation = {
+          lat: 10.7626,
+          lng: 106.6823,
+          updatedAt: new Date()
+        };
+      }
+      
       const driver = new Driver(driverData);
       await driver.save();
       logger.info(`Driver created: ${driver.driverId}`);
@@ -33,13 +43,49 @@ class DriverService {
 
   async getDriverById(driverId) {
     try {
-      const driver = await Driver.findOne({ driverId });
+      const driver = await Driver.findOne({ driverId: driverId });
       if (!driver) {
         return null;
       }
       return driver;
     } catch (error) {
       logger.error("Error getting driver:", error);
+      return null;
+    }
+  }
+
+  async findOrCreateDriver(driverId, email, fullName, phone) {
+    try {
+      let driver = await Driver.findOne({ driverId: driverId });
+      
+      if (!driver) {
+        logger.info(`Driver ${driverId} not found, auto-creating...`);
+        driver = await this.createDriver({
+          driverId: String(driverId),
+          email: email,
+          phone: phone || '',
+          fullName: fullName,
+          licensePlate: `AUTO${Date.now()}`,
+          vehicleType: '4_seat',
+          status: 'offline',
+          rating: 5.0,
+          totalTrips: 0,
+          currentLocation: {
+            lat: 10.7626,
+            lng: 106.6823,
+            updatedAt: new Date()
+          }
+        });
+        
+        const walletService = require('./walletService');
+        await walletService.createWallet(driverId);
+        
+        logger.info(`✅ Auto-created driver: ${driverId}`);
+      }
+      
+      return driver;
+    } catch (error) {
+      logger.error("Error in findOrCreateDriver:", error);
       return null;
     }
   }
@@ -99,15 +145,33 @@ class DriverService {
 
   async updateDriverStatus(driverId, newStatus) {
     try {
-      const driver = await Driver.findOneAndUpdate(
-        { driverId },
-        { status: newStatus },
-        { new: true },
-      );
-
+      console.log(`🔍 updateDriverStatus called with driverId: "${driverId}", newStatus: "${newStatus}"`);
+      
+      const driver = await Driver.findOne({ driverId: driverId });
+      
       if (!driver) {
-        throw new Error("Driver not found");
+        console.log(`❌ Driver not found with driverId: "${driverId}"`);
+        const allDrivers = await Driver.find({});
+        console.log(`📊 Total drivers in DB: ${allDrivers.length}`);
+        if (allDrivers.length > 0) {
+          console.log(`📋 Driver IDs in DB: ${allDrivers.map(d => d.driverId).join(', ')}`);
+        }
+        throw new Error(`Driver not found with ID: ${driverId}`);
       }
+
+      driver.status = newStatus;
+      
+      // 🔥 Nếu chưa có vị trí, gán mặc định
+      if (!driver.currentLocation || !driver.currentLocation.lat) {
+        driver.currentLocation = {
+          lat: 10.7626,
+          lng: 106.6823,
+          updatedAt: new Date()
+        };
+        logger.info(`📍 Assigned default location to driver ${driverId}`);
+      }
+      
+      await driver.save();
 
       let lat = null;
       let lng = null;
@@ -117,38 +181,18 @@ class DriverService {
         lng = driver.currentLocation?.lng;
 
         if (!lat || !lng) {
-          lat = 10.850587;   // TP.HCM
-          lng = 106.762776;
-
-          logger.warn(
-            `⚠️ Driver ${driverId} has no location, using default (${lat}, ${lng})`,
-          );
+          lat = 10.7626;
+          lng = 106.6823;
+          logger.warn(`⚠️ Driver ${driverId} has no location, using default`);
         }
 
-        await redisGeoService.updateDriverLocation(
-          driverId,
-          lat,
-          lng,
-          "online",
-        );
+        await redisGeoService.updateDriverLocation(driverId, lat, lng, "online");
 
         const zone = pricingClient.determineZone(lat, lng);
         const onlineCount = await this.getOnlineDriversCountInZone(zone);
         await pricingClient.updateDriverCount(zone, onlineCount);
       } else if (newStatus === "offline") {
-        await redisGeoService.updateDriverLocation(
-          driverId,
-          null,
-          null,
-          "offline",
-        );
-
-        const zone = pricingClient.determineZone(
-          driver.currentLocation?.lat,
-          driver.currentLocation?.lng,
-        );
-        const onlineCount = await this.getOnlineDriversCountInZone(zone);
-        await pricingClient.updateDriverCount(zone, onlineCount);
+        await redisGeoService.updateDriverLocation(driverId, null, null, "offline");
       }
 
       await eventPublisher.publishEvent("driver.status.changed", {
@@ -158,7 +202,7 @@ class DriverService {
         timestamp: new Date().toISOString(),
       });
 
-      logger.info(`Driver ${driverId} status updated to ${newStatus}`);
+      logger.info(`✅ Driver ${driverId} status updated to ${newStatus}`);
       return driver;
     } catch (error) {
       logger.error("Error updating driver status:", error);

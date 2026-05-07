@@ -11,7 +11,7 @@ const driverSchema = new mongoose.Schema(
     phone: {
       type: String,
       required: false,
-      unique: false,  // 🔥 ĐÃ SỬA: bỏ unique
+      unique: false,
       sparse: true,
     },
     email: {
@@ -53,9 +53,9 @@ const driverSchema = new mongoose.Schema(
     },
     avatar: String,
     currentLocation: {
-      lat: Number,
-      lng: Number,
-      updatedAt: Date,
+      lat: { type: Number, default: 10.7626 },      // 🔥 Thêm default
+      lng: { type: Number, default: 106.6823 },     // 🔥 Thêm default
+      updatedAt: { type: Date, default: Date.now }, // 🔥 Thêm default
     },
   },
   {

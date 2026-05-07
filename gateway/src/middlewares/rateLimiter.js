@@ -1,9 +1,10 @@
 const rateLimit = require('express-rate-limit');
 
 // Custom handler for rate limit exceeded
-const rateLimitHandler = (req, res, options) => {
-  res.status(options.statusCode).json({
-    message: options.message,
+const rateLimitHandler = (req, res, next, options) => {
+  const statusCode = options?.statusCode || 429;
+  res.status(statusCode).json({
+    message: options?.message || 'Too many requests',
     retryAfter: req.rateLimit ? req.rateLimit.resetTime : null
   });
 };
