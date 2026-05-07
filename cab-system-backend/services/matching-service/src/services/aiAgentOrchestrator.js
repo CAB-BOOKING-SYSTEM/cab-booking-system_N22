@@ -136,9 +136,13 @@ class AIAgentOrchestrator {
         log(`✅ ETA prediction: ${etaResult.eta_minutes} min`);
 
         // Attach ETA to top driver for response
+        // Code mới siêu tường minh
         for (const sd of scoredDrivers) {
-          sd.eta_minutes = etaResult.eta_minutes;
+          sd.waiting_eta_minutes = sd.eta_minutes; // Giữ lại ETA rước khách
+          sd.trip_eta_minutes = etaResult.eta_minutes; // Thêm ETA chuyến đi
+          sd.eta_minutes = etaResult.eta_minutes; // Giữ nguyên để tương thích Frontend cũ
         }
+
       } catch (etaErr) {
         log(`⚠️ ETA prediction failed: ${etaErr.message}. Using distance-based estimate.`);
       }
@@ -150,12 +154,13 @@ class AIAgentOrchestrator {
     for (let i = 0; i < scoredDrivers.length; i++) {
       const d = scoredDrivers[i];
       const features = featuresMap[d.driver_id] || {};
+      // Code log mới
       log(
         `📊 #${i + 1} Driver ${d.driver_id}: ` +
         `score=${d.match_score}, dist=${d.distance_km}km, ` +
-        `rating=${d.driver_rating || features.rating || 'N/A'}, ` +
-        `eta=${d.eta_minutes || 'N/A'}min`
+        `waiting_eta=${d.waiting_eta_minutes}min, trip_eta=${d.trip_eta_minutes}min`
       );
+
     }
 
     if (scoredDrivers.length >= 2) {
@@ -318,9 +323,9 @@ class AIAgentOrchestrator {
     const a =
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
       Math.cos((lat1 * Math.PI) / 180) *
-        Math.cos((lat2 * Math.PI) / 180) *
-        Math.sin(dLon / 2) *
-        Math.sin(dLon / 2);
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
   }
