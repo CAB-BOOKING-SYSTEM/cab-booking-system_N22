@@ -98,7 +98,7 @@ async function createDriverInDriverService(user) {
     const response = await axios.post(
       `${DRIVER_SERVICE_URL}/api/drivers/internal/create`,
       {
-        driverId,
+        driverId: user.driver_id || String(user.id),
         email: user.email,
         phone: user.phone_number || "",
         fullName: user.username,
@@ -338,13 +338,23 @@ export const logout = async (req, res) => {
     const accessToken = req.headers.authorization?.split(" ")[1];
 
     if (accessToken) {
-      const ttl = Math.floor((jwt.decode(accessToken).exp * 1000 - Date.now()) / 1000);
-      if (ttl > 0) await blacklistToken(accessToken, ttl);
+      try {
+        const decodedAccess = jwt.decode(accessToken);
+        const ttl = Math.floor((decodedAccess.exp * 1000 - Date.now()) / 1000);
+        if (ttl > 0) {
+          await blacklistToken(accessToken, ttl);
+        }
+      } catch { }
     }
 
     if (refreshToken) {
-      const ttl = Math.floor((jwt.decode(refreshToken).exp * 1000 - Date.now()) / 1000);
-      if (ttl > 0) await blacklistToken(refreshToken, ttl);
+      try {
+        const decodedRefresh = jwt.decode(refreshToken);
+        const ttl = Math.floor((decodedRefresh.exp * 1000 - Date.now()) / 1000);
+        if (ttl > 0) {
+          await blacklistToken(refreshToken, ttl);
+        }
+      } catch { }
 
       const userId = jwt.decode(refreshToken)?.sub;
       if (userId) await redisClient.del(`refresh:${userId}`);
