@@ -42,16 +42,16 @@ async function getAISurge(demandIndex, supplyRatio, hourOfDay, isHoliday = 0, is
  * Rule-based fallback: tính surge bằng demand/supply đơn giản.
  */
 function ruleBasedSurge(demand, supply) {
-  let surge;
+  let surgeValue;
   if (supply === 0) {
-    surge = Math.max(1.0, demand);
+    surgeValue = Math.max(1.0, demand);
   } else {
-    surge = demand / supply;
+    surgeValue = demand / supply;
   }
   // Giới hạn surge từ 1.0 đến 3.0
-  surge = Math.min(Math.max(surge, 1.0), 3.0);
-  surge = Math.round(surge * 10) / 10;
-  return surge;
+  surgeValue = Math.min(Math.max(surgeValue, 1.0), 3.0);
+  surgeValue = Math.round(surgeValue * 10) / 10;
+  return surgeValue;
 }
 
 // Chạy mỗi 5 phút
@@ -69,13 +69,13 @@ function startSurgeAIJob() {
         const supply = parseInt(await redisClient.get(`drivers:${zone}:online:count`) || 0);
         const demand = parseInt(await redisClient.get(`requests:${zone}:pending:count`) || 0);
         const surgePrediction = await computeSurge({ zone, supply, demand });
-        const surge = surgePrediction.multiplier;
+        let surge = surgePrediction.multiplier;
         
         // Tính demand_index và supply_ratio cho AI model
         const demandIndex = Math.min(demand, 10); // Clamp 0-10 (model limit)
         const supplyRatio = supply > 0 ? Math.min(supply / Math.max(demand, 1), 1.0) : 0.01;
         
-        let surge;
+        let finalSurge;
         let modelVersion;
         let source;
         
@@ -83,15 +83,15 @@ function startSurgeAIJob() {
         const aiResult = await getAISurge(demandIndex, supplyRatio, currentHour);
         
         if (aiResult) {
-          surge = aiResult.surge;
+          finalSurge = aiResult.surge;
           modelVersion = aiResult.modelVersion;
           source = aiResult.source;
-          console.log(`   🤖 AI Surge: zone=${zone}, surge=${surge}x (model: ${modelVersion})`);
+          console.log(`   🤖 AI Surge: zone=${zone}, surge=${finalSurge}x (model: ${modelVersion})`);
         } else {
-          surge = ruleBasedSurge(demand, supply);
+          finalSurge = ruleBasedSurge(demand, supply);
           modelVersion = 'rule-based-fallback';
           source = 'rule-based';
-          console.log(`   📐 Rule-based Surge: zone=${zone}, surge=${surge}x (fallback)`);
+          console.log(`   📐 Rule-based Surge: zone=${zone}, surge=${finalSurge}x (fallback)`);
         }
         
         // Lấy surge cũ để so sánh
@@ -108,7 +108,7 @@ function startSurgeAIJob() {
         
         // Lưu surge mới vào Redis (kèm model version + source)
         const surgeData = {
-          multiplier: surge,
+          multiplier: finalSurge,
           modelVersion: modelVersion,
           source: source,
           supply: supply,
@@ -116,15 +116,15 @@ function startSurgeAIJob() {
           updatedAt: new Date().toISOString()
         };
         await redisClient.set(`surge:${zone}`, JSON.stringify(surgeData));
-        await Surge.create(zone, surge);
+        await Surge.create(zone, finalSurge);
         
-        console.log(`📍 ${zone}: Supply=${supply}, Demand=${demand}, Surge=${surge}x (old=${oldSurge}x, source=${source})`);
+        console.log(`📍 ${zone}: Supply=${supply}, Demand=${demand}, Surge=${finalSurge}x (old=${oldSurge}x, source=${source})`);
         
-        if (surge !== oldSurge) {
+        if (finalSurge !== oldSurge) {
           await publishEvent('pricing.surge.updated', {
             zone: zone,
             oldMultiplier: oldSurge,
-            newMultiplier: surge,
+            newMultiplier: finalSurge,
             supply: supply,
             demand: demand,
             modelVersion: modelVersion,

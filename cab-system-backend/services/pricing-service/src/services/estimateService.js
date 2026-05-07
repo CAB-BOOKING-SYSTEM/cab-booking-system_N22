@@ -66,6 +66,7 @@ const calculateEstimate = async ({ pickupLat, pickupLng, dropoffLat, dropoffLng,
   let finalDistance = parseFloat(distance) || 0;
   let finalDuration = parseInt(duration) || 0;
   let etaSource = 'client-provided';
+  let etaModelVersion = 'none';
   
   if (pickupLat && pickupLng && dropoffLat && dropoffLng) {
     try {
@@ -104,20 +105,39 @@ const calculateEstimate = async ({ pickupLat, pickupLng, dropoffLat, dropoffLng,
   let surgeModelVersion = 'rule-based-fallback';
   let surgeSource = 'default';
   
-  const surgeRaw = await redisClient.get(`surge:${zone}`);
-  if (surgeRaw) {
-    try {
-      // Format mới: JSON có multiplier và modelVersion
-      const surgeData = JSON.parse(surgeRaw);
-      surgeMultiplier = surgeData.multiplier;
-      surgeModelVersion = surgeData.modelVersion || 'unknown';
-      surgeSource = surgeData.source || 'redis';
-    } catch (e) {
-      // Format cũ: chỉ là số
-      surgeMultiplier = parseFloat(surgeRaw);
-      surgeModelVersion = 'legacy-v1';
-      surgeSource = 'legacy';
+  if (isSurgeFeatureEnabled()) {
+    const surgeRaw = await redisClient.get(`surge:${finalZone}`);
+    if (surgeRaw) {
+      try {
+        const surgeData = JSON.parse(surgeRaw);
+        surgeMultiplier = surgeData.multiplier;
+        surgeModelVersion = surgeData.modelVersion || 'unknown';
+        surgeSource = surgeData.source || 'redis';
+      } catch (e) {
+        surgeMultiplier = parseFloat(surgeRaw);
+        surgeModelVersion = 'legacy-v1';
+        surgeSource = 'legacy';
+      }
+    } else {
+      const persistedSurge = await pricingRepository.getSurge(finalZone);
+      if (persistedSurge !== null && persistedSurge !== undefined) {
+        surgeMultiplier = parseFloat(persistedSurge);
+        surgeModelVersion = 'db-fallback';
+        surgeSource = 'postgres';
+      } else {
+        const supply = parseInt(await redisClient.get(`drivers:${finalZone}:online:count`) || 0);
+        const demand = parseInt(await redisClient.get(`requests:${finalZone}:pending:count`) || 0);
+        const surgePrediction = await computeSurge({ zone: finalZone, supply, demand });
+        surgeMultiplier = surgePrediction.multiplier;
+        surgeModelVersion = surgePrediction.modelVersion;
+        surgeSource = surgePrediction.source;
+      }
     }
+  } else {
+    const persistedSurge = await pricingRepository.getSurge(finalZone);
+    surgeMultiplier = parseFloat(persistedSurge ?? 1.0);
+    surgeModelVersion = 'legacy-db-only';
+    surgeSource = 'postgres';
   }
   
   console.log('Pricing config:', {
@@ -125,47 +145,28 @@ const calculateEstimate = async ({ pickupLat, pickupLng, dropoffLat, dropoffLng,
     per_km_rate: pricingConfig.per_km_rate,
     per_minute_rate: pricingConfig.per_minute_rate
   });
-  console.log(`Surge multiplier for ${zone}: ${surgeMultiplier} (model: ${surgeModelVersion}, source: ${surgeSource})`);
+  console.log(`Surge multiplier for ${finalZone}: ${surgeMultiplier} (model: ${surgeModelVersion}, source: ${surgeSource})`);
   
-  // 3. Gọi AI ETA nếu có tọa độ pickup/dropoff
-  let finalDuration = Number(duration) || 0;
-  let etaSource = 'booking-provided';
-  let etaModelVersion = 'none';
-  
-  if (pickupLat && pickupLng && dropoffLat && dropoffLng && distance > 0) {
-    const aiEta = await getAIEta(Number(distance), pickupLat, pickupLng, dropoffLat, dropoffLng);
-    
-    if (aiEta) {
-      // Dùng ETA từ AI model thay cho duration gốc
-      finalDuration = aiEta.eta_minutes;
-      etaSource = aiEta.source;
-      etaModelVersion = aiEta.model_version;
-      console.log(`✅ Using AI ETA for pricing: ${finalDuration} minutes (source: ${etaSource})`);
-    } else {
-      console.log(`📐 Using booking-provided duration for pricing: ${finalDuration} minutes (fallback)`);
-    }
-  }
-  
-  // 4. Tính giá (dùng ETA từ AI hoặc duration gốc)
+  // 5. Tính giá (dùng distance và duration đã có)
   const fare = pricingService.calculateFare({
     baseFare: Number(pricingConfig.base_fare),
     perKmRate: Number(pricingConfig.per_km_rate),
     perMinuteRate: Number(pricingConfig.per_minute_rate),
-    distance: Number(distance),
+    distance: finalDistance,
     duration: finalDuration,
     surgeMultiplier: Number(surgeMultiplier)
   });
   
-  console.log(`Calculated fare: ${fare} VND (surge: ${surgeMultiplier}x [${surgeSource}], eta: ${finalDuration}min [${etaSource}])`);
+  console.log(`💰 Calculated fare: ${fare} VND (${finalDistance}km, ${finalDuration}min, surge: ${surgeMultiplier}x [${surgeSource}], eta: ${etaSource})`);
   
-  // 5. Cache kết quả vào Redis
+  // 6. Cache kết quả vào Redis
   const cacheKey = `estimate:${requestId}`;
   await redisClient.setEx(cacheKey, 300, JSON.stringify({
     requestId,
     vehicleType,
-    distance,
+    distance: finalDistance,
     duration: finalDuration,
-    zone,
+    zone: finalZone,
     surgeMultiplier: parseFloat(surgeMultiplier),
     surgeModelVersion: surgeModelVersion,
     surgeSource: surgeSource,
@@ -177,14 +178,14 @@ const calculateEstimate = async ({ pickupLat, pickupLng, dropoffLat, dropoffLng,
     timestamp: new Date().toISOString()
   }));
   
-  // 6. Gửi event RabbitMQ
+  // 7. Gửi event RabbitMQ
   await publishEvent('pricing.estimate.calculated', {
     requestId,
     userId,
     vehicleType,
-    distance,
+    distance: finalDistance,
     duration: finalDuration,
-    zone,
+    zone: finalZone,
     pickupLat,
     pickupLng,
     dropoffLat,
@@ -200,13 +201,13 @@ const calculateEstimate = async ({ pickupLat, pickupLng, dropoffLat, dropoffLng,
     timestamp: new Date().toISOString()
   });
   
-  // 7. Trả về kết quả (có modelVersion và source)
+  // 8. Trả về kết quả
   return {
     requestId,
     vehicleType,
-    distance,
+    distance: finalDistance,
     duration: finalDuration,
-    zone,
+    zone: finalZone,
     surgeMultiplier: parseFloat(surgeMultiplier),
     surgeModelVersion: surgeModelVersion,
     surgeSource: surgeSource,
