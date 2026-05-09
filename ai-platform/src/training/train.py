@@ -16,6 +16,7 @@ from sklearn.ensemble import (
     GradientBoostingRegressor,
     RandomForestClassifier,
     GradientBoostingClassifier,
+    HistGradientBoostingRegressor,
 )
 from sklearn.linear_model import Ridge
 from sklearn.model_selection import train_test_split
@@ -285,11 +286,27 @@ def train_matching_model(version='1.0.0'):
     X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled = scaler.transform(X_test)
 
-    model = GradientBoostingRegressor(
-        n_estimators=200,
+    # Monotonic Constraints (TC53: AI phải tuân thủ logic nghiệp vụ)
+    # Feature order: distance_km, driver_rating, acceptance_rate,
+    #                avg_response_time_sec, completed_trips, eta_minutes, price_estimate
+    # -1 = càng THẤP càng TỐT (distance gần, ETA nhanh, giá rẻ, phản hồi nhanh)
+    # +1 = càng CAO càng TỐT (rating cao, acceptance cao, trips nhiều)
+    monotonic_cst = [
+        -1,  # distance_km: gần hơn = tốt hơn
+         1,  # driver_rating: cao hơn = tốt hơn
+         1,  # acceptance_rate: cao hơn = tốt hơn
+        -1,  # avg_response_time_sec: nhanh hơn = tốt hơn
+         1,  # completed_trips: nhiều hơn = tốt hơn
+        -1,  # eta_minutes: nhanh hơn = tốt hơn
+        -1,  # price_estimate: rẻ hơn = tốt hơn
+    ]
+
+    model = HistGradientBoostingRegressor(
+        max_iter=200,
         max_depth=5,
         learning_rate=0.1,
         random_state=42,
+        monotonic_cst=monotonic_cst,
     )
     model.fit(X_train_scaled, y_train)
 
@@ -325,6 +342,22 @@ def train_matching_model(version='1.0.0'):
     s1 = model.predict(scaler.transform(d1))[0]
     s2 = model.predict(scaler.transform(d2))[0]
     print(f"  ✅ TC51/52 Validation: D1(close+good)={s1:.4f} vs D2(far+low)={s2:.4f} -> D1 wins: {s1 > s2}")
+
+    # Validate TC53: ETA monotonicity - lower ETA MUST score higher
+    d_fast = pd.DataFrame([{
+        'distance_km': 2.0, 'driver_rating': 5.0, 'acceptance_rate': 0.9,
+        'avg_response_time_sec': 30, 'completed_trips': 0,
+        'eta_minutes': 5, 'price_estimate': 40000
+    }])
+    d_slow = pd.DataFrame([{
+        'distance_km': 2.0, 'driver_rating': 5.0, 'acceptance_rate': 0.9,
+        'avg_response_time_sec': 30, 'completed_trips': 0,
+        'eta_minutes': 8, 'price_estimate': 40000
+    }])
+    s_fast = model.predict(scaler.transform(d_fast))[0]
+    s_slow = model.predict(scaler.transform(d_slow))[0]
+    print(f"  ✅ TC53 Validation: ETA=5min -> {s_fast:.4f} vs ETA=8min -> {s_slow:.4f} -> Fast wins: {s_fast > s_slow}")
+    assert s_fast > s_slow, f"TC53 FAIL: ETA=5({s_fast}) should > ETA=8({s_slow})"
 
 
 def train_demand_forecast_model(version='1.0.0'):
