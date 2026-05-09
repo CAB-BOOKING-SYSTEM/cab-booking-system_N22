@@ -181,7 +181,7 @@ class MatchingService {
         await MatchingRequest.updateStatus(pool, rideId, "matched");
 
         // 🔥 THÊM: Chuyển trạng thái driver sang busy cho legacy fallback
-        await this.updateDriverStatusToBusy(legacyMatch.driverId, traceId);
+        //await this.updateDriverStatusToBusy(legacyMatch.driverId, traceId);
 
         return {
           success: true,
@@ -239,17 +239,17 @@ class MatchingService {
         matchedAt: new Date().toISOString(),
       };
 
-      await redisClient.cacheMatchResult(rideId, matchResult, 300);
-      await MatchingRequest.updateStatus(pool, rideId, "matched");
+      //await redisClient.cacheMatchResult(rideId, matchResult, 300);
+      //await MatchingRequest.updateStatus(pool, rideId, "matched");
 
       // 🔥 THÊM: Chuyển trạng thái driver sang busy
-      await this.updateDriverStatusToBusy(topDriver.driver_id, traceId);
+      //await this.updateDriverStatusToBusy(topDriver.driver_id, traceId);
 
       const duration = Date.now() - startTime;
       logger.info(
         `[${traceId}] ✅ Matching completed for ride ${rideId} in ${duration}ms, ` +
-          `ETA: ${etaMinutes} min, AI Score: ${topDriver.match_score}, ` +
-          `Fallback: ${usedFallback}, Model: ${agentResult.meta.modelVersion}`,
+        `ETA: ${etaMinutes} min, AI Score: ${topDriver.match_score}, ` +
+        `Fallback: ${usedFallback}, Model: ${agentResult.meta.modelVersion}`,
       );
 
       this.publishMatchEvent(matchResult).catch((err) => {
@@ -284,7 +284,7 @@ class MatchingService {
     try {
       const internalSecret = process.env.INTERNAL_SECRET || "cab-internal-2024";
       const driverServiceUrl = process.env.DRIVER_SERVICE_URL || "https://driver-service:3003";
-      
+
       await axios.post(
         `${driverServiceUrl}/api/drivers/internal/status`,
         {
@@ -412,13 +412,13 @@ class MatchingService {
 
       logger.info(
         `📤 DriverMatched event published to Event Broker for ride ${matchResult.rideId}, ` +
-          `driver: ${matchResult.driverId}`,
+        `driver: ${matchResult.driverId}`,
       );
 
       // Close channel after short delay to ensure message is sent
       setTimeout(() => {
-        ch.close().catch(() => {});
-        conn.close().catch(() => {});
+        ch.close().catch(() => { });
+        conn.close().catch(() => { });
       }, 500);
     } catch (error) {
       logger.error(
@@ -486,9 +486,9 @@ class MatchingService {
         successRate:
           result.rows[0].total_requests > 0
             ? (
-                (result.rows[0].matched_count / result.rows[0].total_requests) *
-                100
-              ).toFixed(2)
+              (result.rows[0].matched_count / result.rows[0].total_requests) *
+              100
+            ).toFixed(2)
             : 0,
         avgMatchingTimeSec:
           parseFloat(result.rows[0].avg_matching_time_sec) || 0,
